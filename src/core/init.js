@@ -1,8 +1,9 @@
 // init.js — Application initialization
 import { initDB, sql, run, persist } from './db.js';
-import { renderAll } from './render.js';
-import { bindEvents } from './events.js';
-import { esc, modal, closeModal, notify } from './utils.js';
+import { renderAll, initStatic } from './render.js';
+import { esc, notify } from './utils.js';
+import { modal, closeModal } from './sheet.js';
+import { on } from './listeners.js';
 
 let currentOrderId = null;
 
@@ -16,8 +17,8 @@ export async function initApp() {
   }
   
   await loadCurrentOrder();
-  bindEvents();
   renderAll();
+  initStatic();
 }
 
 async function promptUserName() {
@@ -30,7 +31,7 @@ async function promptUserName() {
       </form>
     `);
     
-    document.getElementById('nameForm').addEventListener('submit', async e => {
+    on(document.getElementById('nameForm'), 'submit', async e => {
       e.preventDefault();
       const name = new FormData(e.target).get('name').trim();
       run('INSERT INTO customers(name, is_self) VALUES(?, 1)', [name]);

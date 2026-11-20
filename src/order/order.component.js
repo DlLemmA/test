@@ -5,6 +5,7 @@ import { openItemForm, moveItem, weighItem } from '../items/items.js';
 import { openOrderForm } from './order.js';
 import { createOrder } from '../core/init.js';
 import { esc, kg, money, I } from '../core/utils.js';
+import { on } from '../core/listeners.js';
 
 export function renderOrderView() {
   const o = getCurrentOrder();
@@ -18,7 +19,7 @@ export function renderOrderView() {
         <button class="btn-secondary" id="createFirstOrder">Создать заказ</button>
       </div>
     `;
-    document.getElementById('createFirstOrder')?.addEventListener('click', async () => {
+    on(document.getElementById('createFirstOrder'), 'click', async () => {
       await createOrder();
       renderOrderView();
     });
@@ -86,19 +87,19 @@ export function renderOrderView() {
 }
 
 function bindOrderActions(o) {
-  document.getElementById('openReceive')?.addEventListener('click', () => openReceive(o.id));
-  document.getElementById('editOrder')?.addEventListener('click', () => openOrderForm(o.id));
-  document.getElementById('exportOrder')?.addEventListener('click', () => exportOrder(o));
-  document.getElementById('addItem')?.addEventListener('click', () => openItemForm(null, ''));
+  on(document.getElementById('openReceive'), 'click', () => openReceive(o.id));
+  on(document.getElementById('editOrder'), 'click', () => openOrderForm(o.id));
+  on(document.getElementById('exportOrder'), 'click', () => exportOrder(o));
+  on(document.getElementById('addItem'), 'click', () => openItemForm(null, ''));
   
   document.querySelectorAll('[data-edit]').forEach(b => {
-    b.addEventListener('click', () => openItemForm(parseInt(b.dataset.edit)));
+    on(b, 'click', () => openItemForm(parseInt(b.dataset.edit)));
   });
   document.querySelectorAll('[data-move]').forEach(b => {
-    b.addEventListener('click', () => moveItem(parseInt(b.dataset.move)));
+    on(b, 'click', () => moveItem(parseInt(b.dataset.move)));
   });
   document.querySelectorAll('[data-weigh]').forEach(b => {
-    b.addEventListener('click', () => weighItem(parseInt(b.dataset.weigh)));
+    on(b, 'click', () => weighItem(parseInt(b.dataset.weigh)));
   });
 }
 

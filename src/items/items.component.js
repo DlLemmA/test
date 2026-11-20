@@ -1,8 +1,7 @@
 // items.component.js — Items view UI
 import { itemsFor, calc, itemHtml, openItemForm, moveItem, weighItem } from './items.js';
 import { getCurrentOrder } from '../core/render.js';
-import { renderAll } from '../core/render.js';
-import { esc, notify, modal, closeModal } from '../core/utils.js';
+import { on } from '../core/listeners.js';
 
 export function renderItemsView() {
   const root = document.getElementById('itemsView');
@@ -27,7 +26,7 @@ export function renderItemsView() {
 
   // Debounced search (150ms)
   let searchTimer = null;
-  document.getElementById('itemSearch').addEventListener('input', e => {
+  on(document.getElementById('itemSearch'), 'input', e => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       const q = e.target.value.toLowerCase();
@@ -43,12 +42,12 @@ export function renderItemsView() {
 
 function bindItemActions() {
   document.querySelectorAll('[data-edit]').forEach(b => {
-    b.addEventListener('click', () => openItemForm(parseInt(b.dataset.edit)));
+    on(b, 'click', () => openItemForm(parseInt(b.dataset.edit)));
   });
   document.querySelectorAll('[data-move]').forEach(b => {
-    b.addEventListener('click', () => moveItem(parseInt(b.dataset.move)));
+    on(b, 'click', () => moveItem(parseInt(b.dataset.move)));
   });
   document.querySelectorAll('[data-weigh]').forEach(b => {
-    b.addEventListener('click', () => weighItem(parseInt(b.dataset.weigh)));
+    on(b, 'click', () => weighItem(parseInt(b.dataset.weigh)));
   });
 }

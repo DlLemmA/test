@@ -7,8 +7,20 @@ import { renderItemsView } from '../items/items.component.js';
 import { renderPeopleView } from '../customers/customers.component.js';
 import { renderHistoryView } from '../history/history.component.js';
 import { esc, kg, money } from './utils.js';
+import { destroy } from './listeners.js';
+import { renderBottomBar, bindBottomBar } from './bottombar.component.js';
+import { bindHeader } from './header.component.js';
 
+/** Render header + bottom bar once. Listeners are not registered with on(), so destroy() never touches them. */
+export function initStatic() {
+  renderBottomBar();
+  bindBottomBar();
+  bindHeader();
+}
+
+/** Re-render only the 4 panel views. Cleans up old panel listeners first. */
 export function renderAll() {
+  destroy();
   renderOrderView();
   renderItemsView();
   renderPeopleView();

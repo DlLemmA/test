@@ -1,92 +1,17 @@
-// events.js — Event handlers, modals, scanner, export
+// events.js — Standalone event handlers: tab switching, backup, scanner, export
 import { sql, run, one, persist } from './db.js';
-import { getCurrentOrderId, setCurrentOrderId, createOrder } from './init.js';
-import { seedDemo } from './demo-seed.js';
-import { renderAll } from './render.js';
-import { customerList } from '../customers/customers.js';
-import { openItemForm, moveItem, weighItem, itemsFor, itemHtml } from '../items/items.js';
-import { esc, kg, money, dateNow, notify, modal, closeModal, confirmSheet, I } from './utils.js';
-import { openOrderForm, switchOrder, deleteOrder } from '../order/order.js';
-import { getCurrentOrder } from './render.js';
-import { renderBottomBar, setActiveTab } from './bottombar.component.js';
-import { on, destroy } from './listeners.js';
+import { getCurrentOrderId } from './init.js';
+import { renderAll, getCurrentOrder } from './render.js';
+import { openItemForm, weighItem, itemsFor, calc } from '../items/items.js';
+import { esc, kg, money, notify, I } from './utils.js';
+import { modal, closeModal, confirmSheet } from './sheet.js';
+import { setActiveTab } from './bottombar.component.js';
+import { on } from './listeners.js';
 
 let html5QrcodeScanner = null;
 
-// Main event binding
-export function bindEvents() {
-  // Render bottom bar
-  renderBottomBar();
-  
-  // Re-attach tab listeners after innerHTML
-  document.querySelectorAll('.bottombar-item').forEach(btn => {
-    on(btn, 'click', () => switchTab(btn.dataset.tab));
-  });
-  
-  // Header buttons
-  on(document.getElementById('demoBtn'), 'click', async () => {
-    await seedDemo();
-    renderAll();
-    notify('Демо данные загружены');
-  });
-  
-  on(document.getElementById('backupBtn'), 'click', openBackupModal);
-  
-  // Topbar button labels (no icons)
-  const demoBtn = document.getElementById('demoBtn');
-  const backupBtn = document.getElementById('backupBtn');
-  if (demoBtn) demoBtn.textContent = 'Демо';
-  if (backupBtn) backupBtn.textContent = 'Резерв';
-
-  // Order view actions (delegated)
-  on(document.getElementById('orderView'), 'click', e => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    if (btn.id === 'openReceive') openReceive(getCurrentOrderId());
-    if (btn.id === 'editOrder') openOrderForm(getCurrentOrderId());
-    if (btn.id === 'exportOrder') exportOrder(getCurrentOrder());
-    if (btn.id === 'addItem') openItemForm(null, '');
-    if (btn.id === 'createFirstOrder') createOrder().then(renderAll);
-    if (btn.dataset.edit) openItemForm(parseInt(btn.dataset.edit));
-    if (btn.dataset.move) moveItem(parseInt(btn.dataset.move));
-    if (btn.dataset.weigh) weighItem(parseInt(btn.dataset.weigh));
-  });
-
-  // Items view search
-  const searchInput = document.getElementById('itemSearch');
-  if (searchInput) {
-    on(searchInput, 'input', e => {
-      const q = e.target.value.toLowerCase();
-      const o = getCurrentOrder();
-      if (!o) return;
-      const list = itemsFor(o.id);
-      document.getElementById('allItems').innerHTML = list.filter(i => 
-        [i.name, i.track, i.customer_name].join(' ').toLowerCase().includes(q)
-      ).map(i => itemHtml(i, 'В процессе')).join('') || '<div class="empty">Ничего не найдено</div>';
-    });
-  }
-
-  // People view actions
-  on(document.getElementById('peopleView'), 'click', e => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    if (btn.id === 'addCustomer') openCustomerForm();
-    if (btn.dataset.editCustomer) openCustomerForm(parseInt(btn.dataset.editCustomer));
-    if (btn.dataset.delCustomer) deleteCustomer(parseInt(btn.dataset.delCustomer));
-  });
-
-  // History view actions
-  on(document.getElementById('historyView'), 'click', e => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    if (btn.dataset.switch) switchOrder(parseInt(btn.dataset.switch));
-    if (btn.dataset.export) exportOrder(one('SELECT * FROM orders WHERE id=?', [parseInt(btn.dataset.export)]));
-    if (btn.dataset.del) deleteOrder(parseInt(btn.dataset.del));
-  });
-}
-
-function switchTab(tab) {
-  // Highlight active tab button (immediate)
+// === Tab switching (called from bottombar.component.js) ===
+export function switchTab(tab) {
   setActiveTab(tab);
 
   const apply = () => {
@@ -96,7 +21,6 @@ function switchTab(tab) {
     });
   };
 
-  // Use View Transition API where available (iOS Safari 16.4+ etc.)
   if (document.startViewTransition) {
     document.startViewTransition(apply);
   } else {
@@ -104,16 +28,8 @@ function switchTab(tab) {
   }
 }
 
-async function deleteCustomer(id) {
-  confirmSheet('Удалить заказчика', 'Заказчик будет удалён.', 'Удалить', async () => {
-    run('DELETE FROM customers WHERE id=?', [id]);
-    await persist();
-    renderAll();
-  });
-}
-
-// === Customer form ===
-function openCustomerForm(id = null) {
+// === Customer form (called from customers.component.js) ===
+export function openCustomerForm(id = null) {
   const c = id ? one('SELECT * FROM customers WHERE id=?', [id]) : null;
   const isNew = !c;
   
@@ -143,8 +59,16 @@ function openCustomerForm(id = null) {
   });
 }
 
+export async function deleteCustomer(id) {
+  confirmSheet('Удалить заказчика', 'Заказчик будет удалён.', 'Удалить', async () => {
+    run('DELETE FROM customers WHERE id=?', [id]);
+    await persist();
+    renderAll();
+  });
+}
+
 // === Receive / Scanner ===
-function openReceive(orderId) {
+export function openReceive(orderId) {
   const o = one('SELECT * FROM orders WHERE id=?', [orderId]);
   if (!o) return;
   
@@ -201,26 +125,24 @@ function openReceive(orderId) {
     </div>
   `);
 
-  // Save box info
+  // Save box info — update DB only, no renderAll() (sheet would die)
   on(document.getElementById('boxWeight'), 'change', async () => {
     const w = parseInt(document.getElementById('boxWeight').value);
     run('UPDATE orders SET box_weight_g=? WHERE id=?', [w, orderId]);
     await persist();
-    renderAll();
+    // Order view will update on next tab switch
   });
   
   on(document.getElementById('shippingCost'), 'change', async () => {
     const c = parseFloat(document.getElementById('shippingCost').value);
     run('UPDATE orders SET shipping_cost=? WHERE id=?', [c, orderId]);
     await persist();
-    renderAll();
   });
   
   on(document.getElementById('shippedAt'), 'change', async () => {
     const d = document.getElementById('shippedAt').value;
     run('UPDATE orders SET shipped_at=? WHERE id=?', [d, orderId]);
     await persist();
-    renderAll();
   });
 
   // Manual weigh buttons
@@ -319,7 +241,7 @@ function chooseExisting(code) {
 }
 
 // === Backup/Restore ===
-function openBackupModal() {
+export function openBackupModal() {
   modal('База / резерв', `
     <div class="panel">
       <h3>Экспорт базы (SQLite .db)</h3>
@@ -362,7 +284,7 @@ function openBackupModal() {
 }
 
 // === Excel Export ===
-async function exportOrder(o) {
+export async function exportOrder(o) {
   if (!window.XLSX) {
     notify('Загрузка Excel...', 'info', { persistent: true });
     await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
@@ -419,5 +341,18 @@ async function exportOrder(o) {
   notify('Excel сохранён');
 }
 
-// === Helpers ===
-export { openReceive, exportOrder };
+// === History actions (called from history.component.js) ===
+export function switchToOrder(id) {
+  import('./init.js').then(m => m.setCurrentOrderId(id));
+  renderAll();
+}
+
+export async function deleteOrder(id) {
+  confirmSheet('Удалить заказ', 'Заказ будет удалён со всеми товарами. Это действие нельзя отменить.', 'Удалить', async () => {
+    run('DELETE FROM items WHERE order_id=?', [id]);
+    run('DELETE FROM orders WHERE id=?', [id]);
+    await persist();
+    renderAll();
+    notify('Заказ удалён');
+  });
+}

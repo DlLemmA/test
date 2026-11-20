@@ -1,6 +1,8 @@
 // customers.component.js — Customers view UI
-import { customerList, openCustomerForm, deleteCustomer } from './customers.js';
+import { customerList } from './customers.js';
+import { openCustomerForm, deleteCustomer } from '../core/events.js';
 import { esc, I } from '../core/utils.js';
+import { on } from '../core/listeners.js';
 
 export function renderPeopleView() {
   const root = document.getElementById('peopleView');
@@ -25,12 +27,12 @@ export function renderPeopleView() {
     </div>
   `;
 
-  document.getElementById('addCustomer')?.addEventListener('click', () => openCustomerForm());
+  on(document.getElementById('addCustomer'), 'click', () => openCustomerForm());
   document.querySelectorAll('[data-edit-customer]').forEach(b => {
-    b.addEventListener('click', () => openCustomerForm(parseInt(b.dataset.editCustomer)));
+    on(b, 'click', () => openCustomerForm(parseInt(b.dataset.editCustomer)));
   });
   document.querySelectorAll('[data-del-customer]').forEach(b => {
-    b.addEventListener('click', async () => {
+    on(b, 'click', async () => {
       await deleteCustomer(parseInt(b.dataset.delCustomer));
     });
   });
