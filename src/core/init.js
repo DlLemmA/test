@@ -2,15 +2,44 @@
 import { initDB, sql, run, persist } from './db.js';
 import { renderAll } from './render.js';
 import { bindEvents } from './events.js';
+import { esc, modal, closeModal, notify } from './utils.js';
 
 let currentOrderId = null;
 
 export async function initApp() {
   await initDB();
+  
+  // Check if this is first run — no customers yet
+  const customers = sql('SELECT * FROM customers');
+  if (!customers.length) {
+    await promptUserName();
+  }
+  
   await loadCurrentOrder();
-  console.log('bind events')
   bindEvents();
   renderAll();
+}
+
+async function promptUserName() {
+  return new Promise(resolve => {
+    modal('Добро пожаловать!', `
+      <div class="notice">Давайте начнём с вашего имени.</div>
+      <form id="nameForm">
+        <div class="field"><label>Ваше имя *</label><input name="name" required autocomplete="name" autofocus placeholder="Иван"></div>
+        <div class="actions"><button type="submit">Продолжить</button></div>
+      </form>
+    `);
+    
+    document.getElementById('nameForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = new FormData(e.target).get('name').trim();
+      run('INSERT INTO customers(name, is_self) VALUES(?, 1)', [name]);
+      await persist();
+      closeModal();
+      notify('Привет, ' + esc(name) + '!');
+      resolve();
+    });
+  });
 }
 
 export async function loadCurrentOrder() {
