@@ -1,6 +1,7 @@
 // order.component.js — Order view UI (current order panel, metrics, per-customer summary, items list)
 import { getCurrentOrder, calc, itemsFor, itemHtml } from '../core/render.js';
-import { openReceive, exportOrder, openItemForm, moveItem, weighItem } from '../core/events.js';
+import { openReceive, exportOrder } from '../core/events.js';
+import { openItemForm, moveItem, weighItem } from '../items/items.js';
 import { openOrderForm } from './order.js';
 import { createOrder } from '../core/init.js';
 import { esc, kg, money } from '../core/utils.js';

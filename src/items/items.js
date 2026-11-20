@@ -1,0 +1,156 @@
+// items.js — Item business logic
+import { sql, run, one, persist } from '../core/db.js';
+import { getCurrentOrderId } from '../core/init.js';
+import { renderAll } from '../core/render.js';
+import { esc, notify, modal, closeModal } from '../core/utils.js';
+
+export function itemsFor(orderId) {
+  return sql(`
+    SELECT i.*, c.name as customer_name, c.is_self
+    FROM items i JOIN customers c ON c.id=i.customer_id
+    WHERE i.order_id=? ORDER BY i.id
+  `, [orderId]);
+}
+
+export function calc(order) {
+  const its = itemsFor(order.id);
+  const weighed = its.filter(i => i.weight_g !== null && i.status === 'Взвешен');
+  const totalW = weighed.reduce((s, i) => s + (i.weight_g || 0), 0);
+  const boxW = order.box_weight_g || 0;
+  const free = Math.max(0, boxW - totalW);
+  const tariff = boxW > 0 && order.shipping_cost ? Math.round(order.shipping_cost / (boxW / 1000) * 100) / 100 : 0;
+  const deliveryTotal = its.reduce((s, i) => s + (i.weight_g ? i.weight_g / 1000 * tariff : 0), 0);
+
+  const perCustomer = {};
+  its.forEach(i => {
+    if (!perCustomer[i.customer_id]) perCustomer[i.customer_id] = { id: i.customer_id, name: i.customer_name, is_self: i.is_self, items: [], weight: 0, value: 0, delivery: 0, total: 0 };
+    const c = perCustomer[i.customer_id];
+    c.items.push(i);
+    if (i.weight_g && i.status === 'Взвешен') {
+      c.weight += i.weight_g;
+      c.delivery += i.weight_g / 1000 * tariff;
+    }
+    c.value += i.price;
+    c.total = c.value + c.delivery;
+  });
+
+  return { its, totalW, free, tariff, deliveryTotal, perCustomer };
+}
+
+export function openItemForm(id = null) {
+  const oid = getCurrentOrderId();
+  if (!oid) return notify('Сначала создайте заказ', 'warn');
+
+  const c = id ? one('SELECT * FROM items WHERE id=?', [id]) : null;
+  const isNew = !c;
+
+  const customers = sql('SELECT * FROM customers ORDER BY is_self DESC, name');
+  const customerOptions = customers.map(c => `<option value="${c.id}" ${c.id === c?.customer_id ? 'selected' : ''}>${esc(c.name)}${c.is_self?' (я)':''}</option>`).join('');
+
+  modal(isNew ? 'Новый товар' : 'Редактировать товар', `
+    <form id="itemForm" novalidate>
+      <div class="field"><label>Название *</label><input name="name" required autocomplete="off" autofocus value="${esc(c?.name || '')}"></div>
+      <div class="field"><label>Заказчик *</label><select name="customer_id" required>${customerOptions}</select></div>
+      <div class="field"><label>Трек-номер</label><input name="track" autocomplete="off" value="${esc(c?.track || '')}"></div>
+      <div class="field"><label>Цена ¥ *</label><input name="price" type="number" step="0.01" required value="${c?.price || ''}"></div>
+      <div class="field"><label>Статус</label><select name="status">${['В процессе','Взвешен','Ожидает взвешивания','Потерян','Пропущен'].map(s => `<option ${c?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Вес (г)</label><input name="weight_g" type="number" step="1" value="${c?.weight_g || ''}"></div>
+      <div class="actions"><button type="submit">${isNew ? 'Добавить' : 'Сохранить'}</button></div>
+    </form>
+  `);
+
+  document.getElementById('itemForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const data = {
+      order_id: oid,
+      name: f.get('name').trim(),
+      customer_id: parseInt(f.get('customer_id')),
+      track: f.get('track').trim() || null,
+      price: parseFloat(f.get('price')),
+      status: f.get('status'),
+      weight_g: f.get('weight_g') ? parseInt(f.get('weight_g')) : null
+    };
+
+    if (isNew) {
+      run('INSERT INTO items(order_id, name, customer_id, track, price, status, weight_g) VALUES(?,?,?,?,?,?,?)',
+        [data.order_id, data.name, data.customer_id, data.track, data.price, data.status, data.weight_g]);
+    } else {
+      run('UPDATE items SET name=?, customer_id=?, track=?, price=?, status=?, weight_g=? WHERE id=?',
+        [data.name, data.customer_id, data.track, data.price, data.status, data.weight_g, id]);
+    }
+    await persist();
+    closeModal();
+    renderAll();
+    notify('Товар сохранён');
+  });
+}
+
+export async function moveItem(id) {
+  const item = one('SELECT * FROM items WHERE id=?', [id]);
+  if (!item) return;
+  const orders = sql('SELECT * FROM orders WHERE id!=? ORDER BY created_at DESC', [getCurrentOrderId()]);
+  if (!orders.length) return notify('Нет других заказов для переноса', 'warn');
+
+  modal('Перенести товар', `
+    <form id="moveForm">
+      <div class="field"><label>Куда перенести</label><select name="order_id" required>${orders.map(o => `<option value="${o.id}">${esc(o.title)}</option>`).join('')}</select></div>
+      <div class="actions"><button type="submit">Перенести</button></div>
+    </form>
+  `);
+
+  document.getElementById('moveForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const toId = parseInt(new FormData(e.target).get('order_id'));
+    run('UPDATE items SET order_id=? WHERE id=?', [toId, id]);
+    await persist();
+    closeModal();
+    renderAll();
+    notify('Товар перенесён');
+  });
+}
+
+export async function weighItem(id) {
+  const item = one('SELECT * FROM items WHERE id=?', [id]);
+  if (!item) return;
+  modal('Взвесить товар', `
+    <form id="weighForm">
+      <div class="field"><label>Вес (г) *</label><input name="weight_g" type="number" step="1" required autofocus></div>
+      <div class="actions"><button type="submit">Сохранить вес</button></div>
+    </form>
+  `);
+  document.getElementById('weighForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const weight_g = parseInt(new FormData(e.target).get('weight_g'));
+    run('UPDATE items SET weight_g=?, status=? WHERE id=?', [weight_g, 'Взвешен', id]);
+    await persist();
+    closeModal();
+    renderAll();
+    notify('Вес сохранён');
+  });
+}
+
+export function itemHtml(i, orderStatus) {
+  const cls = i.status === 'Взвешен' ? 'good' : (i.status === 'Потерян' ? 'bad' : (i.status === 'Пропущен' ? 'warn' : ''));
+  return `
+    <div class="item">
+      <div class="row between">
+        <div style="min-width:0">
+          <div class="item-title">${esc(i.name)}</div>
+          <div class="item-meta">${esc(i.customer_name)} · трек: ${esc(i.track || '—')}</div>
+          <div class="row wrap" style="margin-top:6px">
+            <span class="pill ${cls}">${esc(i.status)}</span>
+            ${i.weight_g !== null && i.status === 'Взвешен' ? `<span class="small muted">${(i.weight_g / 1000).toFixed(3)}</span>` : ''}
+          </div>
+        </div>
+        <div class="item-right">
+          <b>${(i.price || 0).toFixed(2)}</b>
+          <div class="actions" style="justify-content:flex-end;margin-top:6px">
+            <button class="secondary" data-edit="${i.id}">Изменить</button>
+            ${orderStatus === 'В процессе' ? `<button class="secondary" data-move="${i.id}">Перенести</button>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
