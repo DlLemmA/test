@@ -99,6 +99,56 @@ th { color: var(--muted); font-weight: 650; white-space: nowrap; }
 /* Dialog backdrop */
 dialog::backdrop { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
 
+/* Native dialog modal styles */
+dialog {
+  border: none;
+  border-radius: 20px 20px 16px 16px;
+  padding: 0;
+  max-width: min(620px, 100%);
+  max-height: 92dvh;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  background: white;
+  overflow: hidden;
+}
+
+dialog .modalhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #fafbfc;
+}
+
+dialog .modalhead h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+dialog .x {
+  background: #eef1f6;
+  color: #253047;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+dialog .x:hover { background: #e2e6ee; }
+
+dialog > div:not(.modalhead) { padding: 18px; }
+
+dialog form { display: flex; flex-direction: column; gap: 12px; }
+
+dialog .field { margin: 0; }
+
+dialog .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+dialog .actions > * { flex: 1; }
+
+dialog .notice { border-radius: 12px; padding: 11px 12px; background: #f1f5ff; color: #33466f; font-size: 13px; margin: 0 0 12px; }
+dialog .notice.warn { background: #fff5df; color: #75500a; }
+dialog .notice.error { background: #fff0ef; color: #8d241d; }
+dialog .notice.good { background: #eaf7ef; color: #176443; }
+
 /* Scroll shadow indicator for tables */
 .tablewrap.scrolling-left { box-shadow: inset 12px 0 8px -8px rgba(0,0,0,0.1); }
 .tablewrap.scrolling-right { box-shadow: inset -12px 0 8px -8px rgba(0,0,0,0.1); }
