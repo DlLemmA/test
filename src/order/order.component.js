@@ -1,11 +1,35 @@
 // order.component.js — Order view UI
 import { getCurrentOrder, calc, itemsFor, itemHtml } from '../core/render.js';
 import { openReceive, exportOrder } from '../core/events.js';
-import { openItemForm, moveItem, weighItem } from '../items/items.js';
+import { openItemForm, moveItem, weighItem, deleteItem } from '../items/items.js';
 import { openOrderForm } from './order.js';
 import { createOrder } from '../core/init.js';
-import { esc, kg, money, I } from '../core/utils.js';
+import { esc, kg, money, I, notify } from '../core/utils.js';
+import { run, persist } from '../core/db.js';
 import { on } from '../core/listeners.js';
+
+function formatOrderTitle(o) {
+  const num = `№${o.id}`;
+  const parts = [];
+  if (o.shipped_at) {
+    const date = new Date(o.shipped_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    parts.push(`отправлен ${date}`);
+  }
+  if (o.received_at) {
+    const date = new Date(o.received_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    parts.push(`получен ${date}`);
+  }
+  return parts.length ? `${num} · ${parts.join(' · ')}` : num;
+}
+
+function getStatusClass(status) {
+  switch (status) {
+    case 'В сборке': return 'warn';
+    case 'Отправлен': return 'info';
+    case 'Получен': return 'good';
+    default: return '';
+  }
+}
 
 export function renderOrderView() {
   const o = getCurrentOrder();
@@ -16,31 +40,32 @@ export function renderOrderView() {
     root.innerHTML = `
       <div class="panel">
         <h2>Нет активного заказа</h2>
-        <button class="btn-secondary" id="createFirstOrder">Создать заказ</button>
+        <button class="btn-secondary" id="createFirstOrder">${I.plus} Создать заказ</button>
       </div>
     `;
     on(document.getElementById('createFirstOrder'), 'click', async () => {
       await createOrder();
-      renderOrderView();
+      renderAll();
     });
     return;
   }
 
   const c = calc(o);
-  const shipped = o.shipped_at ? ` · отправлен ${o.shipped_at}` : '';
-  const statusPill = o.status === 'Завершён' ? 'pill-good' : (o.status === 'В процессе' ? 'pill-warn' : 'pill-default');
+  const statusCls = getStatusClass(o.status);
 
   root.innerHTML = `
     <div class="panel">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <h2>${esc(o.title)}${shipped}</h2>
-          <div class="text-xs text-slate-500 mt-0.5">Статус: <span class="pill ${statusPill}">${esc(o.status)}</span></div>
+          <h2>${formatOrderTitle(o)}</h2>
+          <div class="item-meta">Статус: <span class="pill ${statusCls}">${esc(o.status)}</span></div>
         </div>
-        <div class="flex gap-2 flex-wrap">
-          ${o.status === 'В процессе' ? `<button class="btn-secondary" id="openReceive">Принять</button>` : ''}
-          <button class="btn-secondary" id="editOrder">Изменить</button>
-          <button class="btn-secondary" id="exportOrder">Excel</button>
+        <div class="actions">
+          ${o.status === 'В сборке' ? `<button class="btn-primary" id="shipOrder">${I.package} Отправить</button>` : ''}
+          ${o.status === 'Отправлен' ? `<button class="btn-primary" id="receiveOrder">${I.check} Получить</button>` : ''}
+          ${o.status === 'Получен' ? `<button class="btn-secondary" id="returnToAssembly">${I.arrowRight} Вернуть в сборку</button>` : ''}
+          <button class="btn-secondary" id="editOrder">${I.pencil}</button>
+          <button class="btn-secondary" id="exportOrder">${I.sheet}</button>
         </div>
       </div>
     </div>
@@ -77,9 +102,9 @@ export function renderOrderView() {
     <div class="panel">
       <div class="flex items-center justify-between gap-3">
         <h3>Товары в заказе</h3>
-        <button class="btn-secondary" id="addItem">+ Товар</button>
+        ${o.status === 'В сборке' ? `<button class="btn-secondary" id="addItem">${I.plus} Добавить товар</button>` : ''}
       </div>
-      <div id="orderItemsList">${renderItemsList(o.id)}</div>
+      <div id="orderItemsList">${renderItemsList(o.id, o.status)}</div>
     </div>
   `;
 
@@ -87,26 +112,53 @@ export function renderOrderView() {
 }
 
 function bindOrderActions(o) {
-  on(document.getElementById('openReceive'), 'click', () => openReceive(o.id));
+  document.getElementById('shipOrder')?.addEventListener('click', async () => {
+    const now = new Date().toISOString().split('T')[0];
+    run('UPDATE orders SET status=?, shipped_at=? WHERE id=?', ['Отправлен', now, o.id]);
+    await persist();
+    renderAll();
+    notify('Заказ отправлен');
+  });
+  
+  document.getElementById('receiveOrder')?.addEventListener('click', () => {
+    openReceive(o.id);
+  });
+  
+  document.getElementById('returnToAssembly')?.addEventListener('click', async () => {
+    confirmSheet('Вернуть в сборку', 'Даты отправления и получения будут очищены. Продолжить?', 'Вернуть', async () => {
+      run('UPDATE orders SET status=?, shipped_at=NULL, received_at=NULL WHERE id=?', ['В сборке', o.id]);
+      await persist();
+      renderAll();
+      notify('Заказ возвращен в сборку');
+    });
+  });
+
   on(document.getElementById('editOrder'), 'click', () => openOrderForm(o.id));
   on(document.getElementById('exportOrder'), 'click', () => exportOrder(o));
-  on(document.getElementById('addItem'), 'click', () => openItemForm(null, ''));
+  const addItemBtn = document.getElementById('addItem');
+  if (addItemBtn) on(addItemBtn, 'click', () => openItemForm(null, ''));
   
-  document.querySelectorAll('[data-edit]').forEach(b => {
-    on(b, 'click', () => openItemForm(parseInt(b.dataset.edit)));
-  });
-  document.querySelectorAll('[data-move]').forEach(b => {
-    on(b, 'click', () => moveItem(parseInt(b.dataset.move)));
-  });
-  document.querySelectorAll('[data-weigh]').forEach(b => {
-    on(b, 'click', () => weighItem(parseInt(b.dataset.weigh)));
-  });
+  const listRoot = document.getElementById('orderItemsList');
+  if (listRoot) {
+    listRoot.querySelectorAll('[data-edit]').forEach(b => {
+      on(b, 'click', () => openItemForm(parseInt(b.dataset.edit)));
+    });
+    listRoot.querySelectorAll('[data-move]').forEach(b => {
+      on(b, 'click', () => moveItem(parseInt(b.dataset.move)));
+    });
+    listRoot.querySelectorAll('[data-weigh]').forEach(b => {
+      on(b, 'click', () => weighItem(parseInt(b.dataset.weigh)));
+    });
+    listRoot.querySelectorAll('[data-delete]').forEach(b => {
+      on(b, 'click', () => deleteItem(parseInt(b.dataset.delete)));
+    });
+  }
 }
 
-function renderItemsList(orderId) {
+function renderItemsList(orderId, orderStatus) {
   const its = itemsFor(orderId);
   if (its.length > 50 && 'scheduler' in window && 'yield' in scheduler) {
-    const items = its.map(i => itemHtml(i, 'В процессе'));
+    const items = its.map(i => itemHtml(i, orderStatus));
     const root = document.getElementById('orderItemsList');
     if (root) {
       root.innerHTML = '';
@@ -119,5 +171,5 @@ function renderItemsList(orderId) {
       return;
     }
   }
-  return its.map(i => itemHtml(i, 'В процессе')).join('') || '<div class="empty">Нет товаров</div>';
+  return its.map(i => itemHtml(i, orderStatus)).join('') || '<div class="empty">Нет товаров</div>';
 }

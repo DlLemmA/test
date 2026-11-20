@@ -1,22 +1,30 @@
 // events.js — Standalone event handlers: tab switching, backup, scanner, export
 import { sql, run, one, persist } from './db.js';
-import { getCurrentOrderId } from './init.js';
+import { getCurrentOrderId, setCurrentTab } from './init.js';
 import { renderAll, getCurrentOrder } from './render.js';
 import { openItemForm, weighItem, itemsFor, calc } from '../items/items.js';
 import { esc, kg, money, notify, I } from './utils.js';
 import { modal, closeModal, confirmSheet } from './sheet.js';
 import { setActiveTab } from './bottombar.component.js';
 import { on } from './listeners.js';
+import { BrowserQRCodeReader } from '@zxing/browser';
 
 let html5QrcodeScanner = null;
 
 // === Tab switching (called from bottombar.component.js) ===
 export function switchTab(tab) {
   setActiveTab(tab);
+  setCurrentTab(tab);
+
+  const panelMap = {
+    'orders': 'panel-history',
+    'order': 'panel-order',
+    'people': 'panel-people'
+  };
+  const panelId = panelMap[tab];
 
   const apply = () => {
     document.querySelectorAll('main section').forEach(s => {
-      const panelId = 'panel-' + tab;
       s.hidden = s.id !== panelId;
     });
   };
@@ -26,6 +34,7 @@ export function switchTab(tab) {
   } else {
     apply();
   }
+  renderAll();
 }
 
 // === Customer form (called from customers.component.js) ===
@@ -159,11 +168,7 @@ export function openReceive(orderId) {
 async function startScanner() {
   const box = document.getElementById('scanBox');
   try {
-    if (!window.ZXing) {
-      notify('Загрузка сканера...', 'info', { persistent: true });
-      await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js');
-    }
-    const codeReader = new ZXing.BrowserMultiFormatReader();
+    const codeReader = new BrowserQRCodeReader();
     html5QrcodeScanner = codeReader;
     const devices = await codeReader.listVideoInputDevices();
     if (!devices.length) { notify('Камера не найдена', 'error'); return; }
@@ -199,8 +204,8 @@ function findBarcode(code) {
   if (!matches.length) {
     root.innerHTML = `<div class="notice warn"><b>Товар не найден</b><br>Трек: ${esc(code)}</div>
       <div class="actions"><button id="createUnknown">Создать товар</button><button class="secondary" id="bindExisting">Привязать к существующему</button></div>`;
-    document.getElementById('createUnknown').onclick = () => { closeModal(); openItemForm(null, code); };
-    document.getElementById('bindExisting').onclick = () => chooseExisting(code);
+    on(document.getElementById('createUnknown'), 'click', () => { closeModal(); openItemForm(null, code); });
+    on(document.getElementById('bindExisting'), 'click', () => chooseExisting(code));
     return;
   }
   
@@ -208,7 +213,7 @@ function findBarcode(code) {
   
   root.innerHTML = `<div class="notice">Найдено несколько товаров с этим трек-номером. Выберите нужный.</div>
     ${matches.map(i=>`<div class="item row between"><div><b>${esc(i.name)}</b><div class="item-meta">${esc(i.customer_name)} · ${esc(i.track||'—')} · ${esc(i.status)} ${i.weight_g!==null?'· '+kg(i.weight_g):''}</div></div><button class="secondary" data-match="${i.id}">Выбрать</button></div>`).join('')}`;
-  root.querySelectorAll('[data-match]').forEach(b=>b.onclick=()=>showMatch(matches.find(i=>i.id===parseInt(b.dataset.match))));
+  root.querySelectorAll('[data-match]').forEach(b=>on(b,'click',()=>showMatch(matches.find(i=>i.id===parseInt(b.dataset.match)))));
 }
 
 function showMatch(i) {
@@ -344,6 +349,7 @@ export async function exportOrder(o) {
 // === History actions (called from history.component.js) ===
 export function switchToOrder(id) {
   import('./init.js').then(m => m.setCurrentOrderId(id));
+  setCurrentTab('order');
   renderAll();
 }
 

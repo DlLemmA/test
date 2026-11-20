@@ -2,7 +2,7 @@
 import { sql, run, one, persist } from '../core/db.js';
 import { getCurrentOrderId } from '../core/init.js';
 import { renderAll } from '../core/render.js';
-import { esc, notify } from '../core/utils.js';
+import { esc, notify, I } from '../core/utils.js';
 import { modal, closeModal } from '../core/sheet.js';
 import { on } from '../core/listeners.js';
 
@@ -55,7 +55,7 @@ export function openItemForm(id = null) {
       <div class="field"><label>Заказчик *</label><select name="customer_id" required>${customerOptions}</select></div>
       <div class="field"><label>Трек-номер</label><input name="track" autocomplete="off" value="${esc(c?.track || '')}"></div>
       <div class="field"><label>Цена Br *</label><input name="price" type="number" step="0.01" required value="${c?.price || ''}"></div>
-      <div class="field"><label>Статус</label><select name="status">${['В процессе','Взвешен','Ожидает взвешивания','Потерян','Пропущен'].map(s => `<option ${c?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Статус</label><select name="status">${['В сборке','Взвешен','Ожидает взвешивания','Потерян','Пропущен'].map(s => `<option ${c?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Вес (г)</label><input name="weight_g" type="number" step="1" value="${c?.weight_g || ''}"></div>
       <div class="actions"><button type="submit">${isNew ? 'Добавить' : 'Сохранить'}</button></div>
     </form>
@@ -91,24 +91,37 @@ export function openItemForm(id = null) {
 export async function moveItem(id) {
   const item = one('SELECT * FROM items WHERE id=?', [id]);
   if (!item) return;
-  const orders = sql('SELECT * FROM orders WHERE id!=? ORDER BY created_at DESC', [getCurrentOrderId()]);
-  if (!orders.length) return notify('Нет других заказов для переноса', 'warn');
 
-  modal('Перенести товар', `
-    <form id="moveForm">
-      <div class="field"><label>Куда перенести</label><select name="order_id" required>${orders.map(o => `<option value="${o.id}">${esc(o.title)}</option>`).join('')}</select></div>
-      <div class="actions"><button type="submit">Перенести</button></div>
-    </form>
-  `);
+  // Find next unshipped order (excluding current)
+  const nextOrders = sql(`SELECT * FROM orders WHERE id!=? AND shipped_at IS NULL ORDER BY created_at DESC LIMIT 1`, [getCurrentOrderId()]);
 
-  on(document.getElementById('moveForm'), 'submit', async e => {
-    e.preventDefault();
-    const toId = parseInt(new FormData(e.target).get('order_id'));
-    run('UPDATE items SET order_id=? WHERE id=?', [toId, id]);
+  if (nextOrders.length) {
+    // Move to next unshipped order
+    run('UPDATE items SET order_id=? WHERE id=?', [nextOrders[0].id, id]);
     await persist();
-    closeModal();
     renderAll();
-    notify('Товар перенесён');
+    notify(`Товар перенесён в заказ №${nextOrders[0].id}`);
+  } else {
+    // Create new order and move item there
+    const dateStr = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const orderTitle = `Заказ от ${dateStr}`;
+    const now = new Date().toISOString();
+    run(`INSERT INTO orders(title, status, created_at) VALUES(?, 'В сборке', ?)`, [orderTitle, now]);
+    await persist();
+    const newOrder = one('SELECT * FROM orders ORDER BY created_at DESC LIMIT 1');
+    run('UPDATE items SET order_id=? WHERE id=?', [newOrder.id, id]);
+    await persist();
+    renderAll();
+    notify(`Товар перенесён в новый заказ №${newOrder.id}`);
+  }
+}
+
+export async function deleteItem(id) {
+  confirmSheet('Удалить товар', 'Товар будет удалён. Это действие нельзя отменить.', 'Удалить', async () => {
+    run('DELETE FROM items WHERE id=?', [id]);
+    await persist();
+    renderAll();
+    notify('Товар удалён');
   });
 }
 
@@ -145,11 +158,12 @@ export function itemHtml(i, orderStatus) {
             ${i.weight_g !== null && i.status === 'Взвешен' ? `<span class="text-xs text-slate-500 tabular-nums">${(i.weight_g / 1000).toFixed(3)} кг</span>` : ''}
           </div>
         </div>
-        <div class="text-right shrink-0">
+        <div class="item-right shrink-0">
           <b class="tabular-nums">${(i.price || 0).toFixed(2)} Br</b>
           <div class="flex gap-2 justify-end mt-1.5">
-            <button class="btn-secondary" data-edit="${i.id}">Изменить</button>
-            ${orderStatus === 'В процессе' ? `<button class="btn-secondary" data-move="${i.id}">Перенести</button>` : ''}
+            <button class="btn-secondary" data-edit="${i.id}">${I.pencil}</button>
+            ${orderStatus === 'В сборке' ? `<button class="btn-secondary" data-move="${i.id}">${I.arrowRight}</button>` : ''}
+            <button class="btn-danger" data-delete="${i.id}">${I.trash}</button>
           </div>
         </div>
       </div>

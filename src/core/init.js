@@ -6,6 +6,7 @@ import { modal, closeModal } from './sheet.js';
 import { on } from './listeners.js';
 
 let currentOrderId = null;
+let currentTab = 'orders'; // Default to orders list
 
 export async function initApp() {
   await initDB();
@@ -59,6 +60,14 @@ export function setCurrentOrderId(id) {
   currentOrderId = id;
 }
 
+export function getCurrentTab() {
+  return currentTab;
+}
+
+export function setCurrentTab(tab) {
+  currentTab = tab;
+}
+
 export async function createOrder(title = null) {
   const now = new Date().toISOString();
   let orderTitle = title;
@@ -66,7 +75,7 @@ export async function createOrder(title = null) {
     const dateStr = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
     orderTitle = `Заказ от ${dateStr}`;
   }
-  run(`INSERT INTO orders(title, status, created_at) VALUES(?, 'В процессе', ?)`, [orderTitle, now]);
+  run(`INSERT INTO orders(title, status, created_at) VALUES(?, 'В сборке', ?)`, [orderTitle, now]);
   await persist();
   await loadCurrentOrder();
   return currentOrderId;

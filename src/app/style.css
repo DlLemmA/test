@@ -71,6 +71,7 @@
   .pill-good { @apply bg-green-50 text-green-700; }
   .pill-warn { @apply bg-amber-50 text-amber-700; }
   .pill-bad { @apply bg-red-50 text-red-700; }
+  .pill-info { @apply bg-blue-50 text-blue-700; }
 
   /* Form fields */
   label { @apply block text-sm text-slate-600 font-semibold mb-1; }
@@ -86,6 +87,21 @@
     @apply pt-3 pb-3 border-t border-slate-200;
   }
   .item:first-child { @apply border-t-0; }
+  .item-right {
+    @apply flex flex-col items-end gap-1.5 shrink-0;
+  }
+  .item-meta {
+    @apply text-xs text-slate-500;
+  }
+  .actions {
+    @apply flex items-center gap-2 flex-wrap;
+  }
+  .small {
+    @apply text-sm;
+  }
+  .muted {
+    @apply text-slate-500;
+  }
 
   /* Notices */
   .notice {

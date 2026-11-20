@@ -46,7 +46,7 @@ export async function seedDemo() {
 async function ensureDemoOrder() {
   let order = one(`SELECT * FROM orders ORDER BY created_at DESC LIMIT 1`);
   if (!order) {
-    run(`INSERT INTO orders(title, status, created_at) VALUES('Демо-заказ', 'В процессе', ?)`, [dateNow()]);
+    run(`INSERT INTO orders(title, status, created_at) VALUES('Демо-заказ', 'В сборке', ?)`, [dateNow()]);
     order = one(`SELECT * FROM orders ORDER BY created_at DESC LIMIT 1`);
   }
   return order.id;

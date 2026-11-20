@@ -1,5 +1,5 @@
 // items.component.js — Items view UI
-import { itemsFor, calc, itemHtml, openItemForm, moveItem, weighItem } from './items.js';
+import { itemsFor, calc, itemHtml, openItemForm, moveItem, weighItem, deleteItem } from './items.js';
 import { getCurrentOrder } from '../core/render.js';
 import { on } from '../core/listeners.js';
 
@@ -33,21 +33,25 @@ export function renderItemsView() {
       document.getElementById('allItems').innerHTML = list.filter(i =>
         [i.name, i.track, i.customer_name].join(' ').toLowerCase().includes(q)
       ).map(i => itemHtml(i, o.status)).join('') || '<div class="empty">Ничего не найдено</div>';
-      bindItemActions();
+      bindItemActions(document.getElementById('allItems'));
     }, 150);
   });
 
-  bindItemActions();
+  bindItemActions(document.getElementById('allItems'));
 }
 
-function bindItemActions() {
-  document.querySelectorAll('[data-edit]').forEach(b => {
+function bindItemActions(container = document.getElementById('allItems')) {
+  if (!container) return;
+  container.querySelectorAll('[data-edit]').forEach(b => {
     on(b, 'click', () => openItemForm(parseInt(b.dataset.edit)));
   });
-  document.querySelectorAll('[data-move]').forEach(b => {
+  container.querySelectorAll('[data-move]').forEach(b => {
     on(b, 'click', () => moveItem(parseInt(b.dataset.move)));
   });
-  document.querySelectorAll('[data-weigh]').forEach(b => {
+  container.querySelectorAll('[data-weigh]').forEach(b => {
     on(b, 'click', () => weighItem(parseInt(b.dataset.weigh)));
+  });
+  container.querySelectorAll('[data-delete]').forEach(b => {
+    on(b, 'click', () => deleteItem(parseInt(b.dataset.delete)));
   });
 }

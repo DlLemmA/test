@@ -28,7 +28,7 @@ function initSchema() {
     PRAGMA foreign_keys=ON;
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
     CREATE TABLE IF NOT EXISTS customers(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE,is_self INTEGER DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'В процессе',created_at TEXT NOT NULL,shipped_at TEXT,box_weight_g INTEGER,shipping_cost REAL);
+    CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'В сборке',created_at TEXT NOT NULL,shipped_at TEXT,received_at TEXT,box_weight_g INTEGER,shipping_cost REAL);
     CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL,customer_id INTEGER NOT NULL,name TEXT NOT NULL,track TEXT,price REAL NOT NULL DEFAULT 0,weight_g INTEGER,status TEXT NOT NULL DEFAULT 'Ожидает взвешивания',notes TEXT,created_at TEXT NOT NULL,FOREIGN KEY(order_id) REFERENCES orders(id),FOREIGN KEY(customer_id) REFERENCES customers(id));
     CREATE INDEX IF NOT EXISTS idx_items_track ON items(track);
     CREATE INDEX IF NOT EXISTS idx_items_order ON items(order_id);

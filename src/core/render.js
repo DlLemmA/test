@@ -1,9 +1,8 @@
 // render.js — All rendering functions
-import { getCurrentOrderId } from './init.js';
+import { getCurrentOrderId, getCurrentTab } from './init.js';
 import { sql, one, run, persist } from './db.js';
 import { exportOrder } from './events.js';
 import { renderOrderView } from '../order/order.component.js';
-import { renderItemsView } from '../items/items.component.js';
 import { renderPeopleView } from '../customers/customers.component.js';
 import { renderHistoryView } from '../history/history.component.js';
 import { esc, kg, money } from './utils.js';
@@ -18,13 +17,35 @@ export function initStatic() {
   bindHeader();
 }
 
-/** Re-render only the 4 panel views. Cleans up old panel listeners first. */
+/** Re-render only the 3 panel views. Cleans up old panel listeners first. */
 export function renderAll() {
   destroy();
-  renderOrderView();
-  renderItemsView();
-  renderPeopleView();
-  renderHistoryView();
+  
+  const tab = getCurrentTab();
+  
+  // Show/hide sections based on current tab
+  const panelOrder = document.getElementById('panel-order');
+  const panelPeople = document.getElementById('panel-people');
+  const panelHistory = document.getElementById('panel-history');
+  
+  if (panelOrder) panelOrder.hidden = true;
+  if (panelPeople) panelPeople.hidden = true;
+  if (panelHistory) panelHistory.hidden = true;
+  
+  switch (tab) {
+    case 'orders':
+      if (panelHistory) panelHistory.hidden = false;
+      renderHistoryView();
+      break;
+    case 'order':
+      if (panelOrder) panelOrder.hidden = false;
+      renderOrderView();
+      break;
+    case 'people':
+      if (panelPeople) panelPeople.hidden = false;
+      renderPeopleView();
+      break;
+  }
 }
 
 function getCurrentOrder() {
