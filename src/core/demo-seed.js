@@ -10,18 +10,25 @@ export async function seedDemo() {
   const ivan = await ensureCustomer('Иван', true);
   const sasha = await ensureCustomer('Саша', false);
   
-  // Update order with demo details
+  // Update order with demo details: 25 kg box, 15 BYN/kg = 375 BYN shipping
   run(`UPDATE orders SET title=?, box_weight_g=?, shipping_cost=? WHERE id=?`, 
-    ['Демо-заказ (Пиндуодуо)', 6000, 3000, orderId]);
+    ['Демо-заказ (Пиндуодуо)', 25000, 375, orderId]);
   
   // Demo items: [name, customer_id, track, price, status, weight_g]
+  // Total weight ~25kg to match box weight
   const demo = [
-    ['Кроссовки', ivan, 'CN100001', 1200, 'Взвешен', 1200],
-    ['Футболка', ivan, 'CN100002', 350, 'Взвешен', 900],
-    ['Рюкзак', ivan, 'CN100003', 800, 'Ожидает взвешивания', null],
-    ['Наушники', sasha, 'CN200001', 450, 'Взвешен', 1000],
-    ['Куртка', sasha, 'CN200002', 980, 'Взвешен', 1000],
-    ['Чехол', sasha, 'CN200003', 80, 'Потерян', null]
+    ['Кроссовки', ivan, 'CN100001', 1200, 'Взвешен', 3500],
+    ['Футболка', ivan, 'CN100002', 350, 'Взвешен', 800],
+    ['Джинсы', ivan, 'CN100003', 800, 'Взвешен', 1200],
+    ['Худи', ivan, 'CN100004', 1500, 'Взвешен', 2000],
+    ['Куртка', ivan, 'CN100005', 2800, 'Взвешен', 4000],
+    ['Наушники', sasha, 'CN200001', 450, 'Взвешен', 600],
+    ['Рюкзак', sasha, 'CN200002', 980, 'Взвешен', 2500],
+    ['Часы', sasha, 'CN200003', 1200, 'Взвешен', 300],
+    ['Платье', sasha, 'CN200004', 600, 'Взвешен', 900],
+    ['Ботинки', sasha, 'CN200005', 1800, 'Взвешен', 3200],
+    ['Шарф', sasha, 'CN200006', 200, 'Ожидает взвешивания', null],
+    ['Перчатки', sasha, 'CN200007', 150, 'Ожидает взвешивания', null]
   ];
   
   for (const [name, customer_id, track, price, status, weight_g] of demo) {
