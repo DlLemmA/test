@@ -16,15 +16,15 @@ export function renderHistoryView() {
     <div class="panel">
       <h2>История заказов</h2>
       ${orders.length ? orders.map(o => `
-        <div class="item row between">
+        <div class="item flex items-center justify-between gap-3">
           <div>
             <b>${esc(o.title)}</b><br>
-            <span class="small muted">${o.created_at} · ${o.status} · ${o.itemCount} товаров</span>
+            <span class="text-xs text-slate-500">${o.created_at} · ${o.status} · ${o.itemCount} товаров</span>
           </div>
-          <div class="actions">
-            <button class="secondary" data-switch="${o.id}">${o.id === currentId ? 'Текущий' : 'Сделать текущим'}</button>
-            <button class="secondary" data-export="${o.id}">Excel</button>
-            <button class="danger" data-del="${o.id}">Удалить</button>
+          <div class="flex gap-2">
+            <button class="btn-secondary" data-switch="${o.id}">${o.id === currentId ? 'Текущий' : 'Сделать текущим'}</button>
+            <button class="btn-secondary" data-export="${o.id}">Excel</button>
+            <button class="btn-danger" data-del="${o.id}">Удалить</button>
           </div>
         </div>
       `).join('') : '<div class="empty">Нет заказов</div>'}

@@ -131,23 +131,23 @@ export async function weighItem(id) {
 }
 
 export function itemHtml(i, orderStatus) {
-  const cls = i.status === 'Взвешен' ? 'good' : (i.status === 'Потерян' ? 'bad' : (i.status === 'Пропущен' ? 'warn' : ''));
+  const statusCls = i.status === 'Взвешен' ? 'pill-good' : (i.status === 'Потерян' ? 'pill-bad' : (i.status === 'Пропущен' ? 'pill-warn' : 'pill-default'));
   return `
     <div class="item">
-      <div class="row between">
-        <div style="min-width:0">
-          <div class="item-title">${esc(i.name)}</div>
-          <div class="item-meta">${esc(i.customer_name)} · трек: ${esc(i.track || '—')}</div>
-          <div class="row wrap" style="margin-top:6px">
-            <span class="pill ${cls}">${esc(i.status)}</span>
-            ${i.weight_g !== null && i.status === 'Взвешен' ? `<span class="small muted">${(i.weight_g / 1000).toFixed(3)}</span>` : ''}
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="font-bold truncate">${esc(i.name)}</div>
+          <div class="text-xs text-slate-500 mt-0.5 truncate">${esc(i.customer_name)} · трек: ${esc(i.track || '—')}</div>
+          <div class="flex items-center gap-2 flex-wrap mt-1.5">
+            <span class="pill ${statusCls}">${esc(i.status)}</span>
+            ${i.weight_g !== null && i.status === 'Взвешен' ? `<span class="text-xs text-slate-500 tabular-nums">${(i.weight_g / 1000).toFixed(3)} кг</span>` : ''}
           </div>
         </div>
-        <div class="item-right">
-          <b>${(i.price || 0).toFixed(2)}</b>
-          <div class="actions" style="justify-content:flex-end;margin-top:6px">
-            <button class="secondary" data-edit="${i.id}">Изменить</button>
-            ${orderStatus === 'В процессе' ? `<button class="secondary" data-move="${i.id}">Перенести</button>` : ''}
+        <div class="text-right shrink-0">
+          <b class="tabular-nums">${(i.price || 0).toFixed(2)}</b>
+          <div class="flex gap-2 justify-end mt-1.5">
+            <button class="btn-secondary" data-edit="${i.id}">Изменить</button>
+            ${orderStatus === 'В процессе' ? `<button class="btn-secondary" data-move="${i.id}">Перенести</button>` : ''}
           </div>
         </div>
       </div>

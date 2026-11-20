@@ -26,6 +26,7 @@ export function bindEvents() {
   document.getElementById('demoBtn')?.addEventListener('click', async () => {
     await seedDemo();
     renderAll();
+    notify('Демо данные загружены');
   });
   
   document.getElementById('backupBtn')?.addEventListener('click', openBackupModal);

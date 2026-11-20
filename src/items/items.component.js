@@ -1,7 +1,6 @@
 // items.component.js — Items view UI
 import { itemsFor, calc, itemHtml, openItemForm, moveItem, weighItem } from './items.js';
 import { getCurrentOrder } from '../core/render.js';
-import { getCurrentOrderId } from '../core/init.js';
 import { renderAll } from '../core/render.js';
 import { esc, notify, modal, closeModal } from '../core/utils.js';
 
@@ -18,15 +17,15 @@ export function renderItemsView() {
   const list = itemsFor(o.id);
   root.innerHTML = `
     <div class="panel">
-      <div class="row between">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
         <h2>Все товары заказа</h2>
-        <input type="search" id="itemSearch" placeholder="Поиск по названию, треку, заказчику" class="w-64" autocomplete="off">
+        <input type="search" id="itemSearch" placeholder="Поиск" class="w-full sm:w-64" autocomplete="off">
       </div>
       <div id="allItems">${list.map(i=>itemHtml(i,o.status)).join('')||'<div class="empty">Нет товаров</div>'}</div>
     </div>
   `;
 
-  // Debounced search (150ms) to avoid re-rendering on every keystroke
+  // Debounced search (150ms)
   let searchTimer = null;
   document.getElementById('itemSearch').addEventListener('input', e => {
     clearTimeout(searchTimer);
