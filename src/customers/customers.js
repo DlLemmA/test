@@ -1,4 +1,4 @@
-// persons.js — Customer (person) management logic
+// customers.js — Customer management logic
 import { sql, run, one, persist } from '../core/db.js';
 import { renderAll } from '../core/render.js';
 import { esc, notify, modal, closeModal } from '../core/utils.js';
