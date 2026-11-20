@@ -1,5 +1,5 @@
-// persons.component.js — Customers view UI
-import { customerList, openCustomerForm, deleteCustomer } from './persons.js';
+// customers.component.js — Customers view UI
+import { customerList, openCustomerForm, deleteCustomer } from './customers.js';
 import { esc } from '../core/utils.js';
 
 export function renderPeopleView() {

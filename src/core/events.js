@@ -3,7 +3,7 @@ import { sql, run, one, persist } from './db.js';
 import { getCurrentOrderId, setCurrentOrderId, createOrder } from './init.js';
 import { seedDemo } from './demo-seed.js';
 import { renderAll, calc, getCurrentOrder, itemsFor, itemHtml } from './render.js';
-import { customerList } from '../persons/persons.js';
+import { customerList } from '../customers/customers.js';
 import { esc, kg, money, dateNow, notify, modal, closeModal } from './utils.js';
 import { openOrderForm, switchOrder, deleteOrder } from '../order/order.js';
 
