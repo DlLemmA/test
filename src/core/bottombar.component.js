@@ -30,3 +30,14 @@ export function setActiveTab(tab) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
 }
+
+// Static tab click listeners — bound once, never destroyed (native addEventListener)
+export function bindBottomBar() {
+  const bar = document.getElementById('bottombar');
+  if (!bar) return;
+  bar.addEventListener('click', e => {
+    const btn = e.target.closest('.bottombar-item');
+    if (!btn?.dataset.tab) return;
+    import('./events.js').then(m => m.switchTab(btn.dataset.tab));
+  });
+}

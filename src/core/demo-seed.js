@@ -7,7 +7,7 @@ export async function seedDemo() {
   const orderId = await ensureDemoOrder();
   
   // Create demo customers
-  const ivan = await ensureCustomer('Иван', true);
+  const ivan = await ensureCustomer('Иван', false);
   const sasha = await ensureCustomer('Саша', false);
   
   // Update order with demo details: 25 kg box, 15 BYN/kg = 375 BYN shipping

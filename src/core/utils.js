@@ -1,5 +1,5 @@
 // utils.js — Shared helpers: formatting, toasts, icons
-import { modal, closeModal } from './sheet.js';
+import { on } from './listeners.js';
 
 /** Escape HTML special characters */
 export function esc(s) {
@@ -59,7 +59,7 @@ export function notify(msg, type = 'info', options = {}) {
     if (dismissed) return;
     dismissed = true;
     el.classList.replace('toast-enter', 'toast-exit');
-    el.addEventListener('animationend', () => el.remove());
+    on(el, 'animationend', () => el.remove());
   };
 
   const duration = options.persistent ? 0 : (options.duration ?? 5000);
@@ -67,38 +67,22 @@ export function notify(msg, type = 'info', options = {}) {
 
   // Pause on hover/focus
   const resume = () => { if (!dismissed && !timer && duration) timer = setTimeout(dismiss, duration); };
-  el.addEventListener('mouseenter', () => timer && clearTimeout(timer));
-  el.addEventListener('focusin', () => timer && clearTimeout(timer));
-  el.addEventListener('mouseleave', resume);
-  el.addEventListener('focusout', resume);
+  on(el, 'mouseenter', () => timer && clearTimeout(timer));
+  on(el, 'focusin', () => timer && clearTimeout(timer));
+  on(el, 'mouseleave', resume);
+  on(el, 'focusout', resume);
 
   // Action button support
   if (options.action) {
     const btn = document.createElement('button');
     btn.textContent = options.actionLabel || 'Действие';
     btn.className = 'toast-action';
-    btn.addEventListener('click', () => { options.action(); dismiss(); });
+    on(btn, 'click', () => { options.action(); dismiss(); });
     el.appendChild(btn);
   }
 
   return { dismiss };
 }
 
-// === Confirmation sheet (replaces native confirm()) ===
-export function confirmSheet(title, message, confirmLabel, onConfirm) {
-  modal(title, `
-    <div class="text-sm text-slate-600">${message}</div>
-    <div class="flex gap-2">
-      <button type="button" id="confirmCancel" class="btn-secondary flex-1">Отмена</button>
-      <button type="button" id="confirmOk" class="btn-danger-solid flex-1">${confirmLabel}</button>
-    </div>
-  `);
-  document.getElementById('confirmCancel').addEventListener('click', closeModal);
-  document.getElementById('confirmOk').addEventListener('click', () => {
-    closeModal();
-    onConfirm();
-  });
-}
-
-// Re-export sheet functions
-export { modal, closeModal };
+// Re-export sheet functions for convenience
+export { modal, closeModal, confirmSheet } from './sheet.js';

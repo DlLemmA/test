@@ -2,7 +2,8 @@
 import { sql, run, one, persist } from '../core/db.js';
 import { getCurrentOrderId } from '../core/init.js';
 import { renderAll } from '../core/render.js';
-import { esc, notify, modal, closeModal } from '../core/utils.js';
+import { esc, notify } from '../core/utils.js';
+import { modal, closeModal } from '../core/sheet.js';
 import { on } from '../core/listeners.js';
 
 export function itemsFor(orderId) {

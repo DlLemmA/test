@@ -1,9 +1,9 @@
 // history.component.js — History view UI
-import { renderHistoryData, switchToOrder, deleteOrder, exportOrderData } from './history.js';
+import { renderHistoryData } from './history.js';
+import { exportOrder, switchToOrder, deleteOrder } from '../core/events.js';
 import { getCurrentOrderId } from '../core/init.js';
-import { sql } from '../core/db.js';
-import { exportOrder } from '../core/events.js';
 import { esc } from '../core/utils.js';
+import { on } from '../core/listeners.js';
 
 export function renderHistoryView() {
   const root = document.getElementById('historyView');
@@ -32,16 +32,20 @@ export function renderHistoryView() {
   `;
 
   document.querySelectorAll('[data-switch]').forEach(b => {
-    b.addEventListener('click', () => switchToOrder(parseInt(b.dataset.switch)));
+    on(b, 'click', () => switchToOrder(parseInt(b.dataset.switch)));
   });
+
   document.querySelectorAll('[data-export]').forEach(b => {
-    b.addEventListener('click', () => {
-      const order = sql('SELECT * FROM orders WHERE id=?', [parseInt(b.dataset.export)])[0];
-      exportOrder(order);
+    on(b, 'click', () => {
+      const orderId = parseInt(b.dataset.export);
+      import('../core/db.js').then(m => {
+        const order = m.one('SELECT * FROM orders WHERE id=?', [orderId])[0];
+        if (order) exportOrder(order);
+      });
     });
   });
   document.querySelectorAll('[data-del]').forEach(b => {
-    b.addEventListener('click', async () => {
+    on(b, 'click', async () => {
       await deleteOrder(parseInt(b.dataset.del));
     });
   });

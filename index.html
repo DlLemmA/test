@@ -23,10 +23,12 @@
   </header>
 
   <main id="main-content" class="flex-1 px-4 pb-24 overflow-y-auto">
-    <section id="panel-order"><div id="orderView"></div></section>
-    <section id="panel-items" hidden><div id="itemsView"></div></section>
-    <section id="panel-people" hidden><div id="peopleView"></div></section>
-    <section id="panel-history" hidden><div id="historyView"></div></section>
+    <div id="panel-container" style="view-transition-name: panel-root">
+      <section id="panel-order"><div id="orderView"></div></section>
+      <section id="panel-items" hidden><div id="itemsView"></div></section>
+      <section id="panel-people" hidden><div id="peopleView"></div></section>
+      <section id="panel-history" hidden><div id="historyView"></div></section>
+    </div>
   </main>
 
   <nav class="bottombar" id="bottombar" role="navigation" aria-label="Основная навигация"></nav>

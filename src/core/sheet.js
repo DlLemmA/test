@@ -1,20 +1,11 @@
 // sheet.js — iOS-style bottom sheet (slider)
+import { on } from './listeners.js';
+import { esc } from './utils.js'
 
 // === State ===
 let sheetOpen = false;
 let closeTimer = null;
 let savedScroll = 0;
-
-// Local esc function (to avoid circular dependency with utils.js)
-function esc(s) {
-  return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({
-    '&': '&',
-    '<': '<',
-    '>': '>',
-    '"': '"',
-    "'": '\''
-  }[c]));
-}
 
 // Local icon set for sheet close button (X icon)
 const xIcon = `<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
@@ -26,7 +17,7 @@ function sheetEls() {
     backdrop = document.createElement('div');
     backdrop.id = 'sheetBackdrop';
     backdrop.className = 'sheet-backdrop';
-    backdrop.addEventListener('click', closeModal);
+    on(backdrop, 'click', closeModal);
     document.body.appendChild(backdrop);
   }
   let sheet = document.getElementById('sheetContainer');
@@ -38,7 +29,7 @@ function sheetEls() {
     sheet.setAttribute('aria-modal', 'true');
     document.body.appendChild(sheet);
     initSheetDrag(sheet);
-    // Add close button listener once
+    // Add close button listener once (delegated, permanent)
     sheet.addEventListener('click', e => {
       if (e.target.closest('#sheetClose')) closeModal();
     });
@@ -84,8 +75,6 @@ export function modal(title, html) {
   });
 
   sheetOpen = true;
-
-  document.getElementById('sheetClose').addEventListener('click', closeModal);
 
   // Focus the first field — the autofocus attribute doesn't work on inserted content
   setTimeout(() => {
@@ -166,4 +155,19 @@ function finishDrag(sheet) {
   sheet.style.transition = '';
   sheet.style.transform = '';
   if (dy > 96) closeModal();
+}
+
+export function confirmSheet(title, message, confirmLabel, onConfirm) {
+  modal(title, `
+    <div class="text-sm text-slate-600">${message}</div>
+    <div class="flex gap-2">
+      <button type="button" id="confirmCancel" class="btn-secondary flex-1">Отмена</button>
+      <button type="button" id="confirmOk" class="btn-danger-solid flex-1">${confirmLabel}</button>
+    </div>
+  `);
+  on(document.getElementById('confirmCancel'), 'click', closeModal);
+  on(document.getElementById('confirmOk'), 'click', () => {
+    closeModal();
+    onConfirm();
+  });
 }

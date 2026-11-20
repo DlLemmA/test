@@ -2,7 +2,9 @@
 import { one, run, persist } from '../core/db.js';
 import { setCurrentOrderId, createOrder } from '../core/init.js';
 import { renderAll } from '../core/render.js';
-import { esc, notify, modal, closeModal, confirmSheet } from '../core/utils.js';
+import { esc, notify } from '../core/utils.js';
+import { modal, closeModal, confirmSheet } from '../core/sheet.js';
+import { on } from '../core/listeners.js';
 
 export function switchOrder(id) {
   setCurrentOrderId(id);
@@ -36,7 +38,7 @@ export function openOrderForm(orderId = null) {
     </form>
   `);
 
-  document.getElementById('orderForm').addEventListener('submit', async e => {
+  on(document.getElementById('orderForm'), 'submit', async e => {
     e.preventDefault();
     const form = e.target;
     if (!form.checkValidity()) { form.reportValidity(); return; }
@@ -65,7 +67,7 @@ export function openOrderForm(orderId = null) {
     }
   });
 
-  document.getElementById('deleteOrder')?.addEventListener('click', async () => {
+  on(document.getElementById('deleteOrder'), 'click', async () => {
     confirmSheet('Удалить заказ', 'Заказ будет удалён со всеми товарами. Это действие нельзя отменить.', 'Удалить', async () => {
       run('DELETE FROM items WHERE order_id=?', [orderId]);
       run('DELETE FROM orders WHERE id=?', [orderId]);
