@@ -4,19 +4,24 @@ import { getCurrentOrderId, setCurrentOrderId, createOrder } from './init.js';
 import { seedDemo } from './demo-seed.js';
 import { renderAll } from './render.js';
 import { customerList } from '../customers/customers.js';
-import { openItemForm, moveItem, weighItem } from '../items/items.js';
-import { esc, kg, money, dateNow, notify, modal, closeModal } from './utils.js';
+import { openItemForm, moveItem, weighItem, itemsFor, itemHtml } from '../items/items.js';
+import { esc, kg, money, dateNow, notify, modal, closeModal, I } from './utils.js';
 import { openOrderForm, switchOrder, deleteOrder } from '../order/order.js';
+import { getCurrentOrder } from './render.js';
+import { renderBottomBar, setActiveTab } from './bottombar.component.js';
 
 let html5QrcodeScanner = null;
 
 // Main event binding
 export function bindEvents() {
-  // Tab switching
-  document.querySelectorAll('[data-tab]').forEach(btn => {
+  // Render bottom bar
+  renderBottomBar();
+  
+  // Re-attach tab listeners after innerHTML
+  document.querySelectorAll('.bottombar-item').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
-
+  
   // Header buttons
   document.getElementById('demoBtn')?.addEventListener('click', async () => {
     await seedDemo();
@@ -24,6 +29,12 @@ export function bindEvents() {
   });
   
   document.getElementById('backupBtn')?.addEventListener('click', openBackupModal);
+  
+  // Topbar button labels (no icons)
+  const demoBtn = document.getElementById('demoBtn');
+  const backupBtn = document.getElementById('backupBtn');
+  if (demoBtn) demoBtn.textContent = 'Демо';
+  if (backupBtn) backupBtn.textContent = 'Резерв';
 
   // Order view actions (delegated)
   document.getElementById('orderView')?.addEventListener('click', e => {
@@ -74,7 +85,7 @@ export function bindEvents() {
 
 function switchTab(tab) {
   // Highlight active tab button
-  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  setActiveTab(tab);
   // Show/hide panel sections based on data-tab
   document.querySelectorAll('main section').forEach(s => {
     const panelId = 'panel-' + tab;
@@ -129,7 +140,7 @@ function openReceive(orderId) {
   const pending = sql(`SELECT i.*, c.name customer_name FROM items i JOIN customers c ON c.id=i.customer_id 
     WHERE i.order_id=? AND i.status='Ожидает взвешивания' ORDER BY i.id`, [orderId]);
 
-  modal('🎁 Приёмка посылки', `
+  modal('Приёмка посылки', `
     <div class="panel" style="margin-bottom:12px">
       <h3>${esc(o.title)}</h3>
       <div class="grid four">
@@ -164,13 +175,13 @@ function openReceive(orderId) {
 
     <hr class="divider">
     
-    <h3>📷 Сканер штрихкодов</h3>
+    <h3>Сканер штрихкодов</h3>
     <div class="scanbox" id="scanBox">
       <div class="scanplaceholder">Нажмите «Запустить сканер» для доступа к камере</div>
     </div>
     <div class="actions" style="margin-top:8px">
-      <button id="startScan">🎥 Запустить сканер</button>
-      <button class="secondary" id="stopScan">⏹ Остановить</button>
+      <button id="startScan">${I.camera} Запустить сканер</button>
+      <button class="secondary" id="stopScan">${I.stop} Остановить</button>
     </div>
     <div id="scanResult"></div>
     
@@ -301,12 +312,12 @@ function openBackupModal() {
   modal('База / резерв', `
     <div class="panel">
       <h3>Экспорт базы (SQLite .db)</h3>
-      <button id="downloadDb" class="secondary">💾 Скачать базу</button>
+      <button id="downloadDb" class="secondary">${I.download} Скачать базу</button>
     </div>
     <div class="panel" style="margin-top:12px">
       <h3>Импорт базы</h3>
       <input type="file" id="dbFile" accept=".db,.sqlite,.sqlite3">
-      <button id="uploadDb" class="secondary" style="margin-top:8px">📤 Загрузить и заменить</button>
+      <button id="uploadDb" class="secondary" style="margin-top:8px">${I.upload} Загрузить и заменить</button>
     </div>
   `);
   

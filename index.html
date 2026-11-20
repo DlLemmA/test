@@ -10,37 +10,32 @@
 <link rel="stylesheet" href="./src/app/style.css">
 </head>
 <body class="bg-slate-100 text-slate-900 font-sans">
-<div class="app max-w-2xl mx-auto px-3 pb-8 pt-safe">
-  <header class="top flex items-center justify-between gap-3 py-4 px-1 mb-2">
-    <div>
-      <div class="brand text-2xl font-bold tracking-tight">Посылки</div>
-      <div class="sub text-xs text-slate-500" id="profileLabel">Личный учёт заказов</div>
+<div class="app max-w-2xl mx-auto">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">Посылки</div>
+      <div class="sub" id="profileLabel">Личный учёт заказов</div>
     </div>
-    <div class="flex gap-2">
-      <button class="secondary bg-slate-200 text-slate-900 px-4 py-2 rounded-xl" id="demoBtn">Демо</button>
-      <button class="secondary bg-slate-200 text-slate-900 px-4 py-2 rounded-xl" id="backupBtn">База / резерв</button>
+    <div class="topbar-right">
+      <button class="ghost" id="demoBtn" aria-label="Демо данные"></button>
+      <button class="ghost" id="backupBtn" aria-label="Резервное копирование"></button>
     </div>
   </header>
-  <nav class="nav flex gap-1 overflow-auto py-1 px-0 mb-3" id="nav">
-    <button data-tab="order" class="active bg-slate-800 text-white px-4 py-2 rounded-lg whitespace-nowrap">Текущий заказ</button>
-    <button data-tab="items" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg whitespace-nowrap">Товары</button>
-    <button data-tab="people" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg whitespace-nowrap">Заказчики</button>
-    <button data-tab="history" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg whitespace-nowrap">История</button>
-  </nav>
-  <main id="main-content">
+
+  <main id="main-content" class="main-content">
     <section id="panel-order"><div id="orderView"></div></section>
     <section id="panel-items" hidden><div id="itemsView"></div></section>
     <section id="panel-people" hidden><div id="peopleView"></div></section>
     <section id="panel-history" hidden><div id="historyView"></div></section>
   </main>
-  <div class="foot text-xs text-slate-500 text-center py-3">Данные хранятся на этом устройстве. Регулярно сохраняйте резервную копию базы.</div>
+
+  <nav class="bottombar" id="bottombar" role="navigation" aria-label="Основная навигация"></nav>
 </div>
 
-<!-- Native dialog for all modals -->
-<dialog id="sharedDialog"></dialog>
+<!-- Bottom sheet elements are created dynamically by utils.js -->
 
 <!-- Toast container -->
-<div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+<div id="toastContainer"></div>
 
 <script type="module" src="./src/app/app.js"></script>
 </body>

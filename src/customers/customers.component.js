@@ -1,6 +1,6 @@
 // customers.component.js — Customers view UI
 import { customerList, openCustomerForm, deleteCustomer } from './customers.js';
-import { esc } from '../core/utils.js';
+import { esc, I } from '../core/utils.js';
 
 export function renderPeopleView() {
   const root = document.getElementById('peopleView');
@@ -11,7 +11,7 @@ export function renderPeopleView() {
     <div class="panel">
       <div class="row between">
         <h2>Заказчики</h2>
-        <button class="secondary" id="addCustomer">➕ Добавить</button>
+        <button class="secondary" id="addCustomer">${I.plus} Добавить</button>
       </div>
       ${people.length ? people.map(p => `
         <div class="item row between">
