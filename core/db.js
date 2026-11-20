@@ -4,11 +4,9 @@ let db = null;
 
 export async function initDB() {
   if (!window.initSqlJs) {
-    throw new Error('SQL.js not loaded');
+    throw new Error('SQL.js not initialized. Call initSql() first.');
   }
-  SQL = await initSqlJs({
-    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
-  });
+  SQL = await window.initSqlJs();
 
   const saved = await loadFromIndexedDB();
   db = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
