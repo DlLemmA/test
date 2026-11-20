@@ -8,6 +8,7 @@ let currentOrderId = null;
 export async function initApp() {
   await initDB();
   await loadCurrentOrder();
+  console.log('bind events')
   bindEvents();
   renderAll();
 }

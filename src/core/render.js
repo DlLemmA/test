@@ -1,7 +1,7 @@
 // render.js — All rendering functions
 import { getCurrentOrderId } from './init.js';
 import { sql, one, run, persist } from './db.js';
-import { openReceive, exportOrder, openItemForm, moveItem, weighItem, openCustomerForm } from './events.js';
+import { exportOrder, openItemForm, moveItem, openCustomerForm } from './events.js';
 import { renderOrderView } from '../order/order.component.js';
 import { esc, kg, money } from './utils.js';
 
@@ -187,26 +187,6 @@ function calc(o) {
   });
 
   return { its, totalW, free, tariff, deliveryTotal, perCustomer };
-}
-
-function renderItemsList(orderId) {
-  const its = itemsFor(orderId);
-  // Yield to main thread for large lists to avoid blocking
-  if (its.length > 50 && 'scheduler' in window && 'yield' in scheduler) {
-    const items = its.map(i => itemHtml(i, 'В процессe'));
-    const root = document.getElementById('orderItemsList');
-    if (root) {
-      root.innerHTML = '';
-      items.forEach((html, i) => {
-        if (i % 20 === 0 && i > 0) scheduler.yield();
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        root.appendChild(tmp.firstElementChild);
-      });
-      return;
-    }
-  }
-  return its.map(i => itemHtml(i, 'В процессе')).join('') || '<div class="empty">Нет товаров</div>';
 }
 
 function itemHtml(i, orderStatus) {
