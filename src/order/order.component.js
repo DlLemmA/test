@@ -2,11 +2,12 @@
 import { getCurrentOrder, calc, itemsFor, itemHtml } from '../core/render.js';
 import { openReceive, exportOrder } from '../core/events.js';
 import { openItemForm, moveItem, weighItem, deleteItem } from '../items/items.js';
-import { openOrderForm } from './order.js';
+import { openOrderForm, getOrderStatus } from './order.js';
 import { createOrder } from '../core/init.js';
 import { esc, kg, money, I, notify } from '../core/utils.js';
 import { run, persist } from '../core/db.js';
 import { on } from '../core/listeners.js';
+import { getItemStatus } from '../items/itemStatus.js';
 
 function formatOrderTitle(o) {
   const num = `№${o.id}`;
@@ -51,19 +52,20 @@ export function renderOrderView() {
   }
 
   const c = calc(o);
-  const statusCls = getStatusClass(o.status);
+  const orderStatus = getOrderStatus(o);
+  const statusCls = getStatusClass(orderStatus);
 
   root.innerHTML = `
     <div class="panel">
       <div class="flex items-center justify-between gap-3">
         <div>
           <h2>${formatOrderTitle(o)}</h2>
-          <div class="item-meta">Статус: <span class="pill ${statusCls}">${esc(o.status)}</span></div>
+          <div class="item-meta">Статус: <span class="pill ${statusCls}">${esc(orderStatus)}</span></div>
         </div>
         <div class="actions">
-          ${o.status === 'В сборке' ? `<button class="btn-primary" id="shipOrder">${I.package} Отправить</button>` : ''}
-          ${o.status === 'Отправлен' ? `<button class="btn-primary" id="receiveOrder">${I.check} Получить</button>` : ''}
-          ${o.status === 'Получен' ? `<button class="btn-secondary" id="returnToAssembly">${I.arrowRight} Вернуть в сборку</button>` : ''}
+          ${orderStatus === 'В сборке' ? `<button class="btn-primary" id="shipOrder">${I.package} Отправить</button>` : ''}
+          ${orderStatus === 'Отправлен' ? `<button class="btn-primary" id="receiveOrder">${I.check} Получить</button>` : ''}
+          ${orderStatus === 'Получен' ? `<button class="btn-secondary" id="returnToAssembly">${I.arrowRight} Вернуть в сборку</button>` : ''}
           <button class="btn-secondary" id="editOrder">${I.pencil}</button>
           <button class="btn-secondary" id="exportOrder">${I.sheet}</button>
         </div>
@@ -81,13 +83,13 @@ export function renderOrderView() {
       <h3>Сводка по заказчикам</h3>
       <div class="tablewrap" role="region" aria-label="Сводка по заказчикам" tabindex="0">
         <table>
-          <thead><tr><th scope="col">Заказчик</th><th scope="col">Товаров</th><th scope="col">Взвешено</th><th scope="col" class="hide-mobile">Вес</th><th scope="col" class="hide-mobile">Стоимость</th><th scope="col" class="hide-mobile">Доставка</th><th scope="col">Итого</th></tr></thead>
+          <thead><tr><th scope="col">Заказчик</th><th scope="col">Товаров</th><th scope="col">Доставлено</th><th scope="col" class="hide-mobile">Вес</th><th scope="col" class="hide-mobile">Стоимость</th><th scope="col" class="hide-mobile">Доставка</th><th scope="col">Итого</th></tr></thead>
           <tbody>
             ${Object.values(c.perCustomer).sort((a,b)=>a.name.localeCompare(b.name,'ru')).map(x=>`
               <tr>
                 <td>${esc(x.name)}${x.is_self?' (я)':''}</td>
                 <td class="tabular-nums">${x.items.length}</td>
-                <td class="tabular-nums">${x.items.filter(i=>i.status==='Взвешен').length}</td>
+                <td class="tabular-nums">${x.items.filter(i=>getItemStatus(i)==='Доставлен').length}</td>
                 <td class="tabular-nums hide-mobile">${kg(x.weight)}</td>
                 <td class="tabular-nums hide-mobile">${money(x.value)}</td>
                 <td class="tabular-nums hide-mobile">${money(x.delivery)}</td>
@@ -102,9 +104,9 @@ export function renderOrderView() {
     <div class="panel">
       <div class="flex items-center justify-between gap-3">
         <h3>Товары в заказе</h3>
-        ${o.status === 'В сборке' ? `<button class="btn-secondary" id="addItem">${I.plus} Добавить товар</button>` : ''}
+        ${orderStatus === 'В сборке' ? `<button class="btn-secondary" id="addItem">${I.plus} Добавить товар</button>` : ''}
       </div>
-      <div id="orderItemsList">${renderItemsList(o.id, o.status)}</div>
+      <div id="orderItemsList">${renderItemsList(o.id, orderStatus)}</div>
     </div>
   `;
 
@@ -112,9 +114,11 @@ export function renderOrderView() {
 }
 
 function bindOrderActions(o) {
+  const orderStatus = getOrderStatus(o);
+  
   document.getElementById('shipOrder')?.addEventListener('click', async () => {
     const now = new Date().toISOString().split('T')[0];
-    run('UPDATE orders SET status=?, shipped_at=? WHERE id=?', ['Отправлен', now, o.id]);
+    run('UPDATE orders SET shipped_at=? WHERE id=?', [now, o.id]);
     await persist();
     renderAll();
     notify('Заказ отправлен');
@@ -126,7 +130,7 @@ function bindOrderActions(o) {
   
   document.getElementById('returnToAssembly')?.addEventListener('click', async () => {
     confirmSheet('Вернуть в сборку', 'Даты отправления и получения будут очищены. Продолжить?', 'Вернуть', async () => {
-      run('UPDATE orders SET status=?, shipped_at=NULL, received_at=NULL WHERE id=?', ['В сборке', o.id]);
+      run('UPDATE orders SET shipped_at=NULL, received_at=NULL WHERE id=?', [o.id]);
       await persist();
       renderAll();
       notify('Заказ возвращен в сборку');
