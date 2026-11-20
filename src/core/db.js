@@ -2,13 +2,11 @@
 let SQL = null;
 let db = null;
 
-const sqliteUrl = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/';
+import initSqlJs from 'sql.js'
+import sqliteUrl from "sql.js/dist/sql-wasm.wasm?url";
 
 export async function initDB() {
-  if (!window.initSqlJs) {
-    throw new Error('SQL.js not loaded. Add <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script> to your HTML.');
-  }
-  SQL = await window.initSqlJs({ locateFile: () => sqliteUrl });
+  SQL = await initSqlJs({ locateFile: () => sqliteUrl });
 
   const saved = await loadFromIndexedDB();
   db = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
