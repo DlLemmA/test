@@ -4,263 +4,86 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#172033">
+<meta name="description" content="Посылки — личный учёт заказов, товаров и приёмки посылок с распределением веса и стоимости доставки">
 <title>Посылки — учёт заказов</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        maxWidth: { '2xl': '980px' }
+      }
+    }
+  }
+</script>
 <style>
-:root{color-scheme:light;--bg:#f3f5f8;--panel:#fff;--ink:#172033;--muted:#687386;--line:#e3e7ee;--accent:#315ee8;--accent2:#eaf0ff;--good:#137a50;--warn:#986000;--bad:#b42318;--shadow:0 8px 28px rgba(24,39,75,.07)}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:11px 14px;background:var(--accent);color:#fff;font-weight:650}button.secondary{background:#eef1f6;color:var(--ink)}button.ghost{background:transparent;color:var(--accent);padding:8px}button.danger{background:#fff0ef;color:var(--bad)}button:disabled{opacity:.45;cursor:not-allowed}.app{max-width:980px;margin:auto;padding:env(safe-area-inset-top) 14px calc(24px + env(safe-area-inset-bottom))}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 2px 12px}.brand{font-weight:800;font-size:20px;letter-spacing:-.4px}.sub{font-size:12px;color:var(--muted)}.nav{display:flex;gap:6px;overflow:auto;padding:5px 0 14px}.nav button{white-space:nowrap;background:#e8ebf1;color:#445064;padding:9px 13px}.nav button.active{background:var(--ink);color:white}.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin:0 0 13px;box-shadow:var(--shadow)}.panel h2{margin:0 0 12px;font-size:18px}.panel h3{margin:0 0 8px;font-size:15px}.row{display:flex;align-items:center;gap:9px}.between{justify-content:space-between}.wrap{flex-wrap:wrap}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{background:#f7f8fb;border-radius:13px;padding:12px}.metric b{display:block;font-size:20px;letter-spacing:-.5px}.metric span{font-size:12px;color:var(--muted)}.muted{color:var(--muted)}.small{font-size:12px}.pill{display:inline-flex;align-items:center;border-radius:99px;padding:4px 9px;background:#eef1f6;color:#485366;font-size:12px;font-weight:650}.pill.good{background:#e7f6ee;color:var(--good)}.pill.warn{background:#fff4d9;color:var(--warn)}.pill.bad{background:#ffedeb;color:var(--bad)}label{display:block;font-size:13px;color:#4b5668;font-weight:650;margin:0 0 5px}.field{margin:0 0 11px}input,select,textarea{width:100%;border:1px solid #d8dee8;border-radius:11px;padding:11px 12px;background:#fff;color:var(--ink);min-width:0}input:focus,select:focus,textarea:focus{outline:2px solid #cbd7ff;border-color:#7894ff}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions>*{flex:1}.item{padding:12px 0;border-top:1px solid var(--line)}.item:first-child{border-top:0}.item-title{font-weight:700}.item-meta{font-size:12px;color:var(--muted);margin-top:3px}.item-right{text-align:right;white-space:nowrap}.hidden{display:none!important}.notice{border-radius:12px;padding:11px 12px;background:#f1f5ff;color:#33466f;font-size:13px;margin:10px 0}.notice.warn{background:#fff5df;color:#75500a}.notice.error{background:#fff0ef;color:#8d241d}.notice.good{background:#eaf7ef;color:#176443}.empty{text-align:center;padding:28px 12px;color:var(--muted)}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:650;white-space:nowrap}.modalback{position:fixed;inset:0;background:#10182888;display:flex;align-items:flex-end;justify-content:center;padding:12px;z-index:10}.modal{background:white;border-radius:20px 20px 16px 16px;padding:18px;width:min(620px,100%);max-height:92dvh;overflow:auto;box-shadow:0 20px 60px #0003}.modalhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.modalhead h2{margin:0;font-size:18px}.x{background:#eef1f6;color:#253047;padding:7px 11px}.scanbox{background:#111827;border-radius:14px;overflow:hidden;min-height:220px;position:relative}.scanbox video{width:100%;max-height:340px;object-fit:cover}.scanbox .scanplaceholder{color:white;text-align:center;padding:60px 10px}.foot{color:var(--muted);font-size:11px;text-align:center;padding:15px}.divider{height:1px;background:var(--line);margin:12px 0}.right{text-align:right}.nowrap{white-space:nowrap}
-@media(min-width:700px){.app{padding-left:22px;padding-right:22px}.modalback{align-items:center}.modal{border-radius:20px}.grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  /* Table sticky headers */
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tablewrap table thead th { position: sticky; top: 0; background: inherit; z-index: 1; }
+  
+  /* Mobile table column hiding */
+  @media (max-width: 640px) {
+    .hide-mobile { display: none; }
+  }
+  
+  /* Toast animations */
+  @keyframes toast-slide-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: none; } }
+  @keyframes toast-fade-out { from { opacity: 1; } to { opacity: 0; } }
+  .toast-enter { animation: toast-slide-in 0.2s ease-out; }
+  .toast-exit { animation: toast-fade-out 0.2s ease-in forwards; }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .toast-enter, .toast-exit { animation: none; }
+  }
+  
+  /* Dialog backdrop */
+  dialog::backdrop { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+  
+  /* Scroll shadow indicator for tables */
+  .tablewrap.scrolling-left { box-shadow: inset 12px 0 8px -8px rgba(0,0,0,0.1); }
+  .tablewrap.scrolling-right { box-shadow: inset -12px 0 8px -8px rgba(0,0,0,0.1); }
+  .tablewrap.scrolling-both { box-shadow: inset 12px 0 8px -8px rgba(0,0,0,0.1), inset -12px 0 8px -8px rgba(0,0,0,0.1); }
+  
+  /* Content visibility for offscreen tabs */
+  [hidden] { display: none !important; }
+  section[hidden] { content-visibility: auto; }
 </style>
 </head>
-<body>
-<div class="app">
-  <header class="top"><div><div class="brand">Посылки</div><div class="sub" id="profileLabel">Личный учёт заказов</div></div><div class="row"><button class="secondary" id="demoBtn">Демо</button><button class="secondary" id="backupBtn">База / резерв</button></div></header>
-  <nav class="nav" id="nav">
-    <button data-tab="order" class="active">Текущий заказ</button>
-    <button data-tab="items">Товары</button>
-    <button data-tab="people">Заказчики</button>
-    <button data-tab="history">История</button>
+<body class="bg-slate-100 text-slate-900 font-sans">
+<div class="app max-w-2xl mx-auto px-3 pb-8 pt-safe">
+  <header class="top flex items-center justify-between gap-3 py-4 px-1 mb-2">
+    <div>
+      <div class="brand text-2xl font-bold tracking-tight">Посылки</div>
+      <div class="sub text-xs text-slate-500" id="profileLabel">Личный учёт заказов</div>
+    </div>
+    <div class="flex gap-2">
+      <button class="secondary bg-slate-200 text-slate-900 px-4 py-2 rounded-xl" id="demoBtn">Демо</button>
+      <button class="secondary bg-slate-200 text-slate-900 px-4 py-2 rounded-xl" id="backupBtn">База / резерв</button>
+    </div>
+  </header>
+  <nav class="nav flex gap-1 overflow-auto py-1 px-0 mb-3" id="nav">
+    <button data-tab="order" class="active bg-slate-800 text-white px-4 py-2 rounded-lg whitespace-nowrap">Текущий заказ</button>
+    <button data-tab="items" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg whitespace-nowrap">Товары</button>
+    <button data-tab="people" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg whitespace-nowrap">Заказчики</button>
+    <button data-tab="history" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg whitespace-nowrap">История</button>
   </nav>
-  <main>
-    <section id="tab-order">
-      <div id="orderView"></div>
-    </section>
-    <section id="tab-items" class="hidden"><div id="itemsView"></div></section>
-    <section id="tab-people" class="hidden"><div id="peopleView"></div></section>
-    <section id="tab-history" class="hidden"><div id="historyView"></div></section>
+  <main id="main-content">
+    <section id="panel-order"><div id="orderView"></div></section>
+    <section id="panel-items" hidden><div id="itemsView"></div></section>
+    <section id="panel-people" hidden><div id="peopleView"></div></section>
+    <section id="panel-history" hidden><div id="historyView"></div></section>
   </main>
-  <div class="foot">Данные хранятся на этом устройстве. Регулярно сохраняйте резервную копию базы.</div>
+  <div class="foot text-xs text-slate-500 text-center py-3">Данные хранятся на этом устройстве. Регулярно сохраняйте резервную копию базы.</div>
 </div>
-<div id="modalRoot"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script>
-(() => {
-'use strict';
-let SQL, db, activeTab='order', scanReader=null, scanControls=null, scanStream=null;
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const num=v=>Number(v||0);
-const money=v=>num(v).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' BYN';
-const kg=v=>(num(v)/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг';
-const dateNow=()=>new Date().toISOString().slice(0,10);
-function sql(q,args=[]){const st=db.prepare(q);st.bind(args);const out=[];while(st.step())out.push(st.getAsObject());st.free();return out}
-function run(q,args=[]){db.run(q,args)}
-function one(q,args=[]){return sql(q,args)[0]||null}
-function persist(){const bytes=db.export();const blob=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);return new Promise((resolve,reject)=>{const req=indexedDB.open('parcel-local-db',1);req.onupgradeneeded=()=>req.result.createObjectStore('db');req.onsuccess=()=>{const tx=req.result.transaction('db','readwrite');tx.objectStore('db').put(blob,'sqlite');tx.oncomplete=()=>{req.result.close();resolve()};tx.onerror=()=>reject(tx.error)};req.onerror=()=>reject(req.error)})}
-function loadSaved(){return new Promise((resolve,reject)=>{const req=indexedDB.open('parcel-local-db',1);req.onupgradeneeded=()=>req.result.createObjectStore('db');req.onsuccess=()=>{const r=req.result.transaction('db').objectStore('db').get('sqlite');r.onsuccess=()=>{req.result.close();resolve(r.result||null)};r.onerror=()=>reject(r.error)};req.onerror=()=>reject(req.error)})}
-function initSchema(){
-db.run(`PRAGMA foreign_keys=ON;
-CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
-CREATE TABLE IF NOT EXISTS customers(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE,is_self INTEGER DEFAULT 0);
-CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'В процессе',created_at TEXT NOT NULL,shipped_at TEXT,box_weight_g INTEGER,shipping_cost REAL);
-CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL,customer_id INTEGER NOT NULL,name TEXT NOT NULL,track TEXT,price REAL NOT NULL DEFAULT 0,weight_g INTEGER,status TEXT NOT NULL DEFAULT 'Ожидает взвешивания',notes TEXT,created_at TEXT NOT NULL,FOREIGN KEY(order_id) REFERENCES orders(id),FOREIGN KEY(customer_id) REFERENCES customers(id));
-CREATE INDEX IF NOT EXISTS idx_items_track ON items(track);
-CREATE INDEX IF NOT EXISTS idx_items_order ON items(order_id);`);
-}
-function setting(k){return one('SELECT value FROM settings WHERE key=?',[k])?.value||''}
-function setSetting(k,v){run('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)',[k,String(v)])}
-function ensureOrder(){let o=one("SELECT * FROM orders WHERE status='В процессе' ORDER BY id DESC LIMIT 1");if(!o){const count=num(one('SELECT COUNT(*) n FROM orders')?.n)+1;run('INSERT INTO orders(title,status,created_at) VALUES(?,?,?)',['Заказ №'+count,'В процессе',dateNow()]);o=one("SELECT * FROM orders WHERE status='В процессе' ORDER BY id DESC LIMIT 1")}return o}
-function currentOrder(){return one("SELECT * FROM orders WHERE status='В процессе' ORDER BY id DESC LIMIT 1")||ensureOrder()}
-function customerList(){return sql('SELECT * FROM customers ORDER BY is_self DESC,name COLLATE NOCASE')}
-function selfCustomer(){const id=num(setting('self_customer_id'));return one('SELECT * FROM customers WHERE id=?',[id])}
-function customerName(id){return one('SELECT name FROM customers WHERE id=?',[id])?.name||'—'}
-function itemsFor(orderId){return sql('SELECT i.*,c.name customer_name FROM items i LEFT JOIN customers c ON c.id=i.customer_id WHERE i.order_id=? ORDER BY c.name COLLATE NOCASE,i.name COLLATE NOCASE,i.id',[orderId])}
-function calc(o){
- const its=itemsFor(o.id), weighed=its.filter(i=>i.status==='Взвешен'&&i.weight_g!==null);
- const totalW=weighed.reduce((s,i)=>s+num(i.weight_g),0), box=num(o.box_weight_g), free=box-totalW;
- const tariff=box>0?num(o.shipping_cost)/(box/1000):0;
- const factor=totalW>0?1+free/totalW:0;
- const perCustomer={};
- weighed.forEach(i=>{const cid=i.customer_id;perCustomer[cid]??={id:cid,name:i.customer_name,weight:0,delivery:0,items:0,value:0};perCustomer[cid].weight+=num(i.weight_g);perCustomer[cid].items++;perCustomer[cid].value+=num(i.price)});
- weighed.forEach(i=>{const d=num(i.weight_g)*tariff*factor;perCustomer[i.customer_id].delivery+=d});
- Object.values(perCustomer).forEach(c=>c.total=c.value+c.delivery);
- return {its,weighed,totalW,box,free,tariff,factor,perCustomer,deliveryTotal:Object.values(perCustomer).reduce((s,c)=>s+c.delivery,0)};
-}
-function modal(title,body){$('modalRoot').innerHTML=`<div class="modalback" id="modalBack"><div class="modal"><div class="modalhead"><h2>${title}</h2><button class="x" id="modalClose">Закрыть</button></div>${body}</div></div>`;$('modalClose').onclick=closeModal;$('modalBack').addEventListener('click',e=>{if(e.target.id==='modalBack')closeModal()})}
-function closeModal(){stopScanner();$('modalRoot').innerHTML=''}
-function notify(text,kind='good'){const el=document.createElement('div');el.className='notice '+kind;el.textContent=text;const main=document.querySelector('main');main.prepend(el);setTimeout(()=>el.remove(),3800)}
-function switchTab(tab){activeTab=tab;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));['order','items','people','history'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==tab));render()}
-function render(){if(!db)return;renderOrder();renderItems();renderPeople();renderHistory();$('profileLabel').textContent='Пользователь: '+(setting('self_name')||'не задан')}
-function renderOrder(){
- const o=currentOrder(),its=itemsFor(o.id),c=calc(o);
- const statusCount=s=>its.filter(i=>i.status===s).length;
- $('orderView').innerHTML=`
- <div class="panel">
-  <div class="row between wrap"><div><div class="sub">Текущий заказ</div><h2 style="margin:2px 0">${esc(o.title)}</h2></div><span class="pill warn">В процессе</span></div>
-  <div class="grid four">
-   <div class="metric"><b>${its.length}</b><span>Всего товаров</span></div>
-   <div class="metric"><b>${statusCount('Взвешен')}</b><span>Взвешено</span></div>
-   <div class="metric"><b>${statusCount('Потерян')}</b><span>Потеряно</span></div>
-   <div class="metric"><b>${statusCount('Пропущен')+statusCount('Ожидает взвешивания')}</b><span>Не обработано</span></div>
-  </div>
-  <div class="actions" style="margin-top:13px">
-   <button id="addItemBtn">＋ Добавить товар</button>
-   <button class="secondary" id="receiveBtn">${o.box_weight_g===null?'Получили коробку':'Приёмка / сканер'}</button>
-  </div>
- </div>
- ${o.box_weight_g!==null?`<div class="panel"><h3>Параметры отправки</h3><div class="grid"><div class="metric"><b>${kg(o.box_weight_g)}</b><span>Вес коробки</span></div><div class="metric"><b>${money(o.shipping_cost)}</b><span>Стоимость отправки</span></div><div class="metric"><b>${money(c.tariff)}</b><span>Тариф за кг</span></div><div class="metric"><b>${kg(c.free)}</b><span>Свободный вес</span></div></div><div class="notice ${c.free<0?'warn':'good'}">${c.free<0?'Суммарный вес товаров больше веса коробки. Проверьте введённые веса.':'Свободный вес распределяется пропорционально весу взвешенных товаров между заказчиками.'}</div></div>`:''}
- <div class="panel"><div class="row between"><h3>Товары в заказе</h3><span class="small muted">${its.length} шт.</span></div>
- ${its.length?its.map(i=>itemHtml(i,o.status)).join(''):'<div class="empty">Пока нет товаров. Добавьте первый товар.</div>'}
- </div>
- <div class="panel"><h3>Итоги по заказчикам</h3>${Object.values(c.perCustomer).length?Object.values(c.perCustomer).map(x=>`<div class="item row between"><div><b>${esc(x.name)}</b><div class="item-meta">${x.items} товар(ов) · ${kg(x.weight)}</div></div><div class="right"><b>${money(x.delivery)}</b><div class="item-meta">доставка</div></div></div>`).join(''):'<div class="muted small">Появятся после ввода веса товаров.</div>'}</div>
- <div class="actions"><button id="exportBtn" class="secondary">Экспорт Excel</button><button id="finishBtn" class="danger">Заказ отправлен</button></div>`;
- $('addItemBtn').onclick=()=>openItemForm();
- $('receiveBtn').onclick=()=>openReceive(o);
- $('exportBtn').onclick=()=>exportOrder(o);
- $('finishBtn').onclick=()=>finishOrder(o);
- document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openItemForm(num(b.dataset.edit)));
- document.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>moveItem(num(b.dataset.move)));
-}
-function itemHtml(i,orderStatus){
- const cls=i.status==='Взвешен'?'good':i.status==='Потерян'?'bad':i.status==='Пропущен'?'warn':'';
- return `<div class="item"><div class="row between"><div style="min-width:0"><div class="item-title">${esc(i.name)}</div><div class="item-meta">${esc(i.customer_name)} · трек: ${esc(i.track||'—')}</div><div class="row wrap" style="margin-top:6px"><span class="pill ${cls}">${esc(i.status)}</span>${i.weight_g!==null&&i.status==='Взвешен'?`<span class="small muted">${kg(i.weight_g)}</span>`:''}</div></div><div class="item-right"><b>${money(i.price)}</b><div class="actions" style="justify-content:flex-end;margin-top:6px"><button class="secondary" data-edit="${i.id}">Изменить</button>${orderStatus==='В процессе'?`<button class="secondary" data-move="${i.id}">Перенести</button>`:''}</div></div></div></div>`
-}
-function openItemForm(id=null,track=''){
- const o=currentOrder(),old=id?one('SELECT * FROM items WHERE id=?',[id]):null,people=customerList();
- const opts=people.map(p=>`<option value="${p.id}" ${old&&old.customer_id===p.id?'selected':''}>${esc(p.name)}${p.is_self?' (я)':''}</option>`).join('');
- modal(id?'Изменить товар':'Новый товар',`
- <form id="itemForm">
- <div class="field"><label>Название товара *</label><input name="name" required value="${esc(old?.name||'')}" placeholder="Например, кроссовки"></div>
- <div class="field"><label>Заказчик</label><select name="customer_id">${opts}</select></div>
- <div class="field"><label>Трек-номер / Штрихкод</label><input name="track" value="${esc(old?.track||track)}" placeholder="Отсканируйте или введите трек-номер"></div>
- <div class="field"><label>Стоимость товара (BYN)</label><input name="price" type="number" min="0" step="0.01" value="${old?old.price:'0'}"></div>
- ${old?`<div class="field"><label>Статус приёмки</label><select name="status">${['Ожидает взвешивания','Взвешен','Пропущен','Потерян'].map(s=>`<option ${old.status===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}
- ${o.box_weight_g!==null?`<div class="field"><label>Вес (г)</label><input name="weight_g" type="number" min="0" step="1" value="${old?.weight_g??''}" placeholder="Например, 1250"></div>`:''}
- <div class="actions"><button type="submit">${id?'Сохранить изменения':'Добавить товар'}</button>${id?'<button type="button" class="danger" id="deleteItem">Удалить</button>':''}</div>
- </form>`);
- $('itemForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),name=f.get('name').trim(),cid=num(f.get('customer_id')),w=f.get('weight_g')===''?null:num(f.get('weight_g')),st=f.get('status')||'Ожидает взвешивания';if(id){run('UPDATE items SET name=?,customer_id=?,track=?,price=?,weight_g=?,status=? WHERE id=?',[name,cid,f.get('track').trim()||null,num(f.get('price')),w,st,id])}else{run('INSERT INTO items(order_id,customer_id,name,track,price,weight_g,status,created_at) VALUES(?,?,?,?,?,?,?,?)',[o.id,cid,name,f.get('track').trim()||null,num(f.get('price')),w,w!==null?'Взвешен':'Ожидает взвешивания',dateNow()])}await persist();closeModal();render();notify('Товар сохранён')};
- if(id)$('deleteItem').onclick=async()=>{if(confirm('Удалить товар без возможности восстановления?')){run('DELETE FROM items WHERE id=?',[id]);await persist();closeModal();render()}}
-}
-function openReceive(o){
- if(o.box_weight_g===null){modal('Получили коробку',`<div class="notice">Введите вес всей коробки и общую стоимость отправки. После сохранения откроется приёмка со сканером.</div><form id="receiveForm"><div class="field"><label>Вес коробки (г)</label><input name="box" type="number" min="1" step="1" required placeholder="Например, 6000"></div><div class="field"><label>Стоимость отправки (BYN)</label><input name="cost" type="number" min="0" step="0.01" required placeholder="Например, 3000"></div><div class="field"><label>Дата отправления</label><input name="date" type="date" value="${dateNow()}" required></div><button type="submit">Сохранить и начать приёмку</button></form>`);$('receiveForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);run('UPDATE orders SET title=CASE WHEN title LIKE \'Заказ №%\' THEN ? ELSE title END,box_weight_g=?,shipping_cost=?,shipped_at=? WHERE id=?',['Заказ от '+f.get('date').split('-').reverse().join('.'),num(f.get('box')),num(f.get('cost')),f.get('date'),o.id]);await persist();closeModal();render();openReceive(one('SELECT * FROM orders WHERE id=?',[o.id]))};return}
- const pending=itemsFor(o.id).filter(i=>i.status!=='Взвешен'&&i.status!=='Потерян');
- modal('Приёмка коробки',`
- <div class="grid"><div class="metric"><b>${kg(o.box_weight_g)}</b><span>Вес коробки</span></div><div class="metric"><b>${money(o.shipping_cost)}</b><span>Отправка</span></div></div>
- <div class="notice">Сканируйте штрихкод. Найденный товар появится с данными заказчика и трек-номером. Если товар не найден, можно создать его или выбрать существующий.</div>
- <div class="scanbox" id="scanbox"><div class="scanplaceholder" id="scanplaceholder">Камера запускается после нажатия кнопки</div><video id="scanVideo" muted playsinline class="hidden"></video></div>
- <div class="actions" style="margin-top:10px"><button id="startScan">Включить камеру</button><button class="secondary" id="stopScan">Остановить</button></div>
- <div class="field" style="margin-top:12px"><label>Или ввести штрихкод вручную</label><div class="row"><input id="manualBarcode" placeholder="Штрихкод"><button id="manualFind">Найти</button></div></div>
- <div id="scanResult"></div>
- <div class="divider"></div><h3>Необработанные товары (${pending.length})</h3>
- <div id="pendingList">${pending.length?pending.map(i=>`<div class="item row between"><div><b>${esc(i.name)}</b><div class="item-meta">${esc(i.customer_name)} · ${esc(i.track||'—')}</div></div><button class="secondary" data-manual-item="${i.id}">Указать вес</button></div>`).join(''):'<div class="muted small">Все товары взвешены или отмечены как потерянные.</div>'}</div>
- `);
- $('startScan').onclick=startScanner;$('stopScan').onclick=stopScanner;$('manualFind').onclick=()=>findBarcode($('manualBarcode').value.trim());
- document.querySelectorAll('[data-manual-item]').forEach(b=>b.onclick=()=>weighItem(num(b.dataset.manualItem)));
-}
-async function startScanner(){
- try{
-  const video=$('scanVideo');$('scanplaceholder').classList.add('hidden');video.classList.remove('hidden');
-  if(window.ZXingBrowser){scanReader=new ZXingBrowser.BrowserMultiFormatReader();scanControls=await scanReader.decodeFromVideoDevice(undefined,video,(result,err)=>{if(result){stopScanner();findBarcode(result.getText())}})}
-  else if('BarcodeDetector'in window){scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});video.srcObject=scanStream;await video.play();const detector=new BarcodeDetector();const loop=async()=>{if(!scanStream)return;try{const codes=await detector.detect(video);if(codes.length){stopScanner();findBarcode(codes[0].rawValue);return}}catch(e){}requestAnimationFrame(loop)};loop()}
-  else throw new Error('Сканер не поддерживается этим браузером');
- }catch(e){$('scanResult').innerHTML=`<div class="notice error">Не удалось запустить камеру: ${esc(e.message)}. Откройте страницу через HTTPS и разрешите доступ к камере либо введите штрихкод вручную.</div>`}
-}
-function stopScanner(){try{if(scanControls){scanControls.stop();scanControls=null}}catch(e){}try{if(scanReader){scanReader.reset();scanReader=null}}catch(e){}if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}}
-function findBarcode(code){
- if(!code){notify('Введите или отсканируйте трек-номер','warn');return}
- const o=currentOrder(),matches=sql('SELECT i.*,c.name customer_name FROM items i JOIN customers c ON c.id=i.customer_id WHERE i.order_id=? AND i.track=? ORDER BY i.id',[o.id,code]);
- const root=$('scanResult');if(!root)return;
- if(!matches.length){root.innerHTML=`<div class="notice warn"><b>Товар не найден</b><br>Трек: ${esc(code)}</div><div class="actions"><button id="createUnknown">Создать товар</button><button class="secondary" id="bindExisting">Привязать к существующему</button></div>`;$('createUnknown').onclick=()=>openItemForm(null,code);$('bindExisting').onclick=()=>chooseExisting(code);return}
- if(matches.length===1){showMatch(matches[0]);return}
- root.innerHTML=`<div class="notice">Найдено несколько товаров с этим трек-номером. Выберите нужный.</div>${matches.map(i=>`<div class="item row between"><div><b>${esc(i.name)}</b><div class="item-meta">${esc(i.customer_name)} · ${esc(i.track||'—')} · ${esc(i.status)} ${i.weight_g!==null?'· '+kg(i.weight_g):''}</div></div><button class="secondary" data-match="${i.id}">Выбрать</button></div>`).join('')}`;
- root.querySelectorAll('[data-match]').forEach(b=>b.onclick=()=>showMatch(matches.find(i=>i.id===num(b.dataset.match))));
-}
-function showMatch(i){
- const root=$('scanResult');if(!root)return;
- root.innerHTML=`<div class="panel" style="margin-top:12px;box-shadow:none"><div class="row between"><b>${esc(i.name)}</b><span class="pill ${i.status==='Взвешен'?'good':''}">${esc(i.status)}</span></div><div class="item-meta">Заказчик: <b>${esc(i.customer_name)}</b><br>Трек: ${esc(i.track||'—')}<br>Цена: ${money(i.price)}<br>${i.weight_g!==null?'Текущий вес: '+kg(i.weight_g):'Вес ещё не указан'}</div><div class="actions" style="margin-top:10px"><button id="weighMatch">${i.weight_g!==null?'Обновить вес':'Указать вес'}</button><button class="secondary" id="matchDone">Готово</button></div></div>`;
- $('weighMatch').onclick=()=>weighItem(i.id);$('matchDone').onclick=()=>{$('scanResult').innerHTML='';};
-}
-function chooseExisting(code){
- const o=currentOrder(),people=customerList(),list=itemsFor(o.id);
- modal('Привязать трек-номер',`<div class="field"><label>Выберите товар текущего заказа</label><select id="existingItem">${list.map(i=>`<option value="${i.id}">${esc(i.name)} — ${esc(i.customer_name)} — ${esc(i.track||'—')}</option>`).join('')}</select></div><button id="bindNow">Привязать трек-номер</button>`);
- $('bindNow').onclick=async()=>{const id=num($('existingItem').value);run('UPDATE items SET track=? WHERE id=?',[code,id]);await persist();closeModal();openReceive(currentOrder());notify('Трек-номер привязан')};
-}
-function weighItem(id){
- const i=one('SELECT i.*,c.name customer_name FROM items i JOIN customers c ON c.id=i.customer_id WHERE i.id=?',[id]);
- modal('Вес товара',`<div class="notice">Товар: <b>${esc(i.name)}</b><br>Заказчик: <b>${esc(i.customer_name)}</b><br>Трек: ${esc(i.track||'—')}</div><form id="weightForm"><div class="field"><label>Вес товара (г)</label><input name="weight" type="number" min="1" step="1" required value="${i.weight_g??''}" placeholder="Например, 1250"></div><div class="actions"><button type="submit">Сохранить вес</button><button type="button" class="secondary" id="markSkipped">Пропущен</button><button type="button" class="danger" id="markLost">Потерян</button></div></form>`);
- $('weightForm').onsubmit=async e=>{e.preventDefault();const w=num(new FormData(e.target).get('weight'));run("UPDATE items SET weight_g=?,status='Взвешен' WHERE id=?",[w,id]);await persist();closeModal();render();notify('Вес сохранён');openReceive(currentOrder());};
- $('markSkipped').onclick=async()=>{run("UPDATE items SET status='Пропущен' WHERE id=?",[id]);await persist();closeModal();render();notify('Товар отмечен как пропущенный','warn')};
- $('markLost').onclick=async()=>{run("UPDATE items SET status='Потерян',weight_g=NULL WHERE id=?",[id]);await persist();closeModal();render();notify('Товар отмечен как потерянный','warn')};
-}
-async function finishOrder(o){
- const its=itemsFor(o.id);if(!its.length){notify('Нельзя завершить пустой заказ','warn');return}
- if(!confirm('Отметить '+o.title+' как отправленный? Товары останутся в этом заказе. Те, что отправятся позже, предварительно перенесите в следующий заказ.'))return;
- const date=o.shipped_at||dateNow();run("UPDATE orders SET status='Отправлен',shipped_at=? WHERE id=?",[date,o.id]);const count=num(one('SELECT COUNT(*) n FROM orders')?.n)+1;run('INSERT INTO orders(title,status,created_at) VALUES(?,?,?)',['Заказ №'+count,'В процессе',dateNow()]);await persist();render();notify('Заказ отправлен. Создан следующий заказ.')
-}
-async function moveItem(id){
- const i=one('SELECT * FROM items WHERE id=?',[id]);let next=one("SELECT * FROM orders WHERE status='В процессе' ORDER BY id DESC LIMIT 1");
- if(!next){const count=num(one('SELECT COUNT(*) n FROM orders')?.n)+1;run('INSERT INTO orders(title,status,created_at) VALUES(?,?,?)',['Заказ №'+count,'В процессе',dateNow()]);next=currentOrder()}
- if(!confirm('Перенести «'+i.name+'» в '+next.title+'?'))return;
- run('UPDATE items SET order_id=?,status=\'Ожидает взвешивания\',weight_g=NULL WHERE id=?',[next.id,id]);await persist();render();notify('Товар перенесён')
-}
-function openRenameOrder(o){modal('Название заказа',`<div class="field"><label>Название</label><input id="orderTitle" value="${esc(o.title)}"></div><button id="saveTitle">Сохранить</button>`);$('saveTitle').onclick=async()=>{const v=$('orderTitle').value.trim();if(v){run('UPDATE orders SET title=? WHERE id=?',[v,o.id]);await persist();closeModal();render()}}}
-function renderItems(){
- const o=currentOrder(),list=itemsFor(o.id);
- $('itemsView').innerHTML=`<div class="panel"><div class="row between"><h2>Товары текущего заказа</h2><button id="newItem">＋ Добавить</button></div><div class="field"><input id="itemSearch" placeholder="Поиск по названию, штрихкоду, треку или заказчику"></div><div id="allItems">${list.length?list.map(i=>itemHtml(i,'В процессе')).join(''):'<div class="empty">Товаров пока нет.</div>'}</div></div>`;
- $('newItem').onclick=()=>openItemForm();
- $('itemSearch').oninput=e=>{const q=e.target.value.toLowerCase();$('allItems').innerHTML=list.filter(i=>[i.name,i.track,i.customer_name].join(' ').toLowerCase().includes(q)).map(i=>itemHtml(i,'В процессе')).join('')||'<div class="empty">Ничего не найдено.</div>';bindItemActions()};
- bindItemActions();
-}
-function bindItemActions(){document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openItemForm(num(b.dataset.edit)));document.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>moveItem(num(b.dataset.move)))}
-function renderPeople(){
- const people=customerList();$('peopleView').innerHTML=`<div class="panel"><div class="row between"><h2>Заказчики</h2><button id="addPerson">＋ Добавить</button></div>${people.map(p=>`<div class="item row between"><div><b>${esc(p.name)}</b>${p.is_self?'<span class="pill good">Я</span>':''}</div><button class="secondary" data-person="${p.id}">Изменить</button></div>`).join('')}</div>`;
- $('addPerson').onclick=()=>personForm();document.querySelectorAll('[data-person]').forEach(b=>b.onclick=()=>personForm(num(b.dataset.person)));
-}
-function personForm(id=null){const p=id?one('SELECT * FROM customers WHERE id=?',[id]):null;modal(p?'Заказчик':'Новый заказчик',`<div class="field"><label>Имя</label><input id="personName" value="${esc(p?.name||'')}"></div><button id="savePerson">Сохранить</button>`);$('savePerson').onclick=async()=>{const n=$('personName').value.trim();if(!n)return;if(p)run('UPDATE customers SET name=? WHERE id=?',[n,id]);else run('INSERT OR IGNORE INTO customers(name,is_self) VALUES(?,0)',[n]);await persist();closeModal();render()}}
-function renderHistory(){
- const orders=sql("SELECT * FROM orders WHERE status!='В процессе' ORDER BY id DESC");
- $('historyView').innerHTML=`<div class="panel"><h2>История заказов</h2>${orders.length?orders.map(o=>{const c=calc(o),its=itemsFor(o.id);return `<div class="item"><div class="row between"><div><b>${esc(o.title)}</b><div class="item-meta">Отправлен: ${esc(o.shipped_at||'дата не указана')} · ${its.length} товаров</div></div><span class="pill good">Отправлен</span></div><div class="row wrap small muted" style="margin-top:7px">${kg(o.box_weight_g)} · отправка ${money(o.shipping_cost)}</div><div class="actions" style="margin-top:8px"><button class="secondary" data-export-order="${o.id}">Excel</button><button class="secondary" data-rename-order="${o.id}">Переименовать</button></div></div>`}).join(''):'<div class="empty">Отправленных заказов пока нет.</div>'}</div>`;
- document.querySelectorAll('[data-export-order]').forEach(b=>b.onclick=()=>exportOrder(one('SELECT * FROM orders WHERE id=?',[num(b.dataset.exportOrder)])));
- document.querySelectorAll('[data-rename-order]').forEach(b=>b.onclick=()=>openRenameOrder(one('SELECT * FROM orders WHERE id=?',[num(b.dataset.renameOrder)])));
-}
-function exportOrder(o){
- if(!window.XLSX){notify('Библиотека Excel не загрузилась. Проверьте интернет-соединение.','warn');return}
- const c=calc(o),wb=XLSX.utils.book_new(),rows=[];
- rows.push(['ОБЩАЯ СВОДКА']);rows.push(['Заказ',o.title]);rows.push(['Дата отправления',o.shipped_at||'—']);rows.push(['Статус',o.status]);rows.push(['Вес коробки, кг',num(o.box_weight_g)/1000]);rows.push(['Вес взвешенных товаров, кг',c.totalW/1000]);rows.push(['Свободный вес, кг',c.free/1000]);rows.push(['Стоимость отправки, BYN',num(o.shipping_cost)]);rows.push(['Тариф, BYN/кг',c.tariff]);rows.push(['Распределено доставки, BYN',c.deliveryTotal]);rows.push(['Всего товаров',c.its.length]);rows.push(['Взвешено',c.its.filter(i=>i.status==='Взвешен').length]);rows.push(['Потеряно',c.its.filter(i=>i.status==='Потерян').length]);rows.push(['Пропущено',c.its.filter(i=>i.status==='Пропущен').length]);rows.push([]);
- rows.push(['СВОДКА ПО ЗАКАЗЧИКАМ']);rows.push(['Заказчик','Товаров взвешено','Вес, кг','Стоимость товаров, BYN','Доставка, BYN','Итого, BYN']);
- Object.values(c.perCustomer).sort((a,b)=>a.name.localeCompare(b.name,'ru')).forEach(x=>rows.push([x.name,x.items,x.weight/1000,x.value,x.delivery,x.total]));
- rows.push([]);rows.push(['ТОВАРЫ (СОРТИРОВКА ПО ЗАКАЗЧИКУ)']);rows.push(['Заказчик','Товар','Трек-номер','Статус','Вес, кг','Цена, BYN','Доставка, BYN','Итого, BYN']);
- const deliveryByItem={};c.weighed.forEach(i=>deliveryByItem[i.id]=num(i.weight_g)*c.tariff*c.factor);
- c.its.sort((a,b)=>a.customer_name.localeCompare(b.customer_name,'ru')||a.name.localeCompare(b.name,'ru')).forEach(i=>{const d=deliveryByItem[i.id]||0;rows.push([i.customer_name,i.name,i.track||'',i.status,i.weight_g===null?'':num(i.weight_g)/1000,num(i.price),d,num(i.price)+d])});
- const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:24},{wch:30},{wch:24},{wch:20},{wch:22},{wch:14},{wch:16},{wch:16},{wch:16}];XLSX.utils.book_append_sheet(wb,ws,'Заказ');
- XLSX.writeFile(wb,(o.title||'Заказ').replace(/[\\/:*?"<>|]/g,'_')+'.xlsx');
-}
-function backup(){
- const bytes=db.export(),blob=new Blob([bytes],{type:'application/x-sqlite3'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='parcel-backup-'+dateNow()+'.sqlite';a.click();URL.revokeObjectURL(a.href)
-}
-function openBackup(){modal('Резервная копия',`<div class="notice">База сохраняется автоматически в хранилище браузера на этом устройстве. Резервная копия нужна для переноса или восстановления данных.</div><button id="downloadDb">Скачать базу SQLite</button><div class="divider"></div><div class="field"><label>Восстановить базу из файла .sqlite</label><input id="restoreFile" type="file" accept=".sqlite,.db,application/octet-stream"></div><button class="danger" id="restoreDb">Заменить текущую базу</button>`);$('downloadDb').onclick=backup;$('restoreDb').onclick=async()=>{const f=$('restoreFile').files[0];if(!f)return notify('Выберите файл базы','warn');if(!confirm('Текущая база будет заменена. Продолжить?'))return;const bytes=new Uint8Array(await f.arrayBuffer());db=new SQL.Database(bytes);initSchema();await persist();closeModal();render();notify('База восстановлена')}}
-async function seedDemo(){
- if(num(one('SELECT COUNT(*) n FROM items')?.n)>0&&!confirm('В базе уже есть товары. Добавить демонстрационные данные?'))return;
- const people=customerList();let iv=people.find(p=>p.name==='Иван')||null,sa=people.find(p=>p.name==='Саша')||null;
- if(!iv){run("INSERT INTO customers(name,is_self) VALUES('Иван',0)");iv=one("SELECT * FROM customers WHERE name='Иван'")}
- if(!sa){run("INSERT INTO customers(name,is_self) VALUES('Саша',0)");sa=one("SELECT * FROM customers WHERE name='Саша'")}
- const o=currentOrder();run('UPDATE orders SET title=? WHERE id=?',['Демо — коробка из Китая',o.id]);run('UPDATE orders SET box_weight_g=6000,shipping_cost=3000,shipped_at=? WHERE id=?',[dateNow(),o.id]);
- const demo=[['Кроссовки',iv.id,'CN100001',1200, 'Взвешен',1200],['Футболка',iv.id,'CN100002',350,'Взвешен',900],['Рюкзак',iv.id,'CN100003',800,'Ожидает взвешивания',null],['Наушники',sa.id,'CN200001',450,'Взвешен',1000],['Куртка',sa.id,'CN200002',980,'Взвешен',1000],['Чехол',sa.id,'CN200003',80,'Потерян',null]];
- demo.forEach(x=>run('INSERT INTO items(order_id,customer_id,name,track,price,status,weight_g,created_at) VALUES(?,?,?,?,?,?,?,?)',[o.id,x[1],x[0],x[2],x[3],x[4],x[5],dateNow()]));
- await persist();render();notify('Демо-данные добавлены')
-}
-function firstRun(){
- if(setting('self_name'))return;
- modal('Первый запуск',`<p class="muted">Как тебя называть? Если у товара не указан заказчик, он будет автоматически записан на тебя.</p><div class="field"><label>Твоё имя</label><input id="selfName" placeholder="Например, Алексей" autofocus></div><button id="saveSelf">Продолжить</button>`);
- $('saveSelf').onclick=async()=>{const n=$('selfName').value.trim();if(!n)return;run('INSERT OR IGNORE INTO customers(name,is_self) VALUES(?,1)',[n]);const c=one('SELECT * FROM customers WHERE name=?',[n]);run('UPDATE customers SET is_self=1 WHERE id=?',[c.id]);setSetting('self_name',n);setSetting('self_customer_id',c.id);await persist();closeModal();render()}
-}
-function bind(){
- $('nav').querySelectorAll('button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
- $('backupBtn').onclick=openBackup;
- $('demoBtn').onclick=seedDemo;
-}
-async function main(){
- if(!window.initSqlJs){document.body.innerHTML='<div class="app"><div class="panel">Не удалось загрузить SQLite. Проверьте интернет-соединение и обновите страницу.</div></div>';return}
- SQL=await initSqlJs({locateFile:file=>'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/'+file});
- const saved=await loadSaved();db=saved?new SQL.Database(new Uint8Array(saved)):new SQL.Database();initSchema();
- if(!one("SELECT id FROM orders WHERE status='В процессе'"))ensureOrder();
- bind();render();firstRun();
-}
-window.addEventListener('beforeunload',()=>{if(db){try{persist()}catch(e){}}});
-main().catch(e=>{console.error(e);document.body.innerHTML='<div class="app"><div class="panel">Ошибка запуска приложения: '+esc(e.message)+'</div></div>'});
-window.seedDemo=seedDemo;
-})();
-</script>
+
+<!-- Native dialog for all modals -->
+<dialog id="sharedDialog"></dialog>
+
+<!-- Toast container -->
+<div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+<script type="module" src="./app.js"></script>
 </body>
 </html>
