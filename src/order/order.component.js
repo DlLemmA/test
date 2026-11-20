@@ -4,7 +4,7 @@ import { openReceive, exportOrder } from '../core/events.js';
 import { openItemForm, moveItem, weighItem } from '../items/items.js';
 import { openOrderForm } from './order.js';
 import { createOrder } from '../core/init.js';
-import { esc, kg, money } from '../core/utils.js';
+import { esc, kg, money, I } from '../core/utils.js';
 
 export function renderOrderView() {
   const o = getCurrentOrder();
@@ -37,9 +37,9 @@ export function renderOrderView() {
           <div class="item-meta">Статус: <span class="pill ${statusCls}">${esc(o.status)}</span></div>
         </div>
         <div class="actions">
-          ${o.status === 'В процессе' ? `<button class="secondary" id="openReceive">🎁 Принять посылку</button>` : ''}
-          <button class="secondary" id="editOrder">✏️ Редактировать</button>
-          <button class="secondary" id="exportOrder">📊 Excel</button>
+          ${o.status === 'В процессе' ? `<button class="secondary" id="openReceive">${I.package} Принять посылку</button>` : ''}
+          <button class="secondary" id="editOrder">${I.pencil} Редактировать</button>
+          <button class="secondary" id="exportOrder">${I.sheet} Excel</button>
         </div>
       </div>
     </div>
@@ -76,7 +76,7 @@ export function renderOrderView() {
     <div class="panel">
       <div class="row between">
         <h3>Товары в заказе</h3>
-        <button class="secondary" id="addItem">➕ Добавить товар</button>
+        <button class="secondary" id="addItem">${I.plus} Добавить товар</button>
       </div>
       <div id="orderItemsList">${renderItemsList(o.id)}</div>
     </div>
