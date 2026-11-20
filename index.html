@@ -7,38 +7,8 @@
 <meta name="description" content="Посылки — личный учёт заказов, товаров и приёмки посылок с распределением веса и стоимости доставки">
 <title>Посылки — учёт заказов</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
-<style>
-  /* Table sticky headers */
-  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tablewrap table thead th { position: sticky; top: 0; background: inherit; z-index: 1; }
-  
-  /* Mobile table column hiding */
-  @media (max-width: 640px) {
-    .hide-mobile { display: none; }
-  }
-  
-  /* Toast animations */
-  @keyframes toast-slide-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: none; } }
-  @keyframes toast-fade-out { from { opacity: 1; } to { opacity: 0; } }
-  .toast-enter { animation: toast-slide-in 0.2s ease-out; }
-  .toast-exit { animation: toast-fade-out 0.2s ease-in forwards; }
-  
-  @media (prefers-reduced-motion: reduce) {
-    .toast-enter, .toast-exit { animation: none; }
-  }
-  
-  /* Dialog backdrop */
-  dialog::backdrop { background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
-  
-  /* Scroll shadow indicator for tables */
-  .tablewrap.scrolling-left { box-shadow: inset 12px 0 8px -8px rgba(0,0,0,0.1); }
-  .tablewrap.scrolling-right { box-shadow: inset -12px 0 8px -8px rgba(0,0,0,0.1); }
-  .tablewrap.scrolling-both { box-shadow: inset 12px 0 8px -8px rgba(0,0,0,0.1), inset -12px 0 8px -8px rgba(0,0,0,0.1); }
-  
-  /* Content visibility for offscreen tabs */
-  [hidden] { display: none !important; }
-  section[hidden] { content-visibility: auto; }
-</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<link rel="stylesheet" href="./src/app/style.css">
 </head>
 <body class="bg-slate-100 text-slate-900 font-sans">
 <div class="app max-w-2xl mx-auto px-3 pb-8 pt-safe">
@@ -73,6 +43,6 @@
 <!-- Toast container -->
 <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-<script type="module" src="./app.js"></script>
+<script type="module" src="./src/app/app.js"></script>
 </body>
 </html>
