@@ -52,7 +52,7 @@ export function openItemForm(id = null) {
       <div class="field"><label>Название *</label><input name="name" required autocomplete="off" autofocus value="${esc(c?.name || '')}"></div>
       <div class="field"><label>Заказчик *</label><select name="customer_id" required>${customerOptions}</select></div>
       <div class="field"><label>Трек-номер</label><input name="track" autocomplete="off" value="${esc(c?.track || '')}"></div>
-      <div class="field"><label>Цена ¥ *</label><input name="price" type="number" step="0.01" required value="${c?.price || ''}"></div>
+      <div class="field"><label>Цена Br *</label><input name="price" type="number" step="0.01" required value="${c?.price || ''}"></div>
       <div class="field"><label>Статус</label><select name="status">${['В процессе','Взвешен','Ожидает взвешивания','Потерян','Пропущен'].map(s => `<option ${c?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Вес (г)</label><input name="weight_g" type="number" step="1" value="${c?.weight_g || ''}"></div>
       <div class="actions"><button type="submit">${isNew ? 'Добавить' : 'Сохранить'}</button></div>
@@ -144,7 +144,7 @@ export function itemHtml(i, orderStatus) {
           </div>
         </div>
         <div class="text-right shrink-0">
-          <b class="tabular-nums">${(i.price || 0).toFixed(2)}</b>
+          <b class="tabular-nums">${(i.price || 0).toFixed(2)} Br</b>
           <div class="flex gap-2 justify-end mt-1.5">
             <button class="btn-secondary" data-edit="${i.id}">Изменить</button>
             ${orderStatus === 'В процессе' ? `<button class="btn-secondary" data-move="${i.id}">Перенести</button>` : ''}

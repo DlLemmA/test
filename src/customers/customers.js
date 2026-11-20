@@ -1,7 +1,7 @@
 // customers.js — Customer management logic
 import { sql, run, one, persist } from '../core/db.js';
 import { renderAll } from '../core/render.js';
-import { esc, notify, modal, closeModal } from '../core/utils.js';
+import { esc, notify, modal, closeModal, confirmSheet } from '../core/utils.js';
 
 export function customerList() {
   return sql('SELECT * FROM customers ORDER BY is_self DESC, name');
@@ -38,10 +38,10 @@ export function openCustomerForm(id = null) {
 }
 
 export async function deleteCustomer(id) {
-  if (confirm('Удалить заказчика?')) {
+  confirmSheet('Удалить заказчика', 'Заказчик будет удалён.', 'Удалить', async () => {
     run('DELETE FROM customers WHERE id=?', [id]);
     await persist();
     renderAll();
     notify('Заказчик удалён');
-  }
+  });
 }

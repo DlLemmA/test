@@ -17,9 +17,9 @@ export function kg(g) {
   return g == null ? '—' : (g / 1000).toFixed(3);
 }
 
-/** Format money with 2 decimals */
+/** Format money in BYN (Br) */
 export function money(v) {
-  return (v || 0).toFixed(2);
+  return (v || 0).toFixed(2) + ' Br';
 }
 
 /** ISO datetime string for "now" */
@@ -82,6 +82,22 @@ export function notify(msg, type = 'info', options = {}) {
   }
 
   return { dismiss };
+}
+
+// === Confirmation sheet (replaces native confirm()) ===
+export function confirmSheet(title, message, confirmLabel, onConfirm) {
+  modal(title, `
+    <div class="text-sm text-slate-600">${message}</div>
+    <div class="flex gap-2">
+      <button type="button" id="confirmCancel" class="btn-secondary flex-1">Отмена</button>
+      <button type="button" id="confirmOk" class="btn-danger-solid flex-1">${confirmLabel}</button>
+    </div>
+  `);
+  document.getElementById('confirmCancel').addEventListener('click', closeModal);
+  document.getElementById('confirmOk').addEventListener('click', () => {
+    closeModal();
+    onConfirm();
+  });
 }
 
 // Re-export sheet functions

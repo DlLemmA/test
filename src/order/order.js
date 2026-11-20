@@ -2,7 +2,7 @@
 import { one, run, persist } from '../core/db.js';
 import { setCurrentOrderId, createOrder } from '../core/init.js';
 import { renderAll } from '../core/render.js';
-import { esc, notify, modal, closeModal } from '../core/utils.js';
+import { esc, notify, modal, closeModal, confirmSheet } from '../core/utils.js';
 
 export function switchOrder(id) {
   setCurrentOrderId(id);
@@ -10,12 +10,13 @@ export function switchOrder(id) {
 }
 
 export async function deleteOrder(id) {
-  if (confirm('Удалить заказ со всеми товарами?')) {
+  confirmSheet('Удалить заказ', 'Заказ будет удалён со всеми товарами. Это действие нельзя отменить.', 'Удалить', async () => {
     run('DELETE FROM items WHERE order_id=?', [id]);
     run('DELETE FROM orders WHERE id=?', [id]);
     await persist();
     renderAll();
-  }
+    notify('Заказ удалён');
+  });
 }
 
 export function openOrderForm(orderId = null) {
@@ -65,12 +66,13 @@ export function openOrderForm(orderId = null) {
   });
 
   document.getElementById('deleteOrder')?.addEventListener('click', async () => {
-    if (confirm('Удалить заказ со всеми товарами?')) {
+    confirmSheet('Удалить заказ', 'Заказ будет удалён со всеми товарами. Это действие нельзя отменить.', 'Удалить', async () => {
       run('DELETE FROM items WHERE order_id=?', [orderId]);
       run('DELETE FROM orders WHERE id=?', [orderId]);
       await persist();
       closeModal();
       renderAll();
-    }
+      notify('Заказ удалён');
+    });
   });
 }

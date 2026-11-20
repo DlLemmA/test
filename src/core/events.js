@@ -5,7 +5,7 @@ import { seedDemo } from './demo-seed.js';
 import { renderAll } from './render.js';
 import { customerList } from '../customers/customers.js';
 import { openItemForm, moveItem, weighItem, itemsFor, itemHtml } from '../items/items.js';
-import { esc, kg, money, dateNow, notify, modal, closeModal, I } from './utils.js';
+import { esc, kg, money, dateNow, notify, modal, closeModal, confirmSheet, I } from './utils.js';
 import { openOrderForm, switchOrder, deleteOrder } from '../order/order.js';
 import { getCurrentOrder } from './render.js';
 import { renderBottomBar, setActiveTab } from './bottombar.component.js';
@@ -95,11 +95,11 @@ function switchTab(tab) {
 }
 
 async function deleteCustomer(id) {
-  if (confirm('Удалить заказчика?')) {
+  confirmSheet('Удалить заказчика', 'Заказчик будет удалён.', 'Удалить', async () => {
     run('DELETE FROM customers WHERE id=?', [id]);
     await persist();
     renderAll();
-  }
+  });
 }
 
 // === Customer form ===
@@ -284,7 +284,7 @@ function showMatch(i) {
   if (!root) return;
   root.innerHTML = `<div class="panel" style="margin-top:12px;box-shadow:none">
     <div class="row between"><b>${esc(i.name)}</b><span class="pill ${i.status==='Взвешен'?'good':''}">${esc(i.status)}</span></div>
-    <div class="item-meta">Заказчик: <b>${esc(i.customer_name)}</b><br>Трек: ${esc(i.track||'—')}<br>Цена: ${money(i.price)}<br>${i.weight_g!==null?'Текущий вес: '+kg(i.weight_g):'Вес ещё не указан'}</div>
+    <div class="item-meta">Заказчик: <b>${esc(i.customer_name)}</b><br>Трек: ${esc(i.track||'—')}<br>Цена: ${money(i.price)} Br<br>${i.weight_g!==null?'Текущий вес: '+kg(i.weight_g):'Вес ещё не указан'}</div>
     <div class="actions" style="margin-top:10px"><button id="weighMatch">${i.weight_g!==null?'Обновить вес':'Указать вес'}</button><button class="secondary" id="matchDone">Готово</button></div>
   </div>`;
   document.getElementById('weighMatch').onclick = () => { closeModal(); weighItem(i.id); };
@@ -337,16 +337,17 @@ function openBackupModal() {
   document.getElementById('uploadDb').onclick = async () => {
     const file = document.getElementById('dbFile').files[0];
     if (!file) { notify('Выберите файл', 'warn'); return; }
-    if (!confirm('Это заменит ВСЕ текущие данные. Продолжить?')) return;
     
-    const arrayBuffer = await file.arrayBuffer();
-    const { SQL, setDB, persist } = await import('./db.js');
-    const newDb = new SQL.Database(new Uint8Array(arrayBuffer));
-    setDB(newDb);
-    await persist();
-    closeModal();
-    renderAll();
-    notify('База восстановлена');
+    confirmSheet('Заменить базу', 'Это заменит ВСЕ текущие данные. Продолжить?', 'Заменить', async () => {
+      const arrayBuffer = await file.arrayBuffer();
+      const { SQL, setDB, persist } = await import('./db.js');
+      const newDb = new SQL.Database(new Uint8Array(arrayBuffer));
+      setDB(newDb);
+      await persist();
+      closeModal();
+      renderAll();
+      notify('База восстановлена');
+    });
   };
 }
 
