@@ -9,6 +9,7 @@ import { esc, kg, money, dateNow, notify, modal, closeModal, confirmSheet, I } f
 import { openOrderForm, switchOrder, deleteOrder } from '../order/order.js';
 import { getCurrentOrder } from './render.js';
 import { renderBottomBar, setActiveTab } from './bottombar.component.js';
+import { on, destroy } from './listeners.js';
 
 let html5QrcodeScanner = null;
 
@@ -19,17 +20,17 @@ export function bindEvents() {
   
   // Re-attach tab listeners after innerHTML
   document.querySelectorAll('.bottombar-item').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    on(btn, 'click', () => switchTab(btn.dataset.tab));
   });
   
   // Header buttons
-  document.getElementById('demoBtn')?.addEventListener('click', async () => {
+  on(document.getElementById('demoBtn'), 'click', async () => {
     await seedDemo();
     renderAll();
     notify('Демо данные загружены');
   });
   
-  document.getElementById('backupBtn')?.addEventListener('click', openBackupModal);
+  on(document.getElementById('backupBtn'), 'click', openBackupModal);
   
   // Topbar button labels (no icons)
   const demoBtn = document.getElementById('demoBtn');
@@ -38,7 +39,7 @@ export function bindEvents() {
   if (backupBtn) backupBtn.textContent = 'Резерв';
 
   // Order view actions (delegated)
-  document.getElementById('orderView')?.addEventListener('click', e => {
+  on(document.getElementById('orderView'), 'click', e => {
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.id === 'openReceive') openReceive(getCurrentOrderId());
@@ -54,7 +55,7 @@ export function bindEvents() {
   // Items view search
   const searchInput = document.getElementById('itemSearch');
   if (searchInput) {
-    searchInput.addEventListener('input', e => {
+    on(searchInput, 'input', e => {
       const q = e.target.value.toLowerCase();
       const o = getCurrentOrder();
       if (!o) return;
@@ -66,7 +67,7 @@ export function bindEvents() {
   }
 
   // People view actions
-  document.getElementById('peopleView')?.addEventListener('click', e => {
+  on(document.getElementById('peopleView'), 'click', e => {
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.id === 'addCustomer') openCustomerForm();
@@ -75,7 +76,7 @@ export function bindEvents() {
   });
 
   // History view actions
-  document.getElementById('historyView')?.addEventListener('click', e => {
+  on(document.getElementById('historyView'), 'click', e => {
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.dataset.switch) switchOrder(parseInt(btn.dataset.switch));
@@ -85,13 +86,22 @@ export function bindEvents() {
 }
 
 function switchTab(tab) {
-  // Highlight active tab button
+  // Highlight active tab button (immediate)
   setActiveTab(tab);
-  // Show/hide panel sections based on data-tab
-  document.querySelectorAll('main section').forEach(s => {
-    const panelId = 'panel-' + tab;
-    s.hidden = s.id !== panelId;
-  });
+
+  const apply = () => {
+    document.querySelectorAll('main section').forEach(s => {
+      const panelId = 'panel-' + tab;
+      s.hidden = s.id !== panelId;
+    });
+  };
+
+  // Use View Transition API where available (iOS Safari 16.4+ etc.)
+  if (document.startViewTransition) {
+    document.startViewTransition(apply);
+  } else {
+    apply();
+  }
 }
 
 async function deleteCustomer(id) {
@@ -115,7 +125,7 @@ function openCustomerForm(id = null) {
     </form>
   `);
 
-  document.getElementById('customerForm').addEventListener('submit', async e => {
+  on(document.getElementById('customerForm'), 'submit', async e => {
     e.preventDefault();
     const f = new FormData(e.target);
     const name = f.get('name').trim();
@@ -192,21 +202,21 @@ function openReceive(orderId) {
   `);
 
   // Save box info
-  document.getElementById('boxWeight').addEventListener('change', async () => {
+  on(document.getElementById('boxWeight'), 'change', async () => {
     const w = parseInt(document.getElementById('boxWeight').value);
     run('UPDATE orders SET box_weight_g=? WHERE id=?', [w, orderId]);
     await persist();
     renderAll();
   });
   
-  document.getElementById('shippingCost').addEventListener('change', async () => {
+  on(document.getElementById('shippingCost'), 'change', async () => {
     const c = parseFloat(document.getElementById('shippingCost').value);
     run('UPDATE orders SET shipping_cost=? WHERE id=?', [c, orderId]);
     await persist();
     renderAll();
   });
   
-  document.getElementById('shippedAt').addEventListener('change', async () => {
+  on(document.getElementById('shippedAt'), 'change', async () => {
     const d = document.getElementById('shippedAt').value;
     run('UPDATE orders SET shipped_at=? WHERE id=?', [d, orderId]);
     await persist();
@@ -215,13 +225,13 @@ function openReceive(orderId) {
 
   // Manual weigh buttons
   document.querySelectorAll('[data-manual-item]').forEach(b => {
-    b.addEventListener('click', () => weighItem(parseInt(b.dataset.manualItem)));
+    on(b, 'click', () => weighItem(parseInt(b.dataset.manualItem)));
   });
 
   // Scanner
-  document.getElementById('startScan')?.addEventListener('click', startScanner);
-  document.getElementById('stopScan')?.addEventListener('click', stopScanner);
-  document.getElementById('closeReceive')?.addEventListener('click', closeModal);
+  on(document.getElementById('startScan'), 'click', startScanner);
+  on(document.getElementById('stopScan'), 'click', stopScanner);
+  on(document.getElementById('closeReceive'), 'click', closeModal);
 }
 
 async function startScanner() {
@@ -287,8 +297,8 @@ function showMatch(i) {
     <div class="item-meta">Заказчик: <b>${esc(i.customer_name)}</b><br>Трек: ${esc(i.track||'—')}<br>Цена: ${money(i.price)} Br<br>${i.weight_g!==null?'Текущий вес: '+kg(i.weight_g):'Вес ещё не указан'}</div>
     <div class="actions" style="margin-top:10px"><button id="weighMatch">${i.weight_g!==null?'Обновить вес':'Указать вес'}</button><button class="secondary" id="matchDone">Готово</button></div>
   </div>`;
-  document.getElementById('weighMatch').onclick = () => { closeModal(); weighItem(i.id); };
-  document.getElementById('matchDone').onclick = () => { root.innerHTML = ''; };
+  on(document.getElementById('weighMatch'), 'click', () => { closeModal(); weighItem(i.id); });
+  on(document.getElementById('matchDone'), 'click', () => { root.innerHTML = ''; });
 }
 
 function chooseExisting(code) {
@@ -298,14 +308,14 @@ function chooseExisting(code) {
     <div class="field"><label>Выберите товар текущего заказа</label><select id="existingItem" autofocus>${list.map(i=>`<option value="${i.id}">${esc(i.name)} — ${esc(i.customer_name)} — ${esc(i.track||'—')}</option>`).join('')}</select></div>
     <button id="bindNow">Привязать трек-номер</button>
   `);
-  document.getElementById('bindNow').onclick = async () => {
+  on(document.getElementById('bindNow'), 'click', async () => {
     const id = parseInt(document.getElementById('existingItem').value);
     run('UPDATE items SET track=? WHERE id=?', [code, id]);
     await persist();
     closeModal();
     openReceive(getCurrentOrderId());
     notify('Трек-номер привязан');
-  };
+  });
 }
 
 // === Backup/Restore ===
@@ -322,7 +332,7 @@ function openBackupModal() {
     </div>
   `);
   
-  document.getElementById('downloadDb').onclick = async () => {
+  on(document.getElementById('downloadDb'), 'click', async () => {
     const { getDB } = await import('./db.js');
     const bytes = getDB().export();
     const blob = new Blob([bytes], { type: 'application/x-sqlite3' });
@@ -332,9 +342,9 @@ function openBackupModal() {
     a.download = `parcel-backup-${new Date().toISOString().split('T')[0]}.db`;
     a.click();
     URL.revokeObjectURL(url);
-  };
+  });
   
-  document.getElementById('uploadDb').onclick = async () => {
+  on(document.getElementById('uploadDb'), 'click', async () => {
     const file = document.getElementById('dbFile').files[0];
     if (!file) { notify('Выберите файл', 'warn'); return; }
     
@@ -348,7 +358,7 @@ function openBackupModal() {
       renderAll();
       notify('База восстановлена');
     });
-  };
+  });
 }
 
 // === Excel Export ===
