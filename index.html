@@ -9,20 +9,20 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
 <link rel="stylesheet" href="./src/app/style.css">
 </head>
-<body class="bg-slate-100 text-slate-900 font-sans">
-<div class="app max-w-2xl mx-auto">
-  <header class="topbar">
-    <div class="topbar-left">
-      <div class="brand">Посылки</div>
-      <div class="sub" id="profileLabel">Личный учёт заказов</div>
+<body class="bg-slate-100 text-slate-900">
+<div class="max-w-2xl mx-auto min-h-screen flex flex-col">
+  <header class="flex items-center justify-between gap-3 px-4 pt-4 pb-3 bg-slate-100 sticky top-0 z-10">
+    <div class="flex flex-col gap-0.5">
+      <div class="font-bold text-[22px] tracking-tight">Посылки</div>
+      <div class="text-xs text-slate-500" id="profileLabel">Личный учёт заказов</div>
     </div>
-    <div class="topbar-right">
-      <button class="ghost" id="demoBtn" aria-label="Демо данные"></button>
-      <button class="ghost" id="backupBtn" aria-label="Резервное копирование"></button>
+    <div class="flex gap-2">
+      <button id="demoBtn" class="bg-transparent rounded-xl px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200 transition-colors">Демо</button>
+      <button id="backupBtn" class="bg-transparent rounded-xl px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-200 transition-colors">Резерв</button>
     </div>
   </header>
 
-  <main id="main-content" class="main-content">
+  <main id="main-content" class="flex-1 px-4 pb-24 overflow-y-auto">
     <section id="panel-order"><div id="orderView"></div></section>
     <section id="panel-items" hidden><div id="itemsView"></div></section>
     <section id="panel-people" hidden><div id="peopleView"></div></section>

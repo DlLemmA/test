@@ -1,4 +1,4 @@
-// order.component.js — Order view UI (current order panel, metrics, per-customer summary, items list)
+// order.component.js — Order view UI
 import { getCurrentOrder, calc, itemsFor, itemHtml } from '../core/render.js';
 import { openReceive, exportOrder } from '../core/events.js';
 import { openItemForm, moveItem, weighItem } from '../items/items.js';
@@ -15,7 +15,7 @@ export function renderOrderView() {
     root.innerHTML = `
       <div class="panel">
         <h2>Нет активного заказа</h2>
-        <button class="secondary" id="createFirstOrder">Создать заказ</button>
+        <button class="btn-secondary" id="createFirstOrder">Создать заказ</button>
       </div>
     `;
     document.getElementById('createFirstOrder')?.addEventListener('click', async () => {
@@ -27,56 +27,56 @@ export function renderOrderView() {
 
   const c = calc(o);
   const shipped = o.shipped_at ? ` · отправлен ${o.shipped_at}` : '';
-  const statusCls = o.status === 'Завершён' ? 'good' : (o.status === 'В процессе' ? 'warn' : '');
+  const statusPill = o.status === 'Завершён' ? 'pill-good' : (o.status === 'В процессе' ? 'pill-warn' : 'pill-default');
 
   root.innerHTML = `
     <div class="panel">
-      <div class="row between">
+      <div class="flex items-center justify-between gap-3">
         <div>
           <h2>${esc(o.title)}${shipped}</h2>
-          <div class="item-meta">Статус: <span class="pill ${statusCls}">${esc(o.status)}</span></div>
+          <div class="text-xs text-slate-500 mt-0.5">Статус: <span class="pill ${statusPill}">${esc(o.status)}</span></div>
         </div>
-        <div class="actions">
-          ${o.status === 'В процессе' ? `<button class="secondary" id="openReceive">${I.package} Принять посылку</button>` : ''}
-          <button class="secondary" id="editOrder">${I.pencil} Редактировать</button>
-          <button class="secondary" id="exportOrder">${I.sheet} Excel</button>
+        <div class="flex gap-2 flex-wrap">
+          ${o.status === 'В процессе' ? `<button class="btn-secondary" id="openReceive">Принять</button>` : ''}
+          <button class="btn-secondary" id="editOrder">Изменить</button>
+          <button class="btn-secondary" id="exportOrder">Excel</button>
         </div>
       </div>
     </div>
 
-    <div class="grid four">
+    <div class="grid grid-cols-2 gap-2.5 mb-3 px-4">
       <div class="metric"><b>${kg(c.totalW)}</b><span>Вес товаров</span></div>
-      <div class="metric"><b>${kg(o.box_weight_g)}</b><span>Вес коробки</span></div>
-      <div class="metric"><b>${kg(c.free)}</b><span>Свободный вес</span></div>
-      <div class="metric"><b>${c.tariff} BYN/кг</b><span>Тариф доставки</span></div>
+      <div class="metric"><b>${kg(o.box_weight_g)}</b><span>Коробка</span></div>
+      <div class="metric"><b>${kg(c.free)}</b><span>Свободный</span></div>
+      <div class="metric"><b>${c.tariff} BYN/кг</b><span>Тариф</span></div>
     </div>
 
     <div class="panel">
       <h3>Сводка по заказчикам</h3>
       <div class="tablewrap" role="region" aria-label="Сводка по заказчикам" tabindex="0">
         <table>
-          <thead><tr><th scope="col">Заказчик</th><th scope="col">Товаров</th><th scope="col">Взвешено</th><th scope="col" class="hide-mobile">Вес, кг</th><th scope="col" class="hide-mobile">Стоимость, BYN</th><th scope="col" class="hide-mobile">Доставка, BYN</th><th scope="col">Итого, BYN</th></tr></thead>
+          <thead><tr><th scope="col">Заказчик</th><th scope="col">Товаров</th><th scope="col">Взвешено</th><th scope="col" class="hide-mobile">Вес</th><th scope="col" class="hide-mobile">Стоимость</th><th scope="col" class="hide-mobile">Доставка</th><th scope="col">Итого</th></tr></thead>
           <tbody>
             ${Object.values(c.perCustomer).sort((a,b)=>a.name.localeCompare(b.name,'ru')).map(x=>`
               <tr>
                 <td>${esc(x.name)}${x.is_self?' (я)':''}</td>
-                <td>${x.items.length}</td>
-                <td>${x.items.filter(i=>i.status==='Взвешен').length}</td>
-                <td>${kg(x.weight)}</td>
-                <td>${money(x.value)}</td>
-                <td>${money(x.delivery)}</td>
-                <td>${money(x.total)}</td>
+                <td class="tabular-nums">${x.items.length}</td>
+                <td class="tabular-nums">${x.items.filter(i=>i.status==='Взвешен').length}</td>
+                <td class="tabular-nums hide-mobile">${kg(x.weight)}</td>
+                <td class="tabular-nums hide-mobile">${money(x.value)}</td>
+                <td class="tabular-nums hide-mobile">${money(x.delivery)}</td>
+                <td class="tabular-nums font-semibold">${money(x.total)}</td>
               </tr>
-            `).join('') || '<tr><td colspan="7" style="text-align:center">Нет товаров</td></tr>'}
+            `).join('') || '<tr><td colspan="7" class="text-center py-6 text-slate-400">Нет товаров</td></tr>'}
           </tbody>
         </table>
       </div>
     </div>
 
     <div class="panel">
-      <div class="row between">
+      <div class="flex items-center justify-between gap-3">
         <h3>Товары в заказе</h3>
-        <button class="secondary" id="addItem">${I.plus} Добавить товар</button>
+        <button class="btn-secondary" id="addItem">+ Товар</button>
       </div>
       <div id="orderItemsList">${renderItemsList(o.id)}</div>
     </div>
@@ -104,7 +104,6 @@ function bindOrderActions(o) {
 
 function renderItemsList(orderId) {
   const its = itemsFor(orderId);
-  // Yield to main thread for large lists to avoid blocking
   if (its.length > 50 && 'scheduler' in window && 'yield' in scheduler) {
     const items = its.map(i => itemHtml(i, 'В процессе'));
     const root = document.getElementById('orderItemsList');

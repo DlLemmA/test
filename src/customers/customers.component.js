@@ -9,16 +9,16 @@ export function renderPeopleView() {
   const people = customerList();
   root.innerHTML = `
     <div class="panel">
-      <div class="row between">
+      <div class="flex items-center justify-between gap-3 mb-3">
         <h2>Заказчики</h2>
-        <button class="secondary" id="addCustomer">${I.plus} Добавить</button>
+        <button class="btn-secondary" id="addCustomer">${I.plus} Добавить</button>
       </div>
       ${people.length ? people.map(p => `
-        <div class="item row between">
+        <div class="item flex items-center justify-between gap-3">
           <div><b>${esc(p.name)}${p.is_self?' (я)':''}</b></div>
-          <div class="actions">
-            <button class="secondary" data-edit-customer="${p.id}">Изменить</button>
-            <button class="danger" data-del-customer="${p.id}">Удалить</button>
+          <div class="flex gap-2">
+            <button class="btn-secondary" data-edit-customer="${p.id}">Изменить</button>
+            <button class="btn-danger" data-del-customer="${p.id}">Удалить</button>
           </div>
         </div>
       `).join('') : '<div class="empty">Нет заказчиков</div>'}
