@@ -3,6 +3,7 @@ import { sql, run, one, persist } from '../core/db.js';
 import { getCurrentOrderId } from '../core/init.js';
 import { renderAll } from '../core/render.js';
 import { esc, notify, modal, closeModal } from '../core/utils.js';
+import { on } from '../core/listeners.js';
 
 export function itemsFor(orderId) {
   return sql(`
@@ -59,7 +60,7 @@ export function openItemForm(id = null) {
     </form>
   `);
 
-  document.getElementById('itemForm').addEventListener('submit', async e => {
+  on(document.getElementById('itemForm'), 'submit', async e => {
     e.preventDefault();
     const f = new FormData(e.target);
     const data = {
@@ -99,7 +100,7 @@ export async function moveItem(id) {
     </form>
   `);
 
-  document.getElementById('moveForm').addEventListener('submit', async e => {
+  on(document.getElementById('moveForm'), 'submit', async e => {
     e.preventDefault();
     const toId = parseInt(new FormData(e.target).get('order_id'));
     run('UPDATE items SET order_id=? WHERE id=?', [toId, id]);
@@ -119,7 +120,7 @@ export async function weighItem(id) {
       <div class="actions"><button type="submit">Сохранить вес</button></div>
     </form>
   `);
-  document.getElementById('weighForm').addEventListener('submit', async e => {
+  on(document.getElementById('weighForm'), 'submit', async e => {
     e.preventDefault();
     const weight_g = parseInt(new FormData(e.target).get('weight_g'));
     run('UPDATE items SET weight_g=?, status=? WHERE id=?', [weight_g, 'Взвешен', id]);
