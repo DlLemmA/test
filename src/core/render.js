@@ -1,8 +1,10 @@
 // render.js — All rendering functions
 import { getCurrentOrderId } from './init.js';
 import { sql, one, run, persist } from './db.js';
-import { exportOrder, openItemForm, moveItem, openCustomerForm } from './events.js';
+import { exportOrder, openItemForm, moveItem, weighItem } from './events.js';
 import { renderOrderView } from '../order/order.component.js';
+import { renderPeopleView } from '../persons/persons.component.js';
+import { renderHistoryView } from '../history/history.component.js';
 import { esc, kg, money } from './utils.js';
 
 export function renderAll() {
@@ -56,94 +58,8 @@ function bindItemActions() {
   document.querySelectorAll('[data-move]').forEach(b => {
     b.addEventListener('click', () => moveItem(parseInt(b.dataset.move)));
   });
-}
-
-function renderPeopleView() {
-  const root = document.getElementById('peopleView');
-  if (!root) return;
-
-  const people = customerList();
-  root.innerHTML = `
-    <div class="panel">
-      <div class="row between">
-        <h2>Заказчики</h2>
-        <button class="secondary" id="addCustomer">➕ Добавить</button>
-      </div>
-      ${people.length ? people.map(p => `
-        <div class="item row between">
-          <div><b>${esc(p.name)}${p.is_self?' (я)':''}</b></div>
-          <div class="actions">
-            <button class="secondary" data-edit-customer="${p.id}">Изменить</button>
-            <button class="danger" data-del-customer="${p.id}">Удалить</button>
-          </div>
-        </div>
-      `).join('') : '<div class="empty">Нет заказчиков</div>'}
-    </div>
-  `;
-
-  document.getElementById('addCustomer')?.addEventListener('click', () => openCustomerForm());
-  document.querySelectorAll('[data-edit-customer]').forEach(b => {
-    b.addEventListener('click', () => openCustomerForm(parseInt(b.dataset.editCustomer)));
-  });
-  document.querySelectorAll('[data-del-customer]').forEach(b => {
-    b.addEventListener('click', async () => {
-      if (confirm('Удалить заказчика?')) {
-        run('DELETE FROM customers WHERE id=?', [parseInt(b.dataset.delCustomer)]);
-        await persist();
-        renderAll();
-      }
-    });
-  });
-}
-
-function renderHistoryView() {
-  const root = document.getElementById('historyView');
-  if (!root) return;
-
-  const orders = sql('SELECT * FROM orders ORDER BY created_at DESC');
-  root.innerHTML = `
-    <div class="panel">
-      <h2>История заказов</h2>
-      ${orders.length ? orders.map(o => `
-        <div class="item row between">
-          <div>
-            <b>${esc(o.title)}</b><br>
-            <span class="small muted">${o.created_at} · ${o.status} · ${sql('SELECT COUNT(*) as c FROM items WHERE order_id=?', [o.id])[0].c} товаров</span>
-          </div>
-          <div class="actions">
-            <button class="secondary" data-switch="${o.id}">${o.id === getCurrentOrderId() ? 'Текущий' : 'Сделать текущим'}</button>
-            <button class="secondary" data-export="${o.id}">Excel</button>
-            <button class="danger" data-del="${o.id}">Удалить</button>
-          </div>
-        </div>
-      `).join('') : '<div class="empty">Нет заказов</div>'}
-    </div>
-  `;
-
-  document.querySelectorAll('[data-switch]').forEach(b => {
-    b.addEventListener('click', async () => {
-      const id = parseInt(b.dataset.switch);
-      const { setCurrentOrderId } = await import('./init.js');
-      setCurrentOrderId(id);
-      renderAll();
-    });
-  });
-  document.querySelectorAll('[data-export]').forEach(b => {
-    b.addEventListener('click', () => {
-      const o = one('SELECT * FROM orders WHERE id=?', [parseInt(b.dataset.export)]);
-      exportOrder(o);
-    });
-  });
-  document.querySelectorAll('[data-del]').forEach(b => {
-    b.addEventListener('click', async () => {
-      if (confirm('Удалить заказ со всеми товарами?')) {
-        const id = parseInt(b.dataset.del);
-        run('DELETE FROM items WHERE order_id=?', [id]);
-        run('DELETE FROM orders WHERE id=?', [id]);
-        await persist();
-        renderAll();
-      }
-    });
+  document.querySelectorAll('[data-weigh]').forEach(b => {
+    b.addEventListener('click', () => weighItem(parseInt(b.dataset.weigh)));
   });
 }
 
@@ -158,10 +74,6 @@ function itemsFor(orderId) {
     FROM items i JOIN customers c ON c.id=i.customer_id 
     WHERE i.order_id=? ORDER BY i.id
   `, [orderId]);
-}
-
-function customerList() {
-  return sql('SELECT * FROM customers ORDER BY is_self DESC, name');
 }
 
 function calc(o) {
@@ -214,4 +126,4 @@ function itemHtml(i, orderStatus) {
   `;
 }
 
-export { calc, getCurrentOrder, itemsFor, customerList, itemHtml };
+export { calc, getCurrentOrder, itemsFor, itemHtml };

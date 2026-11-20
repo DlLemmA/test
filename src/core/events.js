@@ -2,7 +2,8 @@
 import { sql, run, one, persist } from './db.js';
 import { getCurrentOrderId, setCurrentOrderId, createOrder } from './init.js';
 import { seedDemo } from './demo-seed.js';
-import { renderAll, calc, getCurrentOrder, itemsFor, customerList, itemHtml } from './render.js';
+import { renderAll, calc, getCurrentOrder, itemsFor, itemHtml } from './render.js';
+import { customerList } from '../persons/persons.js';
 import { esc, kg, money, dateNow, notify, modal, closeModal } from './utils.js';
 import { openOrderForm, switchOrder, deleteOrder } from '../order/order.js';
 
@@ -517,4 +518,4 @@ async function exportOrder(o) {
 }
 
 // === Helpers ===
-export { openReceive, exportOrder, openItemForm, moveItem, weighItem, openCustomerForm };
+export { openReceive, exportOrder, openItemForm, moveItem, weighItem };
