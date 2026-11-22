@@ -29,7 +29,10 @@ function drawerEls(): { backdrop: HTMLElement; drawer: HTMLElement } {
     initDrawerDrag(drawer);
     // Close button listener
     drawer.addEventListener("click", (e) => {
-      if ((e.target as Element)?.closest("#drawerClose")) closeDrawer();
+      if ((e.target as Element)?.closest("#drawerClose")) {
+        navigator.vibrate?.(10);
+        closeDrawer();
+      }
     });
   }
   return { backdrop, drawer };
@@ -74,8 +77,10 @@ export function drawer(title: string, content: string): void {
 
   drawerOpen = true;
 
-  // Focus the first field
+  // Focus the first field, unless the user already focused something inside the
+  // drawer (e.g. the weight field after a barcode scan) while it was animating in.
   setTimeout(() => {
+    if (drawerEl.contains(document.activeElement)) return;
     const f = drawerEl.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
       "input[autofocus], select[autofocus], input, select, textarea",
     );
@@ -133,11 +138,13 @@ export function confirmDrawer(
   const confirmBtn = drawerEl.querySelector("#drawerConfirm");
 
   cancelBtn?.addEventListener("click", () => {
+    navigator.vibrate?.(10);
     closeDrawer();
     onCancel?.();
   });
 
   confirmBtn?.addEventListener("click", async () => {
+    navigator.vibrate?.(10);
     closeDrawer();
     if (onConfirm) await onConfirm();
   });

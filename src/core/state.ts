@@ -2,8 +2,90 @@
 // Simple Reactive State (no external deps)
 // ============================================
 
-export type Tab = "orders" | "order" | "people";
+export type Tab = "parcels" | "parcel" | "people" | "add" | "customer-detail";
+export type Route = "parcels" | "parcel" | "people" | "add" | "customer" | "home";
 export type ToastType = "info" | "success" | "warn" | "error";
+
+export interface RouteParams {
+  parcelId?: string;
+  customerId?: string;
+}
+
+// Routing
+let currentRoute: Route = "home";
+let currentRouteParams: RouteParams = {};
+const routeSubscribers = new Set<(route: Route, params: RouteParams) => void>();
+
+export const router = {
+  get currentRoute() {
+    return currentRoute;
+  },
+  get currentParams() {
+    return currentRouteParams;
+  },
+  navigate(route: Route, params?: RouteParams) {
+    currentRoute = route;
+    currentRouteParams = params || {};
+    const hash = routeToHash(route, params);
+    if (window.location.hash !== hash) {
+      window.location.hash = hash;
+    }
+    routeSubscribers.forEach((fn) => fn(route, currentRouteParams));
+  },
+  subscribe(fn: (route: Route, params: RouteParams) => void) {
+    routeSubscribers.add(fn);
+    return () => routeSubscribers.delete(fn);
+  },
+};
+
+function routeToHash(route: Route, params?: RouteParams): string {
+  switch (route) {
+    case "parcels":
+      return "#parcels";
+    case "parcel":
+      return params?.parcelId ? `#parcel/${params.parcelId}` : "#parcels";
+    case "people":
+      return "#people";
+    case "add":
+      return "#add";
+    case "customer":
+      return params?.customerId ? `#customer/${params.customerId}` : "#people";
+    default:
+      return "#";
+  }
+}
+
+function parseHash(): { route: Route; params: RouteParams } {
+  const hash = window.location.hash.slice(1);
+  if (!hash || hash === "parcels") return { route: "parcels", params: {} };
+  if (hash === "people") return { route: "people", params: {} };
+  if (hash === "add") return { route: "add", params: {} };
+  if (hash.startsWith("parcel/")) {
+    const parcelId = hash.split("/")[1];
+    return { route: "parcel", params: { parcelId } };
+  }
+  if (hash.startsWith("customer/")) {
+    const customerId = hash.split("/")[1];
+    return { route: "customer", params: { customerId } };
+  }
+  return { route: "parcels", params: {} };
+}
+
+// Initialize router from hash
+window.addEventListener("hashchange", () => {
+  const { route, params } = parseHash();
+  currentRoute = route;
+  currentRouteParams = params;
+  routeSubscribers.forEach((fn) => fn(route, params));
+});
+
+// Initialize router from current hash - call this after subscribers are registered
+export function initRouterFromHash() {
+  const { route: initialRoute, params: initialParams } = parseHash();
+  currentRoute = initialRoute;
+  currentRouteParams = initialParams;
+  routeSubscribers.forEach((fn) => fn(initialRoute, initialParams));
+}
 
 export interface Toast {
   id: string;
@@ -14,34 +96,47 @@ export interface Toast {
 }
 
 // ---- UI State ----
-let currentTab: Tab = "orders";
-let currentOrderId: number | null = null;
+let currentTab: Tab = "parcels";
+let currentParcelId: number | null = null;
+let currentCustomerId: number | null = null;
 
 const tabSubscribers = new Set<(tab: Tab) => void>();
-const orderSubscribers = new Set<(id: number | null) => void>();
+const parcelSubscribers = new Set<(id: number | null) => void>();
+const customerSubscribers = new Set<(id: number | null) => void>();
 
 export const uiState = {
   get currentTab() {
     return currentTab;
   },
-  get currentOrderId() {
-    return currentOrderId;
+  get currentParcelId() {
+    return currentParcelId;
+  },
+  get currentCustomerId() {
+    return currentCustomerId;
   },
   setTab(tab: Tab) {
     currentTab = tab;
     tabSubscribers.forEach((fn) => fn(tab));
   },
-  setCurrentOrderId(id: number | null) {
-    currentOrderId = id;
-    orderSubscribers.forEach((fn) => fn(id));
+  setCurrentParcelId(id: number | null) {
+    currentParcelId = id;
+    parcelSubscribers.forEach((fn) => fn(id));
+  },
+  setCurrentCustomerId(id: number | null) {
+    currentCustomerId = id;
+    customerSubscribers.forEach((fn) => fn(id));
   },
   subscribeTab(fn: (tab: Tab) => void) {
     tabSubscribers.add(fn);
     return () => tabSubscribers.delete(fn);
   },
-  subscribeOrder(fn: (id: number | null) => void) {
-    orderSubscribers.add(fn);
-    return () => orderSubscribers.delete(fn);
+  subscribeParcel(fn: (id: number | null) => void) {
+    parcelSubscribers.add(fn);
+    return () => parcelSubscribers.delete(fn);
+  },
+  subscribeCustomer(fn: (id: number | null) => void) {
+    customerSubscribers.add(fn);
+    return () => customerSubscribers.delete(fn);
   },
 };
 

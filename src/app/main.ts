@@ -4,9 +4,13 @@
 
 import { db } from "@/core/database";
 import { initializeApp } from "@/features/shared/services";
-import { renderHistoryView } from "@/features/orders/OrdersView";
+import { renderParcelListView } from "@/features/parcels/ParcelListView";
+import { renderParcelDetailView } from "@/features/parcels/ParcelDetailView";
+import { renderParcelAddView } from "@/features/parcels/ParcelAddView";
 import { renderCustomersView } from "@/features/customers/CustomersView";
+import { renderCustomerDetailView } from "@/features/customers/CustomerDetailView";
 import { seedDemo } from "@/core/demo-seed";
+import { router, initRouterFromHash } from "@/core/state";
 import { uiState } from "@/core/state";
 import { toastState } from "@/core/state";
 import { modalStateAPI } from "@/core/state";
@@ -41,8 +45,6 @@ function setupToastRendering(): void {
         });
       }
     });
-
-    // Auto-dismiss handled in state
   });
 }
 
@@ -62,8 +64,7 @@ function toastColor(type: string): string {
 // ---- Modal Rendering ----
 function setupModalRendering(): void {
   modalStateAPI.subscribe((_state) => {
-    // Modal is rendered by sheet.ts directly into #modal-root
-    // This is just for syncing state if needed
+    // Modal is rendered by drawer.ts directly into #modal-root
   });
 }
 
@@ -79,28 +80,48 @@ function renderBottomBar(): void {
   const root = document.getElementById("bottombar");
   if (!root) return;
 
+  const currentRoute = router.currentRoute;
+
   root.innerHTML = `
-    <nav class="bottombar" role="navigation" aria-label="Основная навигация">
-      <button class="bottombar-item ${uiState.currentTab === "orders" ? "active" : ""}" data-tab="orders" aria-current="${uiState.currentTab === "orders" ? "page" : "false"}">
-        ${I.history}<span>Заказы</span>
+      <button class="bottombar-item ${currentRoute === "parcels" ? "active" : ""}" data-tab="parcels" aria-current="${currentRoute === "parcels" ? "page" : "false"}">
+        ${I.history}<span>Посылки</span>
       </button>
-      <button class="bottombar-item ${uiState.currentTab === "order" ? "active" : ""}" data-tab="order" aria-current="${uiState.currentTab === "order" ? "page" : "false"}">
-        ${I.package}<span>Текущий</span>
+      <button class="bottombar-item center-add" data-tab="create" aria-label="Создать посылку">
+        ${I.plus}
       </button>
-      <button class="bottombar-item ${uiState.currentTab === "people" ? "active" : ""}" data-tab="people" aria-current="${uiState.currentTab === "people" ? "page" : "false"}">
+      <button class="bottombar-item ${currentRoute === "people" ? "active" : ""}" data-tab="people" aria-current="${currentRoute === "people" ? "page" : "false"}">
         ${I.users}<span>Заказчики</span>
       </button>
-    </nav>
   `;
 
   root.querySelectorAll("[data-tab]").forEach((btn) => {
     const b = btn as HTMLElement;
     on(b, "click", () => {
-      const tab = b.dataset.tab as "orders" | "order" | "people";
-      uiState.setTab(tab);
-      renderBottomBar();
+      navigator.vibrate?.(10); // haptic feedback
+      const tab = b.dataset.tab as "parcels" | "create" | "people";
+      if (tab === "create") {
+        router.navigate("add");
+      } else {
+        router.navigate(tab);
+        renderBottomBar();
+      }
     });
   });
+}
+
+async function createNewParcel(): Promise<void> {
+  const { parcelRepository } = await import("@/features/parcels/infrastructure");
+  const parcels = await parcelRepository.findAll();
+  // Find last draft parcel, or create new one
+  const lastDraft = parcels.find((p) => p.status === "draft");
+  let parcel;
+  if (lastDraft) {
+    parcel = lastDraft;
+  } else {
+    const { parcelServiceInstance } = await import("@/features/shared/services");
+    parcel = await parcelServiceInstance.createParcel();
+  }
+  router.navigate("parcel", { parcelId: String(parcel.id) });
 }
 
 function bindHeader(): void {
@@ -115,13 +136,14 @@ function bindHeader(): void {
       const { confirmDrawer } = await import("@/core/drawer");
       confirmDrawer(
         "Загрузить демо-данные",
-        "Это заменит ВСЕ текущие данные (заказчики, заказы, товары). Продолжить?",
+        "Это заменит ВСЕ текущие данные (заказчики, посылки, товары). Продолжить?",
         "Загрузить",
         async () => {
           await seedDemo(true);
           toastState.add({ message: "Демо-данные загружены", type: "success" });
-          if (uiState.currentTab === "orders") renderHistoryView();
-          if (uiState.currentTab === "people") renderCustomersView();
+          const route = router.currentRoute;
+          if (route === "parcels") renderParcelListView();
+          if (route === "people") renderCustomersView();
         },
       );
     });
@@ -141,23 +163,22 @@ async function openBackupModal(): Promise<void> {
     </div>
     <div class="panel" style="margin-top:12px">
       <h3>Импорт базы</h3>
-      <input type="file" id="dbFile" accept="on">
+      <input type="file" id="dbFile" accept=".json">
       <button id="uploadDb" class="secondary" style="margin-top:8px">${I.upload} Загрузить и заменить</button>
     </div>
   `,
   );
 
   on(document.getElementById("downloadDb"), "click", async () => {
-    // Export all data as JSON
     const customers = await db.customers.toArray();
-    const orders = await db.orders.toArray();
-    const items = await db.items.toArray();
-    const data = { customers, orders, items, exportedAt: new Date().toISOString() };
+    const parcels = await db.parcels.toArray();
+    const parcelItems = await db.parcelItems.toArray();
+    const data = { customers, parcels, parcelItems, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pinduoduo-backup-${new Date().toISOString().split("T")[0]}on`;
+    a.download = `pinduoduo-backup-${new Date().toISOString().split("T")[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   });
@@ -176,10 +197,8 @@ async function openBackupModal(): Promise<void> {
       "Заменить",
       async () => {
         await file.arrayBuffer();
-        new (await import("dexie")).Dexie("pinduoduo-db");
-        // Note: Full restore would need Dexie's import/export API
         toastState.add({
-          message: "Импорт через Dexie требует отдельной реализации",
+          message: "Импорт требует реализации",
           type: "warn",
         });
       },
@@ -202,33 +221,46 @@ async function init(): Promise<void> {
     setupScannerState();
 
     // Initial render
-    renderHistoryView();
+    renderParcelListView();
     renderBottomBar();
     bindHeader();
 
-    // Subscribe to tab changes
-    uiState.subscribeTab((tab) => {
+    // Subscribe to route changes
+    router.subscribe((route, params) => {
       renderBottomBar();
       // Show/hide panels
-      const panelOrder = document.getElementById("panel-order");
+      const panelParcel = document.getElementById("panel-parcel");
       const panelPeople = document.getElementById("panel-people");
-      const panelHistory = document.getElementById("panel-history");
-      if (panelOrder) panelOrder.hidden = tab !== "order";
-      if (panelPeople) panelPeople.hidden = tab !== "people";
-      if (panelHistory) panelHistory.hidden = tab !== "orders";
+      const panelParcelList = document.getElementById("panel-parcels");
+      const panelParcelAdd = document.getElementById("panel-parcel-add");
+      const panelCustomerDetail = document.getElementById("panel-customer-detail");
 
-      if (tab === "orders") renderHistoryView();
-      if (tab === "people") renderCustomersView();
-      if (tab === "order") {
-        // renderOrderView is auto-called by OrdersView subscription
+      if (panelParcel) panelParcel.hidden = route !== "parcel";
+      if (panelPeople) panelPeople.hidden = route !== "people";
+      if (panelParcelList) panelParcelList.hidden = route !== "parcels";
+      if (panelParcelAdd) panelParcelAdd.hidden = route !== "add";
+      if (panelCustomerDetail) panelCustomerDetail.hidden = route !== "customer";
+
+      if (route === "parcels") renderParcelListView();
+      if (route === "people") renderCustomersView();
+      if (route === "customer") {
+        const customerId = parseInt(params.customerId || "0");
+        if (customerId) renderCustomerDetailView(customerId);
+      }
+      if (route === "parcel") {
+        const parcelId = parseInt(params.parcelId || "0");
+        if (parcelId) {
+          uiState.setCurrentParcelId(parcelId);
+        }
+        renderParcelDetailView();
+      }
+      if (route === "add") {
+        renderParcelAddView();
       }
     });
 
-    uiState.subscribeOrder(() => {
-      if (uiState.currentTab === "order") {
-        // renderOrderView() is called by OrdersView subscription
-      }
-    });
+    // Initialize router from current hash (triggers initial route)
+    initRouterFromHash();
 
     console.log("App initialized");
   } catch (err) {

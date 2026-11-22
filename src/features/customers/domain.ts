@@ -60,9 +60,16 @@ export class Customer {
 
 export interface CustomerRepository {
   findAll(): Promise<Customer[]>;
+  findAllWithItems(): Promise<CustomerWithItems[]>;
   findById(id: number): Promise<Customer | null>;
+  findByIdWithItems(id: number): Promise<CustomerWithItems | null>;
   save(customer: Customer): Promise<Customer>;
   delete(id: number): Promise<void>;
+}
+
+export interface CustomerWithItems {
+  customer: Customer;
+  items: any[];
 }
 
 // ============================================

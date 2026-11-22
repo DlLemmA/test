@@ -1,11 +1,23 @@
 import { customerRepository } from "@/features/customers/infrastructure";
-import { orderRepository, itemRepository } from "@/features/orders/infrastructure";
-import { historyService } from "@/features/history/infrastructure";
+import {
+  parcelRepository,
+  parcelItemRepository,
+  paymentRepository,
+} from "@/features/parcels/infrastructure";
+import {
+  ParcelService,
+  ParcelItemService,
+  PaymentService,
+  Parcel,
+  ParcelItem,
+  Payment,
+  calculateCustomerBalance,
+  type PaymentState,
+  createEmptyPaymentState,
+  paymentStateFromPayments,
+} from "@/features/parcels/domain";
 import { CustomerService } from "@/features/customers/domain";
-import { OrderService, ItemService, calculateOrder } from "@/features/orders/domain";
 import { Customer } from "@/features/customers/domain";
-import { Order, Item } from "@/features/orders/domain";
-import type { OrderCalculation } from "@/features/orders/domain";
 
 // ============================================
 // Application Services (orchestrate domain services)
@@ -13,8 +25,19 @@ import type { OrderCalculation } from "@/features/orders/domain";
 
 // Singleton instances
 export const customerService = new CustomerService(customerRepository);
-export const orderService = new OrderService(orderRepository, itemRepository);
-export const itemService = new ItemService(itemRepository, orderRepository);
+export const parcelServiceInstance = new ParcelService(parcelRepository, parcelItemRepository);
+export const parcelItemServiceInstance = new ParcelItemService(
+  parcelItemRepository,
+  parcelRepository,
+);
+export const paymentServiceInstance = new PaymentService(
+  paymentRepository,
+  parcelRepository,
+  parcelItemRepository,
+);
+const parcelService = parcelServiceInstance;
+const parcelItemService = parcelItemServiceInstance;
+const paymentService = paymentServiceInstance;
 
 // ============================================
 // High-level use cases
@@ -29,58 +52,125 @@ export async function initializeApp(): Promise<void> {
   }
 }
 
-export async function getCurrentOrderWithCalculation(): Promise<{
-  order: Order;
-  items: Item[];
-  calculation: OrderCalculation;
+export async function getParcelWithCalculation(parcelId: number): Promise<{
+  parcel: Parcel;
+  items: ParcelItem[];
   customers: Customer[];
+  balances: Map<number, { owed: number; paid: number; remaining: number }>;
+  paymentState: PaymentState;
+  payments: Payment[];
 } | null> {
-  const result = await orderService.getCurrentOrder();
+  const result = await parcelService.getParcelWithItems(parcelId);
   if (!result) return null;
 
   const customers = await customerRepository.findAll();
-  const calculation = calculateOrder(result.order, result.items, customers);
+  const payments = await paymentService.getPaymentsForParcel(parcelId);
+  const paymentState = paymentStateFromPayments(payments);
+  const selfCustomer = await customerService.getSelfCustomer();
+  const selfCustomerId = selfCustomer?.id;
+  const balances = calculateCustomerBalance(
+    result.items,
+    customers,
+    result.parcel,
+    paymentState,
+    selfCustomerId,
+  );
 
   return {
-    order: result.order,
+    parcel: result.parcel,
     items: result.items,
-    calculation,
     customers,
+    balances,
+    paymentState,
+    payments,
   };
 }
 
-export async function getOrderWithCalculation(orderId: number): Promise<{
-  order: Order;
-  items: Item[];
-  calculation: OrderCalculation;
-  customers: Customer[];
-} | null> {
-  const result = await orderService.getOrderWithItems(orderId);
-  if (!result) return null;
-
-  const customers = await customerRepository.findAll();
-  const calculation = calculateOrder(result.order, result.items, customers);
-
-  return {
-    order: result.order,
-    items: result.items,
-    calculation,
-    customers,
-  };
+export async function getAllParcels(): Promise<Parcel[]> {
+  return parcelRepository.findAll();
 }
 
-export async function getHistoryOrders(): Promise<
-  {
-    order: Order;
-    itemCount: number;
-  }[]
-> {
-  const orders = await historyService.getAllOrders();
-  // Convert HistoryOrder to Order-compatible shape
-  return orders.map((o) => ({
-    order: o as unknown as Order,
-    itemCount: o.itemCount,
-  }));
+export async function createParcel(): Promise<Parcel> {
+  return parcelService.createParcel();
+}
+
+export async function shipParcel(parcelId: number): Promise<Parcel> {
+  return parcelService.shipParcel(parcelId);
+}
+
+export async function receiveParcel(
+  parcelId: number,
+  boxWeightG: number,
+  shippingCostBYN: number,
+): Promise<Parcel> {
+  return parcelService.receiveParcel(parcelId, boxWeightG, shippingCostBYN);
+}
+
+export async function markAsDoneParcel(parcelId: number): Promise<Parcel> {
+  return parcelService.markAsDoneParcel(parcelId);
+}
+
+export async function canShipParcel(parcelId: number): Promise<boolean> {
+  return parcelService.canShip(parcelId);
+}
+
+export async function addItemsToParcel(
+  parcelId: number,
+  items: Array<{
+    name: string;
+    priceCNY: number;
+    priceBYN: number;
+    quantity: number;
+    unit: "pcs" | "packs";
+    customerId: number;
+  }>,
+): Promise<ParcelItem[]> {
+  const itemsWithParcelId = items.map((item) => ({ ...item, parcelId }));
+  const createdItems = await parcelItemService.addBatch(parcelId, itemsWithParcelId);
+
+  // Auto-create paid payments for self customer's items
+  const selfCustomer = await customerService.getSelfCustomer();
+  if (selfCustomer) {
+    const selfItems = createdItems.filter((item) => item.customerId === selfCustomer.id);
+    for (const item of selfItems) {
+      await paymentService.setItemPaid(parcelId, item.id, selfCustomer.id, true);
+    }
+  }
+
+  return createdItems;
+}
+
+export async function updateParcelItem(
+  itemId: number,
+  input: {
+    name?: string;
+    priceCNY?: number;
+    priceBYN?: number;
+    quantity?: number;
+    unit?: "pcs" | "packs";
+    customerId?: number;
+    trackNumbers?: string[];
+    weightsG?: number[];
+    status?: "ordered" | "shipped" | "received" | "lost";
+  },
+): Promise<ParcelItem> {
+  return parcelItemService.updateItem(itemId, input);
+}
+
+export async function deleteParcelItem(itemId: number): Promise<void> {
+  return parcelItemService.deleteItem(itemId);
+}
+
+export async function setParcelItemTracks(itemId: number, tracks: string[]): Promise<ParcelItem> {
+  return parcelItemService.setTracks(itemId, tracks);
+}
+
+export async function setParcelItemWeights(itemId: number, weights: number[]): Promise<ParcelItem> {
+  return parcelItemService.setWeights(itemId, weights);
+}
+
+export async function deleteParcel(parcelId: number): Promise<void> {
+  return parcelRepository.delete(parcelId);
 }
 
 export async function createCustomer(name: string): Promise<Customer> {
@@ -92,37 +182,47 @@ export async function createSelfCustomer(name: string): Promise<Customer> {
   return customerService.ensureSelfCustomerExists(name);
 }
 
-export async function createNewOrder(title?: string): Promise<Order> {
-  const orderTitle =
-    title ||
-    `Заказ от ${new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
-  return orderService.createOrder(orderTitle);
+// Payment functions
+export async function toggleItemPayment(
+  parcelId: number,
+  itemId: number,
+  customerId: number,
+): Promise<void> {
+  const payments = await paymentRepository.findByParcelAndCustomer(parcelId, customerId);
+  const itemPayment = payments.find((p) => p.type === "item" && p.itemId === itemId);
+
+  if (itemPayment) {
+    const updated = itemPayment.update({ paid: !itemPayment.paid });
+    await paymentRepository.save(updated);
+  } else {
+    const payment = Payment.create({ parcelId, customerId, itemId, type: "item", paid: true });
+    await paymentRepository.save(payment);
+  }
 }
 
-export async function shipOrder(orderId: number): Promise<Order> {
-  return orderService.shipOrder(orderId);
+export async function toggleShippingPayment(parcelId: number, customerId: number): Promise<void> {
+  const payments = await paymentRepository.findByParcelAndCustomer(parcelId, customerId);
+  const shippingPayment = payments.find((p) => p.type === "shipping");
+
+  if (shippingPayment) {
+    const updated = shippingPayment.update({ paid: !shippingPayment.paid });
+    await paymentRepository.save(updated);
+  } else {
+    const payment = Payment.create({ parcelId, customerId, type: "shipping", paid: true });
+    await paymentRepository.save(payment);
+  }
 }
 
-export async function receiveOrder(orderId: number): Promise<Order> {
-  return orderService.receiveOrder(orderId);
+export async function completeParcelTracks(parcelId: number): Promise<Parcel> {
+  return parcelService.completeTracks(parcelId);
 }
 
-export async function returnOrderToAssembly(orderId: number): Promise<Order> {
-  return orderService.returnToAssembly(orderId);
-}
-
-export async function weighItem(itemId: number, weightG: number): Promise<Item> {
-  return itemService.weighItem(itemId, weightG);
-}
-
-export async function moveItemToAnotherOrder(itemId: number): Promise<void> {
-  return itemService.moveItem(itemId);
-}
-
-export async function deleteOrder(orderId: number): Promise<void> {
-  return orderRepository.delete(orderId);
-}
-
-export async function deleteItem(itemId: number): Promise<void> {
-  return itemRepository.delete(itemId);
-}
+// Re-export for convenience
+export {
+  calculateCustomerBalance,
+  createEmptyPaymentState,
+  type PaymentState,
+  paymentStateFromPayments,
+  Payment,
+} from "@/features/parcels/domain";
+export { Parcel, ParcelItem } from "@/features/parcels/domain";

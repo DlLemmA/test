@@ -18,11 +18,10 @@
   <body class="bg-slate-100 text-slate-900">
     <div class="max-w-2xl mx-auto min-h-screen flex flex-col">
       <header
-        class="flex items-center justify-between gap-3 px-4 pt-4 pb-3 bg-slate-100 sticky top-0 z-10"
+        class="flex items-center justify-between gap-3 px-4 pt-1.5 pb-2 bg-slate-100/80 backdrop-blur-md sticky top-0 z-10 safe-area-inset-top shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
       >
         <div class="flex flex-col gap-0.5">
-          <div class="font-bold text-[22px] tracking-tight">Посылки</div>
-          <div class="text-xs text-slate-500" id="profileLabel">Личный учёт заказов</div>
+          <div class="font-bold text-[24px] tracking-tight">Pindoчет</div>
         </div>
         <div class="flex gap-2">
           <button
@@ -40,11 +39,13 @@
         </div>
       </header>
 
-      <main id="main-content" class="flex-1 px-4 pb-24 overflow-y-auto">
+      <main id="main-content" class="flex-1 px-4 pb-28 overflow-y-auto">
         <div id="panel-container" style="view-transition-name: panel-root">
-          <section id="panel-order" hidden><div id="orderView"></div></section>
+          <section id="panel-parcel" hidden><div id="parcelView"></div></section>
           <section id="panel-people" hidden><div id="peopleView"></div></section>
-          <section id="panel-history"><div id="historyView"></div></section>
+          <section id="panel-customer-detail" hidden><div id="customerDetailView"></div></section>
+          <section id="panel-parcels"><div id="parcelListView"></div></section>
+          <section id="panel-parcel-add" hidden><div id="parcelAddView"></div></section>
         </div>
       </main>
 
