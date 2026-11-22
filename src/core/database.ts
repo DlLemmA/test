@@ -14,6 +14,7 @@ export interface ParcelRow {
   id?: number;
   name?: string;
   status: ParcelStatus;
+  comment?: string; // свободный текст: заметки, долги, пожелания
   boxWeightG?: number;
   shippingCostBYN?: number;
   shippedAt?: string;
@@ -31,7 +32,7 @@ export interface ParcelItemRow {
   priceCNY: number;
   priceBYN: number;
   quantity: number;
-  unit: "pcs" | "packs";
+  unit: "pcs" | "packs" | "pairs";
   customerId: number;
   trackNumbers: string; // JSON string[]
   weightsG: string; // JSON number[]
@@ -100,6 +101,16 @@ export class AppDatabase extends Dexie {
           if (item.tracksCompletedAt === undefined) item.tracksCompletedAt = null;
         });
       });
+
+    // v5: priceCNY/priceBYN now store the total for the whole line (quantity
+    // included) instead of a per-unit price. Existing rows are left as-is: they
+    // already contain the amount the user entered for the line.
+    this.version(5).stores({
+      customers: "++id, name, isSelf",
+      parcels: "++id, status, createdAt, shippedAt, receivedAt, completedAt",
+      parcelItems: "++id, parcelId, customerId, status, createdAt",
+      payments: "++id, parcelId, customerId, itemId, type",
+    });
 
     // Hook to auto-set createdAt for parcels
     this.parcels.hook("creating", (_primKey, obj, _trans) => {

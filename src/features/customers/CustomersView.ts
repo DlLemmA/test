@@ -7,7 +7,7 @@ import { customerRepository } from "./infrastructure";
 import { customerService } from "@/features/shared/services";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
-import { router, uiState, toastState } from "@/core/state";
+import { router, toastState } from "@/core/state";
 import { I, esc, money } from "@/core/utils";
 import {
   parcelRepository,
@@ -21,6 +21,7 @@ import {
   paymentStateFromPayments,
 } from "@/features/parcels/domain";
 import { Customer } from "@/features/customers/domain";
+import { customerMark } from "./ui/CustomerMark";
 
 export async function renderCustomersView(): Promise<void> {
   const root = document.getElementById("peopleView");
@@ -36,43 +37,62 @@ export async function renderCustomersView(): Promise<void> {
     customers.map((c) => calculateCustomerTotalBalance(c.id, parcels, allItems, allPayments)),
   );
 
+  const debtors = balances.filter((b) => b.remaining > 0).length;
+  const totalDebt = balances.reduce((sum, b) => sum + Math.max(0, b.remaining), 0);
+  const totalPaid = balances.reduce((sum, b) => sum + b.paid, 0);
+
   root.innerHTML = `
-    <section class="section">
-      <header class="section-title with-action">
-        <h2>Заказчики</h2>
-        <button class="btn-icon btn-secondary" id="addCustomer" aria-label="Добавить заказчика">${I.plus}</button>
+    <div class="page page-customers">
+      <header class="page-head">
+        <div class="page-head__row">
+          <h1>Заказчики</h1>
+        </div>
+        <p class="page-head__note">Товары, посылки и остатки по каждому человеку</p>
       </header>
+
+
       ${
         customers.length
-          ? customers
+          ? `<ul class="customer-index">${customers
               .map((c, idx) => {
                 const balance = balances[idx]!;
                 const itemCount = allItems.filter((i) => i.customerId === c.id).length;
+                const hasDebt = balance.remaining > 0;
+                const amount = hasDebt
+                  ? `долг ${money(balance.remaining)}`
+                  : `оплачено ${money(balance.paid)}`;
                 return `
-          <div class="item flex items-center justify-between gap-3 cursor-pointer" data-open-customer="${c.id}">
-            <div class="flex-1 min-w-0">
-              <div class="font-bold text-slate-900 truncate">${esc(c.name)}${c.isSelf ? ` <span class="pill pill-good text-xs ml-2">Я</span>` : ""}</div>
-              <div class="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap truncate">
-                <span>товары: ${itemCount}</span>
-                <span>посылки: ${balance.parcelCount}</span>
+          <li>
+            <div class="customer-line">
+              <div class="customer-row">
+                ${customerMark(c, "list")}
+                <div class="customer-row__body">
+                  <span class="customer-row__name">${esc(c.name)}${c.isSelf ? ' <span class="customer-row__self">(я)</span>' : ""}</span>
+                  <span class="customer-row__meta">товары ${itemCount} · посылки ${balance.parcelCount}</span>
+                  <span class="customer-row__balance ${hasDebt ? "is-debt" : "is-paid"}">${amount}</span>
+                </div>
+              </div>
+              <div class="customer-actions">
+                <button type="button" class="btn-icon btn-primary" data-open-customer="${c.id}"
+                  aria-label="Открыть карточку ${esc(c.name)}">${I.arrowRight}</button>
+                <button type="button" class="btn-icon btn-secondary customer-edit" data-edit-customer="${c.id}"
+                  aria-label="Редактировать заказчика ${esc(c.name)}">${I.pencil}</button>
               </div>
             </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <b class="tabular-nums ${balance.remaining > 0 ? "text-rose-600 font-bold" : "text-emerald-600 font-bold"}">
-                ${balance.remaining > 0 ? `долг ${money(balance.remaining)}` : `оплачено ${money(balance.paid)}`}
-              </b>
-              <button class="btn-icon btn-secondary" data-open-customer="${c.id}" aria-label="Подробнее">${I.chevronRight}</button>
-            </div>
-          </div>
+          </li>
         `;
               })
-              .join("")
-          : '<div class="empty">Нет заказчиков</div>'
+              .join("")}</ul>`
+          : '<div class="empty">Нет заказчиков. Нажмите «Добавить заказчика», чтобы начать.</div>'
       }
-    </section>
+
+      <div class="form-actions form-actions--final">
+        <button type="button" class="btn-primary w-full" id="addCustomer">${I.plus} Добавить заказчика</button>
+      </div>
+    </div>
   `;
 
-  bindActions();
+  bindActions(root);
 }
 
 async function calculateCustomerTotalBalance(
@@ -92,7 +112,6 @@ async function calculateCustomerTotalBalance(
 ): Promise<{ owed: number; paid: number; remaining: number; parcelCount: number }> {
   const customerItems = items.filter((i) => i.customerId === customerId);
   const customerPayments = payments.filter((p) => p.customerId === customerId);
-  const paymentState = paymentStateFromPayments(customerPayments as any);
   const selfCustomer = await customerService.getSelfCustomer();
   const selfCustomerId = selfCustomer?.id;
 
@@ -101,9 +120,16 @@ async function calculateCustomerTotalBalance(
   let totalPaid = 0;
 
   for (const parcel of parcels) {
-    const parcelItems = customerItems.filter((i) => i.parcelId === parcel.id);
-    if (parcelItems.length === 0) continue;
+    const customerParcelItems = customerItems.filter((i) => i.parcelId === parcel.id);
+    if (customerParcelItems.length === 0) continue;
     parcelsWithItems.add(parcel.id);
+
+    // Shipping share is a fraction of the whole parcel's weight, so pass all
+    // its items — not only this customer's. Payment state is per parcel too,
+    // otherwise shipping flags from other parcels overwrite each other.
+    const parcelItems = items.filter((i) => i.parcelId === parcel.id);
+    const parcelPayments = customerPayments.filter((p) => p.parcelId === parcel.id);
+    const paymentState = paymentStateFromPayments(parcelPayments as any);
 
     const balances = calculateCustomerBalance(
       parcelItems,
@@ -127,25 +153,22 @@ async function calculateCustomerTotalBalance(
   };
 }
 
-function bindActions(): void {
-  const addBtn = document.getElementById("addCustomer");
-  if (addBtn) {
-    on(addBtn, "click", () => openCustomerForm());
-  }
+function bindActions(root: HTMLElement): void {
+  on(root.querySelector("#addCustomer"), "click", () => openCustomerForm());
 
-  document.querySelectorAll<HTMLElement>("[data-open-customer]").forEach((btn) => {
+  root.querySelectorAll<HTMLElement>("[data-open-customer]").forEach((btn) => {
     on(btn, "click", () => {
       const id = parseInt(btn.dataset.openCustomer!);
       router.navigate("customer", { customerId: String(id) });
     });
   });
 
-  document.querySelectorAll("[data-edit-customer]").forEach((btn) => {
+  root.querySelectorAll("[data-edit-customer]").forEach((btn) => {
     const b = btn as HTMLElement;
     on(b, "click", () => openCustomerForm(parseInt(b.dataset.editCustomer!)));
   });
 
-  document.querySelectorAll("[data-del-customer]").forEach((btn) => {
+  root.querySelectorAll("[data-del-customer]").forEach((btn) => {
     const b = btn as HTMLElement;
     on(b, "click", async () => {
       const id = parseInt(b.dataset.delCustomer!);
@@ -171,49 +194,80 @@ function renderCustomerForm(
   drawer(
     isNew ? "Новый заказчик" : "Редактировать заказчика",
     `
-    <form id="customerForm" novalidate>
-      <div class="field"><label>Имя *</label><input name="name" required autocomplete="name" autofocus value="${esc(customer?.name || "")}" placeholder="Иван"></div>
-      <div class="field"><label><input name="is_self" type="checkbox" ${customer?.isSelf ? "checked" : ""}> Это я</label></div>
-      <div class="actions"><button type="submit">${isNew ? "Добавить" : "Сохранить"}</button></div>
+    <form id="customerForm" novalidate aria-label="${isNew ? "Новый заказчик" : "Редактировать заказчика"}">
+      <div class="field">
+        <label for="customerName">Имя *</label>
+        <input id="customerName" name="name" type="text" required autocomplete="name" autofocus
+          enterkeyhint="done" aria-describedby="customerNameError"
+          value="${esc(customer?.name || "")}" placeholder="Иван">
+        <span id="customerNameError" class="field-error" hidden></span>
+      </div>
+      <div class="field field-check">
+        <input id="customerSelf" name="is_self" type="checkbox" ${customer?.isSelf ? "checked" : ""}>
+        <label for="customerSelf">Это я</label>
+      </div>
+      <div class="form-actions"><button type="submit" class="btn-primary w-full">${isNew ? "Добавить" : "Сохранить"}</button></div>
     </form>
   `,
   );
 
-  const form = document.getElementById("customerForm") as HTMLFormElement;
-  if (form) {
-    on(form, "submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(form);
-      const name = formData.get("name")?.toString().trim() || "";
-      const isSelf = formData.get("is_self") === "on";
+  const form = document.getElementById("customerForm") as HTMLFormElement | null;
+  if (!form) return;
 
-      if (!name) return;
+  const nameInput = document.getElementById("customerName") as HTMLInputElement;
+  const nameError = document.getElementById("customerNameError") as HTMLElement;
 
-      try {
-        if (isNew) {
-          await customerService.validateUniqueName(name);
-          await customerRepository.save(
-            (await import("@/features/customers/domain.js")).Customer.create({ name, isSelf }),
-          );
-        } else if (customer) {
-          await customerService.validateUniqueName(name, customer.id);
-          const updated = (await import("@/features/customers/domain.js")).Customer.fromPersistence(
-            {
-              id: customer.id,
-              name,
-              isSelf,
-            },
-          );
-          await customerRepository.save(updated);
-        }
-        closeDrawer();
-        renderCustomersView();
-        toastState.add({ message: "Заказчик сохранён", type: "success" });
-      } catch (err) {
-        toastState.add({ message: err instanceof Error ? err.message : "Ошибка", type: "error" });
+  const showNameError = (message: string): void => {
+    nameInput.setCustomValidity(message);
+    nameInput.setAttribute("aria-invalid", "true");
+    nameError.textContent = message;
+    nameError.hidden = false;
+    nameInput.focus();
+  };
+  const clearNameError = (): void => {
+    nameInput.setCustomValidity("");
+    nameInput.removeAttribute("aria-invalid");
+    nameError.textContent = "";
+    nameError.hidden = true;
+  };
+
+  on(nameInput, "input", clearNameError);
+  on(nameInput, "change", clearNameError);
+
+  on(form, "submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    const name = formData.get("name")?.toString().trim() || "";
+    const isSelf = formData.get("is_self") === "on";
+
+    if (!name) {
+      showNameError("Укажите имя заказчика");
+      return;
+    }
+
+    try {
+      if (isNew) {
+        await customerService.validateUniqueName(name);
+        await customerRepository.save(
+          (await import("@/features/customers/domain.js")).Customer.create({ name, isSelf }),
+        );
+      } else if (customer) {
+        await customerService.validateUniqueName(name, customer.id);
+        const updated = (await import("@/features/customers/domain.js")).Customer.fromPersistence({
+          id: customer.id,
+          name,
+          isSelf,
+        });
+        await customerRepository.save(updated);
       }
-    });
-  }
+      closeDrawer();
+      renderCustomersView();
+      toastState.add({ message: "Заказчик сохранён", type: "success" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Не удалось сохранить заказчика";
+      showNameError(message);
+    }
+  });
 }
 
 async function deleteCustomer(id: number): Promise<void> {

@@ -6,11 +6,11 @@
 export function esc(s: string | number | null | undefined): string {
   return (s == null ? "" : String(s)).replace(/[&<>"']/g, (c) => {
     const map: Record<string, string> = {
-      "&": "&",
-      "<": "<",
-      ">": ">",
-      '"': '"',
-      "'": "'",
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
     };
     return map[c] ?? c;
   });
@@ -21,14 +21,38 @@ export function kg(g: number | null | undefined): string {
   return g == null ? "\u2014" : (g / 1000).toFixed(3);
 }
 
-/** Format money in BYN (Br) */
+/** Format money in BYN */
 export function money(v: number | null | undefined): string {
-  return (v || 0).toFixed(2) + " Br";
+  return (v || 0).toFixed(2) + " BYN";
 }
 
 /** ISO date string for "now" */
 export function dateNow(): string {
   return new Date().toISOString();
+}
+
+/**
+ * Russian pluralization in the i18n `t` style. Pass four pipe-separated forms:
+ * zero | one | few | many. Put `{count}` into a form where the number should
+ * appear; without it the form is returned as-is (handy for a bare noun).
+ *
+ * const forms = "нет предметов | {count} предмет | {count} предмета | {count} предметов";
+ * t(forms, 0) // "нет предметов"
+ * t(forms, 1) // "1 предмет"
+ * t(forms, 3) // "3 предмета"
+ * t(forms, 5) // "5 предметов"
+ */
+export function t(forms: string, count: number): string {
+  const parts = forms.split("|").map((part) => part.trim());
+  const n = Math.abs(count);
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  let index = 3;
+  if (n === 0) index = 0;
+  else if (mod10 === 1 && mod100 !== 11) index = 1;
+  else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) index = 2;
+  const form = parts[index] ?? parts[parts.length - 1] ?? "";
+  return form.split("{count}").join(String(count));
 }
 
 // === Icons (lucide, 16px, stroke 1.5) ===
@@ -71,6 +95,9 @@ export const I = {
   ),
   creditcard: icon(
     '<rect width="18" height="10" x="3" y="7" rx="2" ry="2"/><line x1="8" x2="8" y1="7" y2="7.01"/><line x1="10" x2="10" y1="7" y2="7.01"/><line x1="12" x2="12" y1="7" y2="7.01"/>',
+  ),
+  copy: icon(
+    '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   ),
   user: icon('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
   chevronLeft: icon('<path d="m15 18-6-6 6-6"/>'),

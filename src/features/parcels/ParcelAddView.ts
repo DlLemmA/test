@@ -1,251 +1,981 @@
-import { parcelRepository, parcelItemRepository } from "./infrastructure";
-import { on } from "@/core/listeners";
-import { router, uiState, toastState } from "@/core/state";
-import { I, esc, money } from "@/core/utils";
+import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
+import { createCustomer } from "@/features/shared/services";
+import { parcelRepository } from "./infrastructure";
+import type { Parcel } from "./domain";
+import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
+import { on } from "@/core/listeners";
+import { router, toastState } from "@/core/state";
+import { I, esc, money } from "@/core/utils";
 
 // ============================================
-// Parcel Add View (страница добавления партии товаров)
+// Parcel Add View — two-step batch form
 // ============================================
 
-// Stage 1: ввод общих сумм заказа
-async function renderStage1(
-  root: HTMLElement,
-  parcels: any[],
-  selectedParcelId: number,
-): Promise<void> {
-  root.innerHTML = `
-    <section class="section">
-      <header class="section-title with-action">
-        <h2>Новая партия</h2>
-      </header>
-      <div class="field mb-3">
-        <label>Добавить в посылку</label>
-        <select name="parcelId" id="addParcelSelect">
-          ${parcels
-            .map(
-              (p) => `
-            <option value="${p.id}" ${p.id === selectedParcelId ? "selected" : ""}>
-              Посылка №${p.id} · ${p.statusLabel} · ${p.formattedDate}
-            </option>
-          `,
-            )
-            .join("")}
-        </select>
-      </div>
+type BatchItem = {
+  name: string;
+  priceCNY: number;
+  priceBYN: number;
+  quantity: number;
+  unit: "pcs" | "packs" | "pairs";
+  customerId: number;
+};
 
-      <form id="stage1Form" novalidate>
-        <div class="field"><label>Общая сумма заказа в юанях (CNY) *</label><input name="totalCNY" type="number" step="0.01" required autofocus placeholder="Например, 1000"></div>
-        <div class="field"><label>Общая сумма заказа в рублях (BYN) *</label><input name="totalBYN" type="number" step="0.01" required placeholder="Например, 130"></div>
-        <div class="actions"><button type="submit" class="btn-primary w-full">${I.arrowRight} Далее: добавить товары</button></div>
-      </form>
-    </section>
-  `;
+type BatchState = {
+  step: 1 | 2 | 3;
+  parcels: Parcel[];
+  customers: Customer[];
+  selectedParcelId: number;
+  expectedItemsCount: number | null;
+  totalCNY: number;
+  totalBYN: number;
+  items: BatchItem[];
+  selectedCustomerId: number | null;
+  csvMode: "plain" | "ui";
+  csvText: string;
+  csvFileName: string;
+  csvUiDraft: ItemUiDraft;
+};
 
-  const select = document.getElementById("addParcelSelect") as HTMLSelectElement;
-  select?.addEventListener("change", () => {
-    selectedParcelId = parseInt(select.value) || 0;
-    renderStage1(root, parcels, selectedParcelId);
-  });
+type Field = HTMLInputElement | HTMLSelectElement;
 
-  const form = document.getElementById("stage1Form") as HTMLFormElement;
-  if (form) {
-    on(form, "submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(form);
-      const totalCNY = parseFloat(formData.get("totalCNY")?.toString() || "0");
-      const totalBYN = parseFloat(formData.get("totalBYN")?.toString() || "0");
-      if (totalCNY <= 0 || totalBYN <= 0) {
-        toastState.add({ message: "Введите корректные суммы", type: "error" });
-        return;
-      }
-      await renderStage2(root, parcels, selectedParcelId, totalCNY, totalBYN);
+function unitLabel(unit: BatchItem["unit"]): string {
+  switch (unit) {
+    case "pcs":
+      return "шт";
+    case "packs":
+      return "уп";
+    case "pairs":
+      return "пар";
+  }
+}
+
+function fromSelect(value: string): BatchItem["unit"] {
+  return value === "packs" || value === "pairs" ? value : "pcs";
+}
+
+function cny(v: number): string {
+  return `${v.toFixed(2)} CNY`;
+}
+
+function itemsWord(count: number): string {
+  const mod100 = count % 100;
+  const mod10 = count % 10;
+  if (mod100 >= 11 && mod100 <= 14) return "товаров";
+  if (mod10 === 1) return "товар";
+  if (mod10 >= 2 && mod10 <= 4) return "товара";
+  return "товаров";
+}
+
+type ItemRow = { name: string; priceCNY: number; quantity: number; unit: BatchItem["unit"] };
+type ItemUiDraft = {
+  name: string;
+  priceCNY: string;
+  quantity: string;
+  unit: BatchItem["unit"];
+};
+
+function parseUnit(raw: string | undefined): BatchItem["unit"] | undefined {
+  if (!raw) return undefined;
+  const value = raw.trim().toLowerCase().replace(/\.$/, "");
+  if (["шт", "штука", "штуки", "pcs", "pc"].includes(value)) return "pcs";
+  if (["уп", "упак", "упаковка", "упаковки", "pack", "packs"].includes(value)) return "packs";
+  if (["пар", "пара", "пары", "pair", "pairs"].includes(value)) return "pairs";
+  return undefined;
+}
+
+function parseNumber(raw: string): number {
+  let value = raw.replace(/[^\d.,-]/g, "");
+  if (value.includes(",") && value.includes(".")) {
+    value = value.replace(/,/g, "");
+  } else {
+    value = value.replace(",", ".");
+  }
+  return Number(value);
+}
+
+// Формат строки: «Название количество единица цена», например «Носки 1 шт 22,35»
+function parseItems(text: string): { rows: ItemRow[]; error?: string } {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return { rows: [], error: "Вставьте строки" };
+
+  const rows: ItemRow[] = [];
+  for (const [index, line] of lines.entries()) {
+    const tokens = line.split(/\s+/);
+    const number = index + 1;
+    const error = (message: string) => ({ rows: [], error: `Строка ${number}: ${message}` });
+
+    if (tokens.length < 4) {
+      return error("нужно «название количество единица цена»");
+    }
+
+    const name = tokens.slice(0, -3).join(" ").replace(/[,;]$/, "").trim();
+    const quantity = parseNumber(tokens[tokens.length - 3]!);
+    const unit = parseUnit(tokens[tokens.length - 2]);
+    const priceCNY = parseNumber(tokens[tokens.length - 1]!);
+
+    if (!name) return error("нет названия");
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return error("неверное количество");
+    }
+    if (!unit) return error("укажите единицу (шт/уп/пар)");
+    if (!Number.isFinite(priceCNY) || priceCNY <= 0) {
+      return error("неверная цена CNY");
+    }
+
+    rows.push({ name, priceCNY, quantity, unit });
+  }
+
+  return { rows };
+}
+
+function appendImportedRows(
+  state: BatchState,
+  rows: ItemRow[],
+  customerId: number,
+  rate: number,
+): void {
+  state.selectedCustomerId = customerId;
+  for (const row of rows) {
+    state.items.push({
+      ...row,
+      priceBYN: Math.round(row.priceCNY * rate * 100) / 100,
+      customerId,
     });
   }
 }
 
-// Stage 2: добавление товаров в партию
-async function renderStage2(
-  root: HTMLElement,
-  parcels: any[],
-  parcelId: number,
-  totalCNY: number,
-  totalBYN: number,
-): Promise<void> {
-  const rate = totalBYN / totalCNY;
-  const customers = await (
-    await import("@/features/customers/infrastructure")
-  ).customerRepository.findAll();
-  const customerOptions = customers
-    .map((c) => `<option value="${c.id}">${esc(c.name)}${c.isSelf ? " (я)" : ""}</option>`)
+function setFieldError(field: Field, invalid: boolean, message: string): boolean {
+  field.setCustomValidity(invalid ? message : "");
+  field.setAttribute("aria-invalid", String(invalid));
+  return !invalid;
+}
+
+function clearErrorsOnInput(form: HTMLFormElement): void {
+  form.querySelectorAll<Field>("input, select").forEach((field) => {
+    on(field, "input", () => {
+      field.setCustomValidity("");
+      field.removeAttribute("aria-invalid");
+    });
+    on(field, "change", () => {
+      field.setCustomValidity("");
+      field.removeAttribute("aria-invalid");
+    });
+  });
+}
+
+function stepNav(active: 1 | 2 | 3): string {
+  const step = (n: 1 | 2 | 3, label: string): string => {
+    if (n === active)
+      return `<span class="wizard-step is-active" aria-current="step"><i>${n}</i> ${label}</span>`;
+    if (n < active)
+      return `<button type="button" class="wizard-step is-done" data-step-back="${n}"><i>${n}</i> ${label}</button>`;
+    return `<span class="wizard-step"><i>${n}</i> ${label}</span>`;
+  };
+
+  return `
+    <nav class="wizard-steps" aria-label="Этапы">
+      ${step(1, "Суммы заказа")}
+      ${step(2, "Товары")}
+      ${step(3, "Проверка")}
+    </nav>
+  `;
+}
+
+function renderStep1(root: HTMLElement, state: BatchState, render: (focus?: string) => void): void {
+  const parcelOptions = state.parcels
+    .map(
+      (p) => `
+        <option value="${p.id}" ${p.id === state.selectedParcelId ? "selected" : ""}>
+          Посылка №${p.id} · ${esc(parcelStatusInfo(p.status).label)} · ${esc(p.formattedDate)}
+        </option>
+      `,
+    )
     .join("");
 
-  let batchItems: Array<{
-    name: string;
-    priceCNY: number;
-    priceBYN: number;
-    quantity: number;
-    unit: "pcs" | "packs";
-    customerId: number;
-  }> = [];
+  root.innerHTML = `
+    <div class="page page-batch">
+      <header class="page-head">
+        <h1>Новая партия</h1>
+        <p class="page-head__note">Суммы заказа → товары → проверка</p>
+      </header>
 
-  function render(): string {
-    const itemsHtml = batchItems
-      .map(
-        (item, idx) => `
-      <div class="item" data-idx="${idx}">
-        <div class="flex items-center justify-between gap-3 py-2">
-          <div class="flex-1 min-w-0">
-            <b class="truncate">${esc(item.name)}</b>
-            <div class="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap truncate">
-              <span>${item.priceCNY} CNY (${money(item.priceBYN)} BYN) × ${item.quantity} ${item.unit === "pcs" ? "шт" : "упак"}</span>
-              <span>${esc(customers.find((c) => c.id === item.customerId)?.name || "")}</span>
-            </div>
-          </div>
-          <button type="button" class="btn-icon btn-danger" data-remove="${idx}" aria-label="Удалить">${I.trash}</button>
+      ${stepNav(1)}
+
+      <form id="stage1Form" novalidate aria-label="Суммы заказа">
+        <div class="field">
+          <label for="addParcelSelect">Добавить в посылку</label>
+          <span class="small muted block mb-1">Только черновики · отправленную посылку можно изменить в её карточке</span>
+          <select id="addParcelSelect" name="parcelId">${parcelOptions}</select>
         </div>
+        <div class="field">
+          <label for="expectedItemsCount">Ожидаемое количество товаров</label>
+          <span id="expectedItemsHint" class="small muted block mb-1">Сверим с количеством добавленных товаров на шаге проверки</span>
+          <input id="expectedItemsCount" name="expectedItemsCount" type="number" inputmode="numeric" min="1" step="1"
+            aria-describedby="expectedItemsHint" enterkeyhint="next" value="${state.expectedItemsCount ?? ""}" placeholder="Например, 12">
+        </div>
+        <div class="field">
+          <label for="sumCNY">Сумма заказа, CNY *</label>
+          <input id="sumCNY" name="totalCNY" type="number" inputmode="decimal" min="0.01" step="0.01" required
+            data-autofocus enterkeyhint="next" value="${state.totalCNY || ""}" placeholder="Например, 1000">
+        </div>
+        <div class="field">
+          <label for="sumBYN">Сумма заказа, BYN *</label>
+          <input id="sumBYN" name="totalBYN" type="number" inputmode="decimal" min="0.01" step="0.01" required
+            enterkeyhint="done" value="${state.totalBYN || ""}" placeholder="Например, 130">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn-primary w-full">${I.arrowRight} Далее: товары</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  const form = document.getElementById("stage1Form") as HTMLFormElement;
+  const parcelSelect = document.getElementById("addParcelSelect") as HTMLSelectElement;
+  const expected = document.getElementById("expectedItemsCount") as HTMLInputElement;
+  const cny = document.getElementById("sumCNY") as HTMLInputElement;
+  const byn = document.getElementById("sumBYN") as HTMLInputElement;
+
+  on(parcelSelect, "change", () => {
+    state.selectedParcelId = Number(parcelSelect.value) || 0;
+  });
+  clearErrorsOnInput(form);
+
+  on(form, "submit", (e) => {
+    e.preventDefault();
+    const expectedValue = expected.value.trim() === "" ? null : Number(expected.value);
+    const cnyValue = Number(cny.value);
+    const bynValue = Number(byn.value);
+    const expectedValid = setFieldError(
+      expected,
+      expectedValue !== null && (!Number.isInteger(expectedValue) || expectedValue < 1),
+      "Укажите количество товаров целым числом от 1",
+    );
+    const cnyValid = setFieldError(
+      cny,
+      cny.value.trim() === "" || !Number.isFinite(cnyValue) || cnyValue <= 0,
+      "Укажите сумму заказа в CNY",
+    );
+    const bynValid = setFieldError(
+      byn,
+      byn.value.trim() === "" || !Number.isFinite(bynValue) || bynValue <= 0,
+      "Укажите сумму заказа в BYN",
+    );
+
+    if (!expectedValid || !cnyValid || !bynValid) {
+      form.reportValidity();
+      (!expectedValid ? expected : !cnyValid ? cny : byn).focus();
+      return;
+    }
+
+    state.expectedItemsCount = expectedValue;
+    state.totalCNY = cnyValue;
+    state.totalBYN = bynValue;
+    state.step = 2;
+    render("[data-autofocus]");
+  });
+}
+
+function customerLabel(customer: Customer): string {
+  return customer.isSelf ? `${customer.name} (я)` : customer.name;
+}
+
+function customerKey(value: string): string {
+  return value
+    .trim()
+    .replace(/\s*\(я\)\s*$/i, "")
+    .toLocaleLowerCase("ru-RU");
+}
+
+function findCustomerByName(customers: Customer[], value: string): Customer | undefined {
+  const key = customerKey(value);
+  if (!key) return undefined;
+  return customers.find((c) => customerKey(c.name) === key);
+}
+
+// Rank search results: exact first, then prefix, then word prefix, then substring.
+function rankCustomers(customers: Customer[], query: string): Customer[] {
+  const key = customerKey(query);
+  return customers
+    .map((customer, index) => {
+      const name = customer.name.toLocaleLowerCase("ru-RU");
+      const score = !key
+        ? customer.isSelf
+          ? 0
+          : 1
+        : customerKey(customer.name) === key
+          ? 0
+          : name.startsWith(key)
+            ? 1
+            : name.split(/\s+/).some((word) => word.startsWith(key))
+              ? 2
+              : 3;
+      return { customer, index, score };
+    })
+    .filter(
+      ({ customer, score }) =>
+        !key || score < 3 || customer.name.toLocaleLowerCase("ru-RU").includes(key),
+    )
+    .sort((a, b) => a.score - b.score || a.index - b.index)
+    .map(({ customer }) => customer);
+}
+
+function customerPickerHtml(state: BatchState): string {
+  const selected = state.customers.find((c) => c.id === state.selectedCustomerId);
+  return `
+    <div class="field customer-combo" id="customerCombo">
+      <label for="customerComboInput">Заказчик</label>
+      <div class="customer-combo__control">
+        <input id="customerComboInput" type="text" role="combobox" aria-expanded="false"
+          aria-controls="customerComboList" aria-autocomplete="list" autocomplete="off"
+          placeholder="Выберите или создайте" value="${esc(selected ? customerLabel(selected) : "")}">
+        <span class="customer-combo__chevron" aria-hidden="true">▾</span>
       </div>
-    `,
+      <div class="customer-combo__list" id="customerComboList" role="listbox" hidden></div>
+      <span class="customer-combo__error" id="customerComboError" hidden></span>
+    </div>
+  `;
+}
+
+function bindCustomerCombo(
+  root: HTMLElement,
+  state: BatchState,
+  customerMap: Map<number, Customer>,
+): () => Promise<boolean> {
+  const wrapper = root.querySelector<HTMLElement>("#customerCombo");
+  const input = root.querySelector<HTMLInputElement>("#customerComboInput");
+  const control = root.querySelector<HTMLElement>(".customer-combo__control");
+  const list = root.querySelector<HTMLElement>("#customerComboList");
+  const errorEl = root.querySelector<HTMLElement>("#customerComboError");
+  if (!wrapper || !input || !control || !list || !errorEl) return async () => false;
+
+  // Focus stays in the input; the highlighted option is tracked via aria-activedescendant.
+  // `filter` is only set by typing, so opening on a preselected value shows the whole list.
+  let activeIndex = -1;
+  let filter = "";
+  let closeTimer: number | undefined;
+  const optionId = (index: number): string => `customerComboOption${index}`;
+  const optionButtons = (): HTMLButtonElement[] => [
+    ...list.querySelectorAll<HTMLButtonElement>(".customer-combo__option"),
+  ];
+  const clearActive = (): void => {
+    activeIndex = -1;
+    input.removeAttribute("aria-activedescendant");
+    for (const button of optionButtons()) button.removeAttribute("data-active");
+  };
+  const setActive = (index: number): void => {
+    const buttons = optionButtons();
+    if (buttons.length === 0) return;
+    activeIndex = (index + buttons.length) % buttons.length;
+    buttons.forEach((button, i) => {
+      if (i === activeIndex) button.setAttribute("data-active", "true");
+      else button.removeAttribute("data-active");
+    });
+    input.setAttribute("aria-activedescendant", optionId(activeIndex));
+    buttons[activeIndex]!.scrollIntoView({ block: "nearest" });
+  };
+
+  const clearError = (): void => {
+    errorEl.textContent = "";
+    errorEl.hidden = true;
+    input.removeAttribute("aria-invalid");
+  };
+  const showError = (message: string): void => {
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+    input.setAttribute("aria-invalid", "true");
+  };
+
+  const renderOptions = (): void => {
+    const name = filter.trim();
+    const matches = rankCustomers(state.customers, name);
+    const options = matches
+      .map(
+        (c, index) => `
+          <button type="button" class="customer-combo__option" role="option" id="${optionId(index)}"
+            data-customer-id="${c.id}" aria-selected="${c.id === state.selectedCustomerId}">
+            ${esc(customerLabel(c))}
+          </button>
+        `,
       )
       .join("");
+    const create =
+      !name || findCustomerByName(state.customers, name)
+        ? ""
+        : `<button type="button" class="customer-combo__option customer-combo__option--create" role="option" data-create="true" id="${optionId(matches.length)}">
+           ${I.plus} Создать «${esc(name)}»
+         </button>`;
+    list.innerHTML = options + create || '<div class="customer-combo__empty">Нет заказчиков</div>';
+    clearActive();
+  };
 
-    const currentCNY = batchItems.reduce((sum, i) => sum + i.priceCNY * i.quantity, 0);
-    const currentBYN = batchItems.reduce((sum, i) => sum + i.priceBYN * i.quantity, 0);
+  const close = (): void => {
+    if (closeTimer !== undefined) {
+      clearTimeout(closeTimer);
+      closeTimer = undefined;
+    }
+    list.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+    clearActive();
+  };
+  const open = (): void => {
+    renderOptions();
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  };
+  const select = (customer: Customer): void => {
+    state.selectedCustomerId = customer.id;
+    customerMap.set(customer.id, customer);
+    input.value = customerLabel(customer);
+    filter = "";
+    clearError();
+    close();
+  };
 
-    return `
-      <section class="section">
-        <header class="section-title with-action">
-          <h2>Новая партия — товары</h2>
-          <button class="btn-icon btn-secondary" id="backToStage1" aria-label="Назад">${I.history}</button>
-        </header>
+  // Any typed value is valid: use an exact existing customer or create a new one.
+  const commitTypedValue = async (): Promise<boolean> => {
+    const name = input.value.trim();
+    if (!name) {
+      showError("Укажите заказчика");
+      input.focus();
+      return false;
+    }
+    const existing = findCustomerByName(state.customers, name);
+    if (existing) {
+      select(existing);
+      return true;
+    }
+    if (name.length > 100) {
+      showError("Имя заказчика слишком длинное");
+      input.focus();
+      return false;
+    }
+    try {
+      const customer = await createCustomer(name);
+      state.customers.push(customer);
+      select(customer);
+      toastState.add({ message: `Заказчик «${customer.name}» добавлен`, type: "success" });
+      return true;
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Не удалось создать заказчика");
+      return false;
+    }
+  };
 
-        <div class="mb-3 p-3 bg-slate-50 rounded-xl">
-          <div class="text-sm"><b>Курс:</b> 1 CNY = ${rate.toFixed(4)} BYN</div>
-          <div class="text-sm"><b>Цель:</b> ${totalCNY} CNY / ${totalBYN} BYN</div>
-          <div class="text-sm"><b>Добавлено:</b> ${currentCNY.toFixed(2)} CNY / ${currentBYN.toFixed(2)} BYN</div>
-          <div class="text-sm ${currentCNY > totalCNY || currentBYN > totalBYN ? "text-red-600" : ""}">
-            <b>Остаток:</b> ${Math.max(0, totalCNY - currentCNY).toFixed(2)} CNY / ${Math.max(0, totalBYN - currentBYN).toFixed(2)} BYN
+  // The whole control opens the list; no separate focusable toggle is needed.
+  on(control, "click", (e) => {
+    if ((e.target as HTMLElement).closest("input")) return;
+    if (list.hidden) open();
+    input.focus();
+  });
+  on(input, "focus", open);
+  on(input, "click", open);
+  on(input, "input", () => {
+    clearError();
+    filter = input.value;
+    const selected = state.customers.find((c) => c.id === state.selectedCustomerId);
+    if (selected && customerKey(input.value) !== customerKey(customerLabel(selected))) {
+      state.selectedCustomerId = null;
+    }
+    renderOptions();
+    if (list.hidden) open();
+  });
+  on(input, "keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (list.hidden) {
+        open();
+        setActive(0);
+      } else {
+        setActive(activeIndex + (e.key === "ArrowDown" ? 1 : -1));
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      if (!list.hidden) e.preventDefault();
+      close();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const highlighted = !list.hidden && activeIndex >= 0 ? optionButtons()[activeIndex] : null;
+      if (highlighted) highlighted.click();
+      else void commitTypedValue();
+    }
+  });
+  const cancelClose = (): void => {
+    if (closeTimer !== undefined) {
+      clearTimeout(closeTimer);
+      closeTimer = undefined;
+    }
+  };
+  // On touch screens tapping an option blurs the input before `click` fires.
+  on(list, "pointerdown", cancelClose);
+  on(list, "click", (e) => {
+    cancelClose();
+    const button = (e.target as HTMLElement).closest<HTMLButtonElement>(".customer-combo__option");
+    if (!button) return;
+
+    const id = button.dataset.customerId;
+    if (id) {
+      const customer =
+        state.customers.find((c) => c.id === Number(id)) ?? customerMap.get(Number(id));
+      if (customer) select(customer);
+      return;
+    }
+
+    if (button.dataset.create) void commitTypedValue();
+  });
+  on(wrapper, "focusout", (e) => {
+    if (wrapper.contains(e.relatedTarget as Node | null)) return;
+    cancelClose();
+    closeTimer = window.setTimeout(() => {
+      closeTimer = undefined;
+      close();
+    }, 150);
+  });
+
+  return commitTypedValue;
+}
+
+function batchAddHtml(state: BatchState): string {
+  const modeBody =
+    state.csvMode === "plain"
+      ? `
+        <div class="batch-add__group">
+          <p class="batch-add__label">Строки или файл</p>
+          <p class="small muted">Формат строки: название, количество, единица (шт/уп/пар), цена CNY. Например: «Носки 1 шт 22,35».</p>
+          <div class="csv-file-row">
+            <input id="csvFile" class="sr-only" type="file" accept=".txt,text/plain" tabindex="-1" aria-label="Файл со строками">
+            <button type="button" class="btn-secondary" id="chooseCsvFile">${I.sheet} Выбрать файл</button>
+            <span class="small muted" id="csvFileName" aria-live="polite">${state.csvFileName ? esc(state.csvFileName) : "Файл не выбран"}</span>
           </div>
+          <label for="csvText">Вставьте строки</label>
+          <textarea id="csvText" rows="5" data-autofocus placeholder="Носки 1 шт 22,35&#10;Кроссовки беговые 2 уп 45.50">${esc(state.csvText)}</textarea>
         </div>
-
-        <div id="batchItemsList">${itemsHtml || '<div class="empty">Товаров пока нет</div>'}</div>
-
-        <section class="section mt-3">
-          <header class="section-title">Добавить товар</header>
-          <form id="addBatchItemForm" novalidate class="grid grid-cols-2 gap-3">
-            <div class="field col-span-2"><label>Название *</label><input name="name" required autocomplete="off" autofocus></div>
-            <div class="field"><label>Заказчик *</label><select name="customer_id" required>${customerOptions}</select></div>
-            <div class="field"><label>Цена в юанях (CNY) *</label><input name="priceCNY" type="number" step="0.01" required></div>
-            <div class="field"><label>Количество *</label><input name="quantity" type="number" step="1" min="1" required value="1"></div>
-            <div class="field"><label>Ед.</label><select name="unit"><option value="pcs">шт</option><option value="packs">упак</option></select></div>
-            <div class="col-span-2"><button type="button" class="btn-secondary w-full" id="addBatchItemBtn">${I.plus} Добавить в партию</button></div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary w-full" id="addBatchBtn">${I.plus} Добавить партию</button>
+        </div>
+      `
+      : `
+        <div class="batch-add__group">
+          <p class="batch-add__label">По полям</p>
+          <p class="small muted">Заполните поля — товар сразу попадёт в партию.</p>
+          <form id="csvUiForm" class="csv-ui-form" novalidate>
+            <div class="field">
+              <label for="csvUiName">Название *</label>
+              <input id="csvUiName" data-csv-ui-name data-autofocus type="text" required autocomplete="off" enterkeyhint="next"
+                placeholder="Например, Носки спортивные" value="${esc(state.csvUiDraft.name)}">
+            </div>
+            <div class="field">
+              <label for="csvUiPrice">Цена, CNY *</label>
+              <input id="csvUiPrice" type="number" inputmode="decimal" min="0.01" step="0.01" required enterkeyhint="next"
+                placeholder="Например, 25.50" value="${esc(state.csvUiDraft.priceCNY)}">
+            </div>
+            <div class="batch-grid">
+              <div class="field">
+                <label for="csvUiQty">Количество *</label>
+                <input id="csvUiQty" type="number" inputmode="numeric" min="1" step="1" required enterkeyhint="next"
+                  value="${esc(state.csvUiDraft.quantity)}">
+              </div>
+              <div class="field">
+                <label for="csvUiUnit">Единица</label>
+                <select id="csvUiUnit" enterkeyhint="done">
+                  <option value="pcs" ${state.csvUiDraft.unit === "pcs" ? "selected" : ""}>шт</option>
+                  <option value="packs" ${state.csvUiDraft.unit === "packs" ? "selected" : ""}>уп</option>
+                  <option value="pairs" ${state.csvUiDraft.unit === "pairs" ? "selected" : ""}>пар</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn-secondary w-full">${I.plus} Добавить в партию</button>
+            </div>
           </form>
-        </section>
-
-        ${
-          batchItems.length > 0
-            ? `
-        <div class="actions" style="margin-top:12px">
-          <button type="button" class="btn-primary w-full" id="saveBatchBtn">${I.check} Сохранить партию (${batchItems.length} товаров)</button>
         </div>
-        `
-            : ""
-        }
-      </section>
-    `;
+      `;
+
+  return `
+    <div class="batch-add">
+      ${customerPickerHtml(state)}
+
+      <div class="batch-add__modes" role="group" aria-label="Режим добавления товаров">
+        <button type="button" class="batch-add__mode" data-batch-mode="plain"
+          aria-pressed="${state.csvMode === "plain"}">Строки</button>
+        <button type="button" class="batch-add__mode" data-batch-mode="ui"
+          aria-pressed="${state.csvMode === "ui"}">UI</button>
+      </div>
+
+      ${modeBody}
+    </div>
+  `;
+}
+
+function bindBatchAdd(
+  root: HTMLElement,
+  state: BatchState,
+  rate: number,
+  customerMap: Map<number, Customer>,
+  render: (focus?: string) => void,
+): void {
+  root.querySelectorAll<HTMLButtonElement>("[data-batch-mode]").forEach((button) => {
+    on(button, "click", () => {
+      const mode = button.dataset.batchMode === "ui" ? "ui" : "plain";
+      if (state.csvMode === mode) return;
+      state.csvMode = mode;
+      render(mode === "ui" ? "[data-csv-ui-name]" : "#csvText");
+    });
+  });
+
+  const commitCustomer = bindCustomerCombo(root, state, customerMap);
+
+  const currentCustomerId = (): number => state.selectedCustomerId ?? 0;
+  const checkCustomer = async (): Promise<boolean> => {
+    if (customerMap.has(currentCustomerId())) return true;
+    const committed = await commitCustomer();
+    if (committed) return true;
+    toastState.add({ message: "Укажите заказчика для партии", type: "error" });
+    root.querySelector<HTMLInputElement>("#customerComboInput")?.focus();
+    return false;
+  };
+
+  if (state.csvMode === "plain") {
+    const csvText = document.getElementById("csvText") as HTMLTextAreaElement;
+    const csvFile = document.getElementById("csvFile") as HTMLInputElement;
+    const fileName = document.getElementById("csvFileName") as HTMLElement;
+
+    on(csvText, "input", () => {
+      state.csvText = csvText.value;
+      csvText.setCustomValidity("");
+      csvText.removeAttribute("aria-invalid");
+    });
+
+    on(document.getElementById("chooseCsvFile"), "click", () => {
+      csvFile.click();
+    });
+
+    on(csvFile, "change", async () => {
+      const file = csvFile.files?.[0];
+      if (!file) return;
+      try {
+        state.csvText = await file.text();
+        state.csvFileName = file.name;
+        csvText.value = state.csvText;
+        csvText.setCustomValidity("");
+        csvText.removeAttribute("aria-invalid");
+        fileName.textContent = file.name;
+        toastState.add({ message: `Файл выбран: ${file.name}`, type: "success" });
+      } catch {
+        toastState.add({ message: "Не удалось прочитать файл", type: "error" });
+      }
+    });
+
+    on(document.getElementById("addBatchBtn"), "click", async () => {
+      if (!(await checkCustomer())) return;
+      if (!state.csvText.trim()) {
+        toastState.add({ message: "Вставьте строки или выберите файл", type: "error" });
+        csvText.focus();
+        return;
+      }
+      const parsed = parseItems(state.csvText);
+      if (parsed.error) {
+        csvText.setCustomValidity(parsed.error);
+        csvText.setAttribute("aria-invalid", "true");
+        csvText.reportValidity();
+        csvText.focus();
+        toastState.add({ message: parsed.error, type: "error" });
+        return;
+      }
+      appendImportedRows(state, parsed.rows, currentCustomerId(), rate);
+      state.csvText = "";
+      state.csvFileName = "";
+      toastState.add({ message: `Добавлено в партию: ${parsed.rows.length}`, type: "success" });
+      render("[data-autofocus]");
+    });
+  } else {
+    const uiForm = document.getElementById("csvUiForm") as HTMLFormElement;
+    const uiName = document.getElementById("csvUiName") as HTMLInputElement;
+    const uiPrice = document.getElementById("csvUiPrice") as HTMLInputElement;
+    const uiQty = document.getElementById("csvUiQty") as HTMLInputElement;
+    const uiUnit = document.getElementById("csvUiUnit") as HTMLSelectElement;
+
+    clearErrorsOnInput(uiForm);
+    on(uiName, "input", () => {
+      state.csvUiDraft.name = uiName.value;
+    });
+    on(uiPrice, "input", () => {
+      state.csvUiDraft.priceCNY = uiPrice.value;
+    });
+    on(uiQty, "input", () => {
+      state.csvUiDraft.quantity = uiQty.value;
+    });
+    on(uiUnit, "change", () => {
+      state.csvUiDraft.unit = fromSelect(uiUnit.value);
+    });
+
+    on(uiForm, "submit", async (e) => {
+      e.preventDefault();
+      if (!(await checkCustomer())) return;
+      const price = Number(uiPrice.value);
+      const qty = Number(uiQty.value);
+      const nameValid = setFieldError(
+        uiName,
+        uiName.value.trim() === "",
+        "Укажите название товара",
+      );
+      const priceValid = setFieldError(
+        uiPrice,
+        uiPrice.value.trim() === "" || !Number.isFinite(price) || price <= 0,
+        "Укажите цену в CNY",
+      );
+      const qtyValid = setFieldError(
+        uiQty,
+        uiQty.value.trim() === "" || !Number.isInteger(qty) || qty < 1,
+        "Укажите количество от 1",
+      );
+
+      if (!nameValid || !priceValid || !qtyValid) {
+        uiForm.reportValidity();
+        (!nameValid ? uiName : !priceValid ? uiPrice : uiQty).focus();
+        return;
+      }
+
+      const unit = fromSelect(uiUnit.value);
+      appendImportedRows(
+        state,
+        [{ name: uiName.value.trim(), priceCNY: price, quantity: qty, unit }],
+        currentCustomerId(),
+        rate,
+      );
+      state.csvUiDraft = { name: "", priceCNY: "", quantity: "1", unit };
+      toastState.add({ message: "Добавлено в партию: 1", type: "success" });
+      render("[data-csv-ui-name]");
+    });
   }
+}
 
-  function bindEvents(): void {
-    document.getElementById("backToStage1")?.addEventListener("click", () => {
-      renderStage1(root, parcels, parcelId);
+function renderStep2(root: HTMLElement, state: BatchState, render: (focus?: string) => void): void {
+  const rate = state.totalBYN / state.totalCNY;
+  const customerMap = new Map(state.customers.map((c) => [c.id, c]));
+  const currentCNY = state.items.reduce((sum, item) => sum + item.priceCNY, 0);
+  const currentBYN = state.items.reduce((sum, item) => sum + item.priceBYN, 0);
+  const remaining = Math.max(0, state.totalCNY - currentCNY);
+  const progress = Math.min(100, Math.round((currentCNY / state.totalCNY) * 100));
+
+  const itemsHtml = state.items.length
+    ? state.items
+        .map((item, idx) => {
+          const customerName = customerMap.get(item.customerId)?.name || "Без заказчика";
+          return `
+            <div class="item batch-row">
+              <div class="parcel-entry__body min-w-0">
+                <div class="parcel-entry__head">
+                  <b title="${esc(item.name)}">${esc(item.name)}</b>
+                  <span class="item-entry__price">${money(item.priceBYN)}</span>
+                </div>
+                <div class="parcel-entry__hint">${item.quantity} ${unitLabel(item.unit)} · ${item.priceCNY.toFixed(2)} CNY · ${esc(customerName)}</div>
+              </div>
+              <button type="button" class="btn-icon btn-danger" data-remove="${idx}" aria-label="Удалить ${esc(item.name)}">${I.trash}</button>
+            </div>
+          `;
+        })
+        .join("")
+    : '<div class="empty">Товаров пока нет. Добавьте первый ниже.</div>';
+
+  root.innerHTML = `
+    <div class="page page-batch">
+      <header class="page-head">
+        <h1>Товары партии</h1>
+        <p class="page-head__note">Распределите сумму между товарами и заказчиками</p>
+      </header>
+
+      ${stepNav(2)}
+
+      <div class="rate-strip" aria-label="Расчёт партии">
+        <div><span>Курс</span><b>1 CNY = ${rate.toFixed(4)}</b></div>
+        <div><span>Цель</span><b>${state.totalCNY.toFixed(2)} CNY</b></div>
+        <div><span>Добавлено</span><b>${currentCNY.toFixed(2)} CNY</b></div>
+        <div><span>Остаток</span><b>${remaining.toFixed(2)} CNY</b></div>
+        <div class="rate-track" aria-hidden="true"><div class="rate-fill" style="width: ${progress}%"></div></div>
+      </div>
+      <p class="small muted">${money(currentBYN)} из ${money(state.totalBYN)}</p>
+
+      <div id="batchItemsList" class="batch-items">${itemsHtml}</div>
+
+      ${batchAddHtml(state)}
+
+      <div class="form-actions form-actions--final">
+        <button type="button" class="btn-primary w-full" id="checkStepBtn">${I.arrowRight} Далее: проверка</button>
+      </div>
+    </div>
+  `;
+
+  bindBatchAdd(root, state, rate, customerMap, render);
+
+  root.querySelectorAll<HTMLButtonElement>("[data-remove]").forEach((button) => {
+    on(button, "click", () => {
+      state.items.splice(Number(button.dataset.remove), 1);
+      render("[data-autofocus]");
     });
+  });
 
-    document.getElementById("addBatchItemBtn")?.addEventListener("click", async () => {
-      const nameInput = document.querySelector('[name="name"]') as HTMLInputElement;
-      const customerSelect = document.querySelector('[name="customer_id"]') as HTMLSelectElement;
-      const priceCNYInput = document.querySelector('[name="priceCNY"]') as HTMLInputElement;
-      const quantityInput = document.querySelector('[name="quantity"]') as HTMLInputElement;
-      const unitSelect = document.querySelector('[name="unit"]') as HTMLSelectElement;
+  on(document.getElementById("checkStepBtn"), "click", () => {
+    if (state.items.length === 0) {
+      toastState.add({ message: "Добавьте хотя бы один товар в партию", type: "error" });
+      root
+        .querySelector<HTMLElement>(state.csvMode === "ui" ? "[data-csv-ui-name]" : "#csvText")
+        ?.focus();
+      return;
+    }
+    state.step = 3;
+    render("[data-autofocus]");
+  });
+}
 
-      const name = nameInput?.value.trim();
-      const customerId = parseInt(customerSelect?.value || "0");
-      const priceCNY = parseFloat(priceCNYInput?.value || "0");
-      const quantity = parseInt(quantityInput?.value || "1");
-      const unit = (unitSelect?.value as "pcs" | "packs") || "pcs";
+function renderStep3(root: HTMLElement, state: BatchState): void {
+  const rate = state.totalCNY > 0 ? state.totalBYN / state.totalCNY : 0;
+  const expectedCount = state.expectedItemsCount;
+  const actualCount = state.items.length;
+  const countMismatch = expectedCount !== null && expectedCount !== actualCount;
+  const itemCNY = state.items.reduce((sum, item) => sum + item.priceCNY, 0);
+  const itemBYN = state.items.reduce((sum, item) => sum + item.priceBYN, 0);
+  const diffCNY = state.totalCNY - itemCNY;
+  const diffBYN = state.totalBYN - itemBYN;
+  const overPaid = diffCNY < -0.005;
+  const absCNY = Math.abs(diffCNY);
+  const absBYN = Math.abs(diffBYN);
+  const hasDiff = absCNY > 0.005 || absBYN > 0.005;
+  const percent = itemCNY > 0 ? (absCNY / itemCNY) * 100 : 0;
 
-      if (!name || !customerId || priceCNY <= 0) {
-        toastState.add({ message: "Заполните все обязательные поля", type: "error" });
-        return;
+  const diffLabel = overPaid
+    ? "Добавлено сверх оплаты"
+    : hasDiff
+      ? "Комиссия (распределится по товарам)"
+      : "Не учтено";
+  const diffValue = hasDiff ? `${cny(absCNY)} · ${money(absBYN)}` : `${cny(0)} · ${money(0)}`;
+  const notice = overPaid
+    ? `Сумма товаров превышает оплату на ${cny(absCNY)} (${money(absBYN)}). Проверьте цены товаров.`
+    : hasDiff
+      ? `Похоже на комиссию сервиса оплаты: ${cny(absCNY)} (${percent.toFixed(1)}% от суммы товаров) = ${money(absBYN)}. При сохранении она будет добавлена к ценам товаров пропорционально их стоимости — каждый заказчик заплатит свою долю, а не только вы.`
+      : "Вся сумма распределена по товарам. Неучтённых BYN нет.";
+
+  root.innerHTML = `
+    <div class="page page-batch">
+      <header class="page-head">
+        <h1 id="checkTitle" tabindex="-1" data-autofocus>Проверка партии</h1>
+        <p class="page-head__note">Последний шаг перед сохранением</p>
+      </header>
+
+      ${stepNav(3)}
+
+      <div class="check-list">
+        <div class="check-row"><span>Оплачено</span><b>${cny(state.totalCNY)} · ${money(state.totalBYN)}</b></div>
+        <div class="check-row"><span>Курс</span><b>1 CNY = ${rate.toFixed(4)}</b></div>
+        <div class="check-row"><span>Ожидалось товаров</span><b>${expectedCount ?? "—"}</b></div>
+        <div class="check-row"><span>Товаров в партии</span><b>${actualCount}</b></div>
+        <div class="check-row"><span>Сумма товаров</span><b>${cny(itemCNY)} · ${money(itemBYN)}</b></div>
+        <div class="check-row check-row--total"><span>${diffLabel}</span><b>${diffValue}</b></div>
+      </div>
+
+      ${
+        countMismatch
+          ? `<p class="check-notice" id="itemsCountNotice">Внимание: ожидалось ${expectedCount} ${itemsWord(expectedCount)}, добавлено ${actualCount} ${itemsWord(actualCount)}. Проверьте список товаров перед сохранением.</p>`
+          : ""
       }
+      <p class="check-notice ${hasDiff ? "" : "is-ok"}" id="checkNotice">${notice}</p>
 
-      const priceBYN = Math.round(priceCNY * rate * 100) / 100;
+      <div class="form-actions form-actions--final">
+        <button type="button" class="btn-primary w-full" id="saveBatchBtn" aria-describedby="checkNotice${countMismatch ? " itemsCountNotice" : ""}">${I.check} Сохранить партию (${actualCount})</button>
+      </div>
+    </div>
+  `;
 
-      batchItems.push({ name, priceCNY, priceBYN, quantity, unit, customerId });
-
-      if (nameInput) nameInput.value = "";
-      if (priceCNYInput) priceCNYInput.value = "";
-      if (quantityInput) quantityInput.value = "1";
-
-      root.innerHTML = render();
-      bindEvents();
-    });
-
-    document.querySelectorAll("[data-remove]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const idx = parseInt((btn as HTMLElement).dataset.remove!);
-        batchItems.splice(idx, 1);
-        root.innerHTML = render();
-        bindEvents();
-      });
-    });
-
-    document.getElementById("saveBatchBtn")?.addEventListener("click", async () => {
-      if (batchItems.length === 0) {
-        toastState.add({ message: "Добавьте хотя бы один товар в партию", type: "error" });
-        return;
-      }
-
+  on(document.getElementById("saveBatchBtn"), "click", async () => {
+    const button = document.getElementById("saveBatchBtn") as HTMLButtonElement;
+    button.disabled = true;
+    try {
       const { addItemsToParcel } = await import("@/features/shared/services");
-      await addItemsToParcel(parcelId, batchItems);
+      await addItemsToParcel(state.selectedParcelId, state.items, {
+        totalCNY: state.totalCNY,
+        totalBYN: state.totalBYN,
+      });
       toastState.add({
-        message: `Партия сохранена (${batchItems.length} товаров)`,
+        message: `Партия сохранена (${state.items.length} товаров)`,
         type: "success",
       });
       router.navigate("parcels");
-    });
-  }
-
-  root.innerHTML = render();
-  bindEvents();
+    } catch (err) {
+      button.disabled = false;
+      toastState.add({ message: "Не удалось сохранить партию", type: "error" });
+      console.error(err);
+    }
+  });
 }
 
-// Entry point
 export async function renderParcelAddView(): Promise<void> {
   const root = document.getElementById("parcelAddView");
   if (!root) return;
 
-  const parcels = await parcelRepository.findAll();
+  const [parcels, customers] = await Promise.all([
+    parcelRepository.findAll(),
+    customerRepository.findAll(),
+  ]);
 
-  if (parcels.length === 0) {
+  const drafts = parcels.filter((p) => p.status === "draft");
+  if (drafts.length === 0) {
     root.innerHTML = `
-      <section class="section">
-        <header class="section-title with-action">
-          <h2>Добавить товар</h2>
-        </header>
-        <div class="empty">Нет посылок. Сначала создайте посылку.</div>
-      </section>
+      <div class="page page-batch">
+        <header class="page-head"><h1>Новая партия</h1></header>
+        <div class="empty">Нет черновиков. Создайте посылку — если нужно что-то изменить в уже отправленной, используйте редактирование посылки.</div>
+      </div>
     `;
     return;
   }
 
-  const defaultParcel = parcels.find((p) => p.status === "draft") ?? parcels[0];
+  const presetParcelId = Number(router.currentParams.parcelId);
+  const defaultParcel = drafts.find((p) => p.id === presetParcelId) ?? drafts[0];
   if (!defaultParcel) return;
-  let selectedParcelId = defaultParcel.id;
+  const state: BatchState = {
+    step: 1,
+    parcels: drafts,
+    customers,
+    selectedParcelId: defaultParcel.id,
+    expectedItemsCount: null,
+    totalCNY: 0,
+    totalBYN: 0,
+    items: [],
+    selectedCustomerId: customers[0]?.id ?? null,
+    csvMode: "plain",
+    csvText: "",
+    csvFileName: "",
+    csvUiDraft: { name: "", priceCNY: "", quantity: "1", unit: "pcs" },
+  };
 
-  await renderStage1(root, parcels, selectedParcelId);
+  const render = (focus?: string): void => {
+    if (state.step === 1) renderStep1(root, state, render);
+    else if (state.step === 2) renderStep2(root, state, render);
+    else renderStep3(root, state);
+
+    root.querySelectorAll<HTMLButtonElement>("[data-step-back]").forEach((button) => {
+      on(button, "click", () => {
+        state.step = Number(button.dataset.stepBack) as 1 | 2;
+        render("[data-autofocus]");
+      });
+    });
+
+    if (focus) {
+      requestAnimationFrame(() => {
+        root.querySelector<HTMLElement>(focus)?.focus();
+      });
+    }
+  };
+
+  render();
 }
 
-// Auto-render when route becomes active
 router.subscribe((route) => {
   if (route === "add") renderParcelAddView();
 });

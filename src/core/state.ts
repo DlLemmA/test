@@ -47,7 +47,7 @@ function routeToHash(route: Route, params?: RouteParams): string {
     case "people":
       return "#people";
     case "add":
-      return "#add";
+      return params?.parcelId ? `#add/${params.parcelId}` : "#add";
     case "customer":
       return params?.customerId ? `#customer/${params.customerId}` : "#people";
     default:
@@ -60,6 +60,9 @@ function parseHash(): { route: Route; params: RouteParams } {
   if (!hash || hash === "parcels") return { route: "parcels", params: {} };
   if (hash === "people") return { route: "people", params: {} };
   if (hash === "add") return { route: "add", params: {} };
+  if (hash.startsWith("add/")) {
+    return { route: "add", params: { parcelId: hash.split("/")[1] } };
+  }
   if (hash.startsWith("parcel/")) {
     const parcelId = hash.split("/")[1];
     return { route: "parcel", params: { parcelId } };

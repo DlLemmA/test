@@ -14,14 +14,18 @@ import {
   Parcel,
   Payment,
   calculateCustomerBalance,
+  itemShippingShare,
   paymentStateFromPayments,
 } from "@/features/parcels/domain";
+import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
+import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
 import { Customer } from "@/features/customers/domain";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
 import { I, esc, money } from "@/core/utils";
 import { customerService } from "@/features/shared/services";
+import { customerMark } from "./ui/CustomerMark";
 
 export async function renderCustomerDetailView(customerId: number): Promise<void> {
   const root = document.getElementById("customerDetailView");
@@ -55,18 +59,32 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
 
   // Filter payments for this customer
   const customerPayments = allPayments.filter((p) => p.customerId === customerId);
-  const paymentState = paymentStateFromPayments(customerPayments as Payment[]);
+
+  // Balances must be calculated with ALL items of a parcel: the shipping share
+  // is proportional to the customer's weight within the whole parcel.
+  // Payments are scoped to a parcel too, otherwise shipping flags from
+  // different parcels overwrite each other in the payment state.
+  const parcelContext = (parcelId: number) => {
+    const parcel = parcels.find((p) => p.id === parcelId);
+    const parcelItems = allItems.filter((i) => i.parcelId === parcelId);
+    const parcelPayments = customerPayments.filter((p) => p.parcelId === parcelId);
+    return {
+      parcel,
+      parcelItems,
+      paymentState: paymentStateFromPayments(parcelPayments as Payment[]),
+    };
+  };
 
   // Calculate overall balance across all parcels
   let totalOwed = 0;
   let totalPaid = 0;
   const selfCustomerId = selfCustomer?.id;
 
-  for (const [parcelId, items] of itemsByParcel) {
-    const parcel = parcels.find((p) => p.id === parcelId);
+  for (const parcelId of itemsByParcel.keys()) {
+    const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
     if (!parcel) continue;
     const balances = calculateCustomerBalance(
-      items,
+      parcelItems,
       [customer as any],
       parcel,
       paymentState,
@@ -81,22 +99,16 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
 
   const remaining = totalOwed - totalPaid;
   const isSelf = customer.isSelf;
+  const balanceLabel = remaining > 0 ? (isSelf ? "Остаток" : "Долг") : "Всё оплачено";
 
   // Build items HTML grouped by parcel
-  const statusLabels: Record<string, string> = {
-    draft: "Черновик",
-    shipped: "Отправлена",
-    received: "Получена",
-    done: "Готово",
-  };
-
   const itemsHtml = Array.from(itemsByParcel.entries())
     .map(([parcelId, items]) => {
-      const parcel = parcels.find((p) => p.id === parcelId);
+      const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
       if (!parcel) return "";
 
       const balances = calculateCustomerBalance(
-        items,
+        parcelItems,
         [customer as any],
         parcel,
         paymentState,
@@ -109,86 +121,82 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
           const itemPayment = customerPayments.find(
             (p) => p.type === "item" && p.itemId === item.id,
           );
-          const isItemPaid = !!itemPayment?.paid;
-          const paidAt = itemPayment?.paidAt ? formatDate(itemPayment.paidAt) : "";
+          const isItemPaid = isSelf || !!itemPayment?.paid;
+          const deliveryShare = itemShippingShare(item, parcelItems, parcel);
+          const priceWithDelivery = item.totalPriceBYN + deliveryShare;
 
           return `
-          <div class="item flex items-center justify-between gap-3 p-2 bg-slate-50 rounded-xl" data-toggle-item="${item.id}">
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              <div class="font-medium truncate">${esc(item.name)}</div>
-              <span class="pill pill-${item.statusClass}">${esc(item.statusLabel)}</span>
-            </div>
-            <div class="flex items-center gap-3 shrink-0">
-              <b class="tabular-nums ${isItemPaid ? "text-emerald-700" : "text-slate-900"}">${money(item.totalPriceBYN)}</b>
-              <button type="button" class="btn-primary btn-sm" data-toggle-payment="${item.id}" data-parcel="${parcel.id}" ${isItemPaid ? "disabled" : ""}>
-                ${isItemPaid ? `${I.check} Оплачено` : `${I.creditcard} Оплатить`}
-              </button>
-            </div>
-          </div>
+          <label class="item-check">
+            <input type="checkbox" data-toggle-payment="${item.id}" data-parcel="${parcel.id}"
+              ${isItemPaid ? "checked" : ""} ${isSelf ? "disabled" : ""}>
+            <span class="item-check__name" title="${esc(item.name)}">${esc(item.name)}</span>
+            <span class="item-check__prices">
+              <span class="item-check__price">${money(priceWithDelivery)}</span>
+              ${deliveryShare > 0 ? `<span class="item-check__without-delivery">без доставки ${money(item.totalPriceBYN)}</span>` : ""}
+            </span>
+          </label>
         `;
         })
         .join("");
+
+      const paidItems = items.filter((item) =>
+        isSelf
+          ? true
+          : customerPayments.some((p) => p.type === "item" && p.itemId === item.id && p.paid),
+      );
+      const allItemsPaid = items.length > 0 && paidItems.length === items.length;
 
       // Shipping payment for this parcel
       const shippingPayment = customerPayments.find(
         (p) => p.type === "shipping" && p.parcelId === parcelId,
       );
-      const isShippingPaid = !!shippingPayment?.paid;
-      const shippingPaidAt = shippingPayment?.paidAt ? formatDate(shippingPayment.paidAt) : "";
+      const isShippingPaid = isSelf || !!shippingPayment?.paid;
 
       const showShipping =
-        (parcel.status === "received" || parcel.status === "done") && parcel.shippingCostBYN;
+        (parcel.status === "received" || parcel.status === "done") && !!parcel.shippingCostBYN;
       const itemTotal = items.reduce((s, i) => s + i.totalPriceBYN, 0);
       const shippingShare = showShipping ? balance.owed - itemTotal : 0;
-      const itemsCount = items.length;
-      const paidCount = items.filter((i) => {
-        const p = customerPayments.find((pp) => pp.type === "item" && pp.itemId === i.id);
-        return p?.paid;
-      }).length;
+      const parcelPaid = allItemsPaid && (!showShipping || isShippingPaid);
+      const parcelLabel = parcel.name || `Посылка #${parcel.id}`;
+      const date = parcelDate(parcel.shippedAt);
+      const dateTitle = parcel.shippedAt ? `отправлена ${date.title}` : "не отправлена";
+      const status = parcelStatusInfo(parcel.status);
 
       return `
-        <section class="section mb-4">
-          <header class="section-title with-action">
-            <div class="flex items-center gap-2 flex-wrap">
-              <div class="font-bold">${esc(parcel.name || `Посылка #${parcel.id}`)}</div>
-              <span class="pill pill-${parcel.status === "draft" ? "warn" : parcel.status === "shipped" ? "info" : "good"}">${esc(statusLabels[parcel.status] || parcel.status)}</span>
-              ${parcel.shippedAt ? `<span class="text-xs text-slate-500">отправлена ${formatDate(parcel.shippedAt)}</span>` : ""}
-              ${parcel.receivedAt ? `<span class="text-xs text-slate-500">получена ${formatDate(parcel.receivedAt)}</span>` : ""}
+        <section class="section customer-statement">
+          <div class="parcel-entry parcel-line" data-status="${parcel.status}">
+            <div class="parcel-entry__date" title="${dateTitle}">
+              <b>${date.day}</b>
+              <span>${date.month}</span>
             </div>
-            <div class="text-right">
-              <div class="text-sm font-medium">${money(balance.owed)}</div>
-              ${balance.remaining > 0 ? `<button type="button" class="btn-primary btn-sm mt-1" data-pay-parcel="${parcel.id}" data-customer="${customerId}">${I.creditcard} Оплатить посылку</button>` : `<span class="text-xs text-emerald-600 mt-1 inline-block">${I.check} Всё оплачено</span>`}
+            <div class="parcel-entry__body min-w-0">
+              <div class="parcel-entry__head">
+                <b title="${esc(parcelLabel)}">${esc(parcelLabel)}</b>
+                <span class="parcel-entry__state state-${status.class}">${esc(status.label)}</span>
+              </div>
+              <div class="parcel-entry__hint">${nextStepLabel(parcel.status)}</div>
             </div>
-          </header>
-
-          <div class="metrics-bar mb-3 px-2">
-            <div class="metric-item"><b>${money(itemTotal)}</b><span>Товары (${itemsCount})</span></div>
-            ${showShipping ? `<div class="metric-divider"></div><div class="metric-item"><b>${money(shippingShare)}</b><span>Доставка</span></div>` : ""}
-            <div class="metric-divider"></div>
-            <div class="metric-item"><b>${money(balance.owed)}</b><span>Итого</span></div>
-            <div class="metric-divider"></div>
-            <div class="metric-item"><b>${money(balance.paid)}</b><span>Оплачено (${paidCount}/${itemsCount})</span></div>
-            <div class="metric-divider"></div>
-            <div class="metric-item ${balance.remaining > 0 ? "debt" : "paid"}"><b>${money(balance.remaining)}</b><span>${balance.remaining > 0 ? "Остаток" : "Готово"}</span></div>
+            <button type="button" class="btn-icon btn-primary" data-open-parcel="${parcel.id}"
+              aria-label="Открыть посылку ${esc(parcelLabel)}">${I.arrowRight}</button>
           </div>
 
-          <div class="space-y-2">${itemsList}</div>
-          
+          <label class="parcel-check">
+            <input type="checkbox" data-toggle-parcel="${parcel.id}"
+              ${parcelPaid ? "checked" : ""} ${isSelf ? "disabled" : ""}>
+            <span>Посылка оплачена</span>
+          </label>
+
+          <div class="customer-items">${itemsList}</div>
+
           ${
             showShipping
               ? `
-            <div class="item flex items-center justify-between gap-3 p-2 bg-slate-50 rounded-xl border-t pt-2 mt-2">
-              <div class="flex-1 flex items-center gap-2">
-                <div class="font-medium">Доставка</div>
-                <span class="pill pill-default">Доставка</span>
-              </div>
-              <div class="flex items-center gap-3 shrink-0">
-                <b class="tabular-nums ${isShippingPaid ? "text-emerald-700" : "text-slate-900"}">${money(shippingShare)}</b>
-                <button type="button" class="btn-primary btn-sm" data-toggle-shipping="${parcel.id}" ${isShippingPaid ? "disabled" : ""}>
-                  ${isShippingPaid ? `${I.check} Оплачено` : `${I.creditcard} Оплатить`}
-                </button>
-              </div>
-            </div>
+            <label class="item-check">
+              <input type="checkbox" data-toggle-shipping="${parcel.id}"
+                ${isShippingPaid ? "checked" : ""} ${isSelf ? "disabled" : ""}>
+              <span class="item-check__name" title="Доставка уже включена в цену товаров — здесь отмечается её оплата">Доставка (включена в цены)</span>
+              <span class="item-check__price">${money(shippingShare)}</span>
+            </label>
           `
               : ""
           }
@@ -197,156 +205,154 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
     })
     .join("");
 
-  // Summary card
   root.innerHTML = `
-    <section class="section">
-      <header class="section-title with-action">
-        <div class="flex items-center gap-2">
-          ${I.user} ${esc(customer.name)}${isSelf ? ` <span class="pill pill-good text-xs ml-2">Я</span>` : ""}
-        </div>
-        <button type="button" class="btn-icon btn-secondary" id="back-to-customers" aria-label="Назад">${I.chevronLeft}</button>
-      </header>
-      <p class="text-sm text-slate-500 mt-1 mb-3">${customerItems.length} товар${customerItems.length === 1 ? "" : customerItems.length < 5 ? "а" : "ов"} в ${itemsByParcel.size} посылк${itemsByParcel.size === 1 ? "е" : itemsByParcel.size < 5 ? "ах" : "ах"}</p>
-      
-      <div class="metrics-bar mb-4 px-2">
-        <div class="metric-item"><b>${money(totalPaid)}</b><span>${isSelf ? "Потрачено" : "Оплачено"}</span></div>
-        <div class="metric-divider"></div>
-        <div class="metric-item ${remaining > 0 ? "debt" : "paid"}"><b>${money(Math.abs(remaining))}</b><span>${remaining > 0 ? (isSelf ? "Остаток" : "Долг") : "Всё оплачено"}</span></div>
+    <div class="page page-customer-detail">
+      <div class="detail-topbar">
+        <button type="button" class="text-btn" id="backToCustomers">${I.chevronLeft} Все заказчики</button>
       </div>
-      ${isSelf ? `<div class="text-xs opacity-75 mt-2 text-center">"Я" — считаем потрачено (все посылки, все товары)</div>` : ""}
-      
-      ${
-        itemsByParcel.size > 0
-          ? itemsHtml
-          : `
-        <div class="empty text-center py-8">
-          ${I.inbox}<br>
-          <span class="text-slate-500">Товаров пока нет</span>
+
+      <section class="detail-hero${isSelf ? " is-self" : ""}">
+        ${customerMark(customer, "avatar")}
+        <div class="detail-hero__body min-w-0">
+          <div class="detail-hero__title-row"><h1>${esc(customer.name)}</h1></div>
+          <p class="detail-hero__next">${isSelf ? "Мой профиль" : "Заказчик"}</p>
+          <p class="detail-hero__facts">${customerItems.length} товар${customerItems.length === 1 ? "" : customerItems.length < 5 ? "а" : "ов"} в ${itemsByParcel.size} посылк${itemsByParcel.size === 1 ? "е" : "ах"}</p>
         </div>
-      `
-      }
-    </section>
+      </section>
+
+      <div class="check-list customer-summary">
+        <div class="check-row"><span>Оплачено</span><b>${money(totalPaid)}</b></div>
+        <div class="check-row check-row--total ${remaining > 0 ? "is-debt" : "is-paid"}">
+          <span>${balanceLabel}</span><b>${money(Math.abs(remaining))}</b>
+        </div>
+      </div>
+      ${isSelf ? '<p class="customer-note">«Я» — считаем потрачено по всем посылкам</p>' : ""}
+
+      ${itemsByParcel.size > 0 ? itemsHtml : '<div class="empty">Товаров пока нет</div>'}
+    </div>
   `;
 
-  bindActions(customer, customerItems, parcels, customerPayments);
+  bindActions(root, customer, customerItems, parcels, customerPayments);
 }
 
 function bindActions(
+  root: HTMLElement,
   customer: Customer,
   customerItems: ParcelItem[],
   parcels: Parcel[],
   customerPayments: Payment[],
 ): void {
   // Back button
-  const backBtn = document.getElementById("back-to-customers");
-  if (backBtn) {
-    on(backBtn, "click", () => {
-      router.navigate("people");
-    });
-  }
+  on(root.querySelector("#backToCustomers"), "click", () => {
+    router.navigate("people");
+  });
 
-  // Toggle item payment
-  document.querySelectorAll<HTMLElement>("[data-toggle-payment]").forEach((btn) => {
-    on(btn, "click", async () => {
-      const itemId = parseInt(btn.dataset.togglePayment!);
-      const parcelId = parseInt(btn.dataset.parcel!);
-      const item = customerItems.find((i) => i.id === itemId);
-      if (!item) return;
-
-      const existing = customerPayments.find((p) => p.type === "item" && p.itemId === itemId);
-      const newPaid = !existing?.paid;
+  // Toggle one item payment
+  root.querySelectorAll<HTMLInputElement>("[data-toggle-payment]").forEach((input) => {
+    on(input, "change", async () => {
+      const itemId = parseInt(input.dataset.togglePayment!);
+      const parcelId = parseInt(input.dataset.parcel!);
 
       try {
         const { paymentServiceInstance } = await import("@/features/shared/services");
-        await paymentServiceInstance.setItemPaid(parcelId, itemId, customer.id, newPaid);
+        await paymentServiceInstance.setItemPaid(parcelId, itemId, customer.id, input.checked);
         toastState.add({
-          message: newPaid ? "Товар отмечен как оплаченный" : "Оплата товара снята",
+          message: input.checked ? "Товар отмечен как оплаченный" : "Оплата товара снята",
           type: "success",
         });
         renderCustomerDetailView(customer.id);
       } catch (err) {
+        input.checked = !input.checked;
         toastState.add({ message: err instanceof Error ? err.message : "Ошибка", type: "error" });
       }
     });
   });
 
   // Toggle shipping payment
-  document.querySelectorAll<HTMLElement>("[data-toggle-shipping]").forEach((btn) => {
-    on(btn, "click", async () => {
-      const parcelId = parseInt(btn.dataset.toggleShipping!);
-      const parcel = parcels.find((p) => p.id === parcelId);
-      if (!parcel) return;
-
-      const shippingPayment = customerPayments.find(
-        (p) => p.type === "shipping" && p.parcelId === parcelId,
-      );
-      const newPaid = !shippingPayment?.paid;
+  root.querySelectorAll<HTMLInputElement>("[data-toggle-shipping]").forEach((input) => {
+    on(input, "change", async () => {
+      const parcelId = parseInt(input.dataset.toggleShipping!);
 
       try {
         const { paymentServiceInstance } = await import("@/features/shared/services");
-        await paymentServiceInstance.setShippingPaid(parcelId, customer.id, newPaid);
+        await paymentServiceInstance.setShippingPaid(parcelId, customer.id, input.checked);
         toastState.add({
-          message: newPaid ? "Доставка оплачена" : "Оплата доставки снята",
+          message: input.checked ? "Доставка оплачена" : "Оплата доставки снята",
           type: "success",
         });
         renderCustomerDetailView(customer.id);
       } catch (err) {
+        input.checked = !input.checked;
         toastState.add({ message: err instanceof Error ? err.message : "Ошибка", type: "error" });
       }
     });
   });
 
-  // Pay parcel (all items + shipping)
-  document.querySelectorAll<HTMLElement>("[data-pay-parcel]").forEach((btn) => {
-    on(btn, "click", async () => {
-      const parcelId = parseInt(btn.dataset.payParcel!);
-      const customerId = parseInt(btn.dataset.customer!);
-      const parcel = parcels.find((p) => p.id === parcelId);
-      if (!parcel) return;
+  // Toggle all payments for a parcel at once
+  root.querySelectorAll<HTMLInputElement>("[data-toggle-parcel]").forEach((input) => {
+    const parcelId = parseInt(input.dataset.toggleParcel!);
+    const parcel = parcels.find((p) => p.id === parcelId);
+    if (!parcel) return;
 
+    const parcelItems = customerItems.filter((i) => i.parcelId === parcelId);
+    const paidFlags = parcelItems.map(
+      (i) =>
+        customer.isSelf ||
+        customerPayments.some((p) => p.type === "item" && p.itemId === i.id && p.paid),
+    );
+    const shippingInvoiced =
+      (parcel.status === "received" || parcel.status === "done") && !!parcel.shippingCostBYN;
+    const shippingPaid =
+      customer.isSelf ||
+      customerPayments.some((p) => p.type === "shipping" && p.parcelId === parcelId && p.paid);
+    const allPaid =
+      parcelItems.length > 0 && paidFlags.every(Boolean) && (!shippingInvoiced || shippingPaid);
+    input.indeterminate =
+      !allPaid && (paidFlags.some(Boolean) || (shippingInvoiced && shippingPaid));
+
+    on(input, "change", async () => {
       try {
         const { paymentServiceInstance } = await import("@/features/shared/services");
-
-        // Get all items in this parcel for this customer
-        const parcelItems = customerItems.filter((i) => i.parcelId === parcelId);
-
-        // Pay all unpaid items
         for (const item of parcelItems) {
-          const itemPayment = customerPayments.find(
-            (p) => p.type === "item" && p.itemId === item.id,
+          const paid = customerPayments.some(
+            (p) => p.type === "item" && p.itemId === item.id && p.paid,
           );
-          if (!itemPayment?.paid) {
-            await paymentServiceInstance.setItemPaid(parcelId, item.id, customerId, true);
+          if (paid !== input.checked) {
+            await paymentServiceInstance.setItemPaid(parcelId, item.id, customer.id, input.checked);
           }
         }
-
-        // Pay shipping if not paid
-        const shippingPayment = customerPayments.find(
-          (p) => p.type === "shipping" && p.parcelId === parcelId,
-        );
-        if (!shippingPayment?.paid && parcel.shippingCostBYN) {
-          await paymentServiceInstance.setShippingPaid(parcelId, customerId, true);
+        if (shippingInvoiced && shippingPaid !== input.checked) {
+          await paymentServiceInstance.setShippingPaid(parcelId, customer.id, input.checked);
         }
-
-        toastState.add({ message: "Посылка оплачена", type: "success" });
+        toastState.add({
+          message: input.checked ? "Посылка оплачена" : "Оплата посылки снята",
+          type: "success",
+        });
         renderCustomerDetailView(customer.id);
       } catch (err) {
+        input.checked = !input.checked;
         toastState.add({ message: err instanceof Error ? err.message : "Ошибка", type: "error" });
       }
+    });
+  });
+
+  // Open the parcel itself
+  root.querySelectorAll<HTMLElement>("[data-open-parcel]").forEach((btn) => {
+    on(btn, "click", () => {
+      router.navigate("parcel", { parcelId: btn.dataset.openParcel! });
     });
   });
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
+function parcelDate(iso?: string): { day: string; month: string; title: string } {
+  if (!iso) return { day: "—", month: "нет", title: "дата не задана" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { day: "—", month: "нет", title: iso };
+  return {
+    day: d.toLocaleDateString("ru-RU", { day: "2-digit" }),
+    month: d.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
+    title: d.toLocaleDateString("ru-RU"),
+  };
 }
 
 // Named export for static access

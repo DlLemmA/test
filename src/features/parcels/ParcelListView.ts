@@ -14,6 +14,8 @@ import { on } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
 import { I, esc, kg, money } from "@/core/utils";
 import { Parcel } from "./domain";
+import { nextStepLabel } from "./ui/ParcelNextStatus";
+import { parcelItemStatusInfo, parcelStatusInfo } from "./ui/ParcelStatusInfo";
 
 // ============================================
 // Parcel List View (Parcels Tab)
@@ -25,43 +27,88 @@ export async function renderParcelListView(): Promise<void> {
 
   const parcels = await parcelRepository.findAll();
 
-  // Compute items count and total BYN for each parcel
-  const itemsCounts = await Promise.all(parcels.map((p) => getParcelItemsCount(p)));
-  const totalsBYN = await Promise.all(parcels.map((p) => getParcelTotalBYN(p)));
+  // Item counts, keyed by id so sorting the list never desynchronizes them.
+  const itemsCounts = new Map<number, number>();
+  await Promise.all(parcels.map(async (p) => itemsCounts.set(p.id, await getParcelItemsCount(p))));
+
+  // The shipping date is the anchor of this screen — newest shipments first, drafts last.
+  const ordered = [...parcels].sort((a, b) => {
+    const ad = a.shippedAt ? Date.parse(a.shippedAt) : 0;
+    const bd = b.shippedAt ? Date.parse(b.shippedAt) : 0;
+    return bd - ad;
+  });
 
   root.innerHTML = `
-    <section class="section">
-      <header class="section-title">Посылки</header>
-      ${
-        parcels.length
-          ? parcels
-              .map(
-                (p, i) => `
-          <div class="item flex items-center justify-between gap-3 cursor-pointer" data-open="${p.id}">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <b class="truncate">${p.name ? p.name : `Посылка №${p.id}`}</b>
-                <span class="pill pill-${p.statusClass} shrink-0">${esc(p.statusLabel)}</span>
-              </div>
-              <span class="block text-sm muted mt-0.5">
-                ${[p.shippedAt && `отпр. ${new Date(p.shippedAt).toLocaleDateString("ru-RU")}`, p.receivedAt && `пол. ${new Date(p.receivedAt).toLocaleDateString("ru-RU")}`, `${itemsCounts[i]} тов.`, money(totalsBYN[i])].filter(Boolean).join(" · ")}
-              </span>
+    <div class="page page-parcels">
+      <header class="page-head">
+        <h1>Посылки</h1>
+        <p class="page-head__note">По дате отправки — сначала свежие</p>
+      </header>
+
+      <section class="section parcel-index">
+        ${
+          ordered.length
+            ? ordered
+                .map((p) => {
+                  const date = dateParts(p.shippedAt);
+                  const status = parcelStatusInfo(p.status);
+                  const isDraft = p.status === "draft";
+                  const parcelTitle = p.name ? esc(p.name) : `Посылка №${p.id}`;
+
+                  return `
+          <div class="item parcel-entry" data-status="${p.status}">
+            <div class="parcel-entry__date" title="${isDraft ? "не отправлена" : `отправлена ${formatLong(p.shippedAt)}`}">
+              <b>${date?.day ?? "—"}</b>
+              <span>${date?.month ?? "нет"}</span>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <button class="btn-icon btn-secondary" data-open="${p.id}" aria-label="Открыть">${I.chevronRight}</button>
-              <button class="btn-icon btn-secondary" data-export="${p.id}" aria-label="Экспорт">${I.sheet}</button>
-              <button class="btn-icon btn-danger" data-del="${p.id}" aria-label="Удалить">${I.trash}</button>
+            <div class="parcel-entry__body min-w-0">
+              <div class="parcel-entry__head">
+                <b>${p.name ? esc(p.name) : `Посылка №${p.id}`}</b>
+                <span class="parcel-entry__state state-${status.class}">${esc(status.label)}</span>
+              </div>
+              <div class="parcel-entry__hint">${nextStepLabel(p.status)}</div>
+            </div>
+            <div class="parcel-entry__actions">
+              <button class="btn-icon btn-primary" data-open="${p.id}" aria-label="Открыть посылку ${parcelTitle}">${I.arrowRight}</button>
+              <details class="entry-menu">
+                <summary title="Действия с посылкой ${parcelTitle}"><span class="sr-only">Действия с посылкой ${parcelTitle}</span><span aria-hidden="true">···</span></summary>
+                <div class="entry-menu__list">
+                  <button data-export="${p.id}" aria-label="Экспорт в Excel: ${parcelTitle}">${I.sheet} Экспорт в Excel</button>
+                  <button class="is-danger" data-del="${p.id}" aria-label="Удалить посылку ${parcelTitle}">${I.trash} Удалить</button>
+                </div>
+              </details>
             </div>
           </div>
-        `,
-              )
-              .join("")
-          : '<div class="empty">Нет посылок. Нажмите "+" чтобы создать.</div>'
-      }
-    </section>
+        `;
+                })
+                .join("")
+            : '<div class="empty">Нет посылок. Нажмите «+», чтобы создать первую.</div>'
+        }
+      </section>
+
+      <div class="form-actions form-actions--final">
+        <button type="button" class="btn-primary w-full" id="addParcel">${I.plus} Добавить посылку</button>
+      </div>
+    </div>
   `;
 
-  bindParcelListActions();
+  bindParcelListActions(parcels);
+}
+
+function dateParts(iso?: string): { day: string; month: string } | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    day: d.toLocaleDateString("ru-RU", { day: "2-digit" }),
+    month: d.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
+  };
+}
+
+function formatLong(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU");
 }
 
 async function getParcelItemsCount(parcel: Parcel): Promise<number> {
@@ -70,13 +117,14 @@ async function getParcelItemsCount(parcel: Parcel): Promise<number> {
   return items.length;
 }
 
-async function getParcelTotalBYN(parcel: Parcel): Promise<number> {
-  const { parcelItemRepository } = await import("./infrastructure");
-  const items = await parcelItemRepository.findByParcelId(parcel.id);
-  return items.reduce((sum, item) => sum + item.totalPriceBYN, 0);
-}
+function bindParcelListActions(parcels: Parcel[]): void {
+  const addBtn = document.getElementById("addParcel");
+  on(addBtn, "click", async () => {
+    const draft = parcels.find((p) => p.status === "draft");
+    const parcel = draft || (await parcelService.createParcel());
+    router.navigate("parcel", { parcelId: String(parcel.id) });
+  });
 
-function bindParcelListActions(): void {
   document.querySelectorAll("[data-open]").forEach((btn) => {
     const b = btn as HTMLElement;
     on(b, "click", () => {
@@ -88,6 +136,7 @@ function bindParcelListActions(): void {
   document.querySelectorAll("[data-export]").forEach((btn) => {
     const b = btn as HTMLElement;
     on(b, "click", async () => {
+      b.closest("details")?.removeAttribute("open");
       const parcelId = parseInt(b.dataset.export!);
       const parcel = await parcelRepository.findById(parcelId);
       if (parcel) exportParcel(parcel);
@@ -97,6 +146,7 @@ function bindParcelListActions(): void {
   document.querySelectorAll("[data-del]").forEach((btn) => {
     const b = btn as HTMLElement;
     on(b, "click", async () => {
+      b.closest("details")?.removeAttribute("open");
       await deleteParcel(parseInt(b.dataset.del!));
     });
   });
@@ -106,7 +156,7 @@ function bindParcelListActions(): void {
 // Excel Export
 // ============================================
 
-async function exportParcel(parcel: Parcel): Promise<void> {
+export async function exportParcel(parcel: Parcel): Promise<void> {
   if (!window.XLSX) {
     toastState.add({ message: "Загрузка Excel...", type: "info", duration: 0 });
     try {
@@ -138,13 +188,14 @@ async function exportParcel(parcel: Parcel): Promise<void> {
 
   // Summary
   rows.push(["ОБЩАЯ СВОДКА ПОСЫЛКИ"]);
-  rows.push(["Статус", parcel.statusLabel]);
+  rows.push(["Статус", parcelStatusInfo(parcel.status).label]);
   rows.push(["Дата создания", parcel.formattedDate]);
   if (parcel.shippedAt) rows.push(["Дата отправки", parcel.shippedAt]);
   if (parcel.receivedAt) rows.push(["Дата получения", parcel.receivedAt]);
-  if (parcel.boxWeightG) rows.push(["Вес коробки, кг", kg(parcel.boxWeightG)]);
+  if (parcel.boxWeightG) rows.push(["Вес посылки, кг", kg(parcel.boxWeightG)]);
   if (parcel.shippingCostBYN) rows.push(["Стоимость доставки, BYN", money(parcel.shippingCostBYN)]);
   rows.push(["Всего товаров", items.length]);
+  if (parcel.comment) rows.push(["Комментарий", parcel.comment]);
   rows.push([]);
 
   // Per customer
@@ -179,14 +230,13 @@ async function exportParcel(parcel: Parcel): Promise<void> {
   rows.push([
     "Заказчик",
     "Товар",
-    "Цена юань",
-    "Цена BYN",
+    "Сумма юань",
+    "Сумма BYN",
     "Кол-во",
     "Ед.",
     "Трек-номера",
     "Веса (г)",
     "Статус",
-    "Сумма BYN",
   ]);
   for (const item of items) {
     const customer = customerMap.get(item.customerId);
@@ -194,13 +244,12 @@ async function exportParcel(parcel: Parcel): Promise<void> {
       customer?.name || "",
       item.name,
       item.priceCNY,
-      item.priceBYN,
+      money(item.totalPriceBYN),
       item.quantity,
       item.unitLabel,
       item.trackNumbers.join(", ") || "—",
       item.weightsG.join(", ") || "—",
-      item.statusLabel,
-      money(item.totalPriceBYN),
+      parcelItemStatusInfo(item.status).label,
     ]);
   }
 
@@ -227,27 +276,6 @@ async function deleteParcel(parcelId: number): Promise<void> {
       toastState.add({ message: "Посылка удалена", type: "success" });
     },
   );
-}
-
-function formatParcelTitle(parcel: Parcel): string {
-  const parts = [];
-  if (parcel.shippedAt) {
-    const date = new Date(parcel.shippedAt).toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-    parts.push(`отправлена ${date}`);
-  }
-  if (parcel.receivedAt) {
-    const date = new Date(parcel.receivedAt).toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-    parts.push(`получена ${date}`);
-  }
-  return parts.length ? `№${parcel.id} · ${parts.join(" · ")}` : `№${parcel.id} (черновик)`;
 }
 
 // Auto-render when route becomes active
