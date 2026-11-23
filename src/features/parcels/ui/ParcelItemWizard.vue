@@ -1,0 +1,471 @@
+<script setup lang="ts">
+import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
+import { toastState } from "@/core/state";
+import { customerRepository } from "@/features/customers/infrastructure";
+import type { Customer } from "@/features/customers/domain";
+import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
+import { parcelCommands } from "@/features/shared/wiring";
+import AppDrawer from "@/features/shared/ui/AppDrawer.vue";
+import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import { parcelItemRepository } from "../infrastructure";
+import type { Parcel, ParcelItem, ParcelItemUpdateInput } from "../domain";
+import { UNIT_OPTIONS, type UnitValue } from "./ParcelPresentation";
+import { pickerCaretHtml } from "./Picker";
+
+type ItemFormStep = "main" | "tracks" | "weights";
+
+const props = defineProps<{
+  open: boolean;
+  itemId: number | null;
+  parcelId: number;
+  parcelStatus: Parcel["status"];
+  initialStep: ItemFormStep;
+}>();
+const emit = defineEmits<{ "update:open": [value: boolean]; saved: [] }>();
+
+const form = useTemplateRef<HTMLFormElement>("form");
+const completeCheckbox = useTemplateRef<HTMLInputElement>("completeCheckbox");
+const trackInputs = useTemplateRef<HTMLInputElement[]>("trackInputs");
+
+const item = ref<ParcelItem | null>(null);
+const customers = ref<Customer[]>([]);
+const isNew = ref(true);
+const loading = ref(false);
+const step = ref<ItemFormStep>("main");
+const name = ref("");
+const customerId = ref(0);
+const priceCNY = ref("");
+const priceBYN = ref("");
+const quantity = ref("1");
+const unit = ref<UnitValue>("pcs");
+const tracks = ref<string[]>([""]);
+const weights = ref<Record<string, string>>({});
+const tracksCompleted = ref(false);
+
+const canEditTracks = computed(() => !isNew.value && props.parcelStatus !== "done");
+const canEditWeights = computed(() => !isNew.value && props.parcelStatus === "received");
+const customerOptions = computed(() =>
+  customers.value.map((customer) => ({
+    value: customer.id,
+    label: customerLabel(customer),
+  })),
+);
+const weightRows = computed(() =>
+  tracks.value
+    .map((track) => track.trim())
+    .filter(Boolean)
+    .map((track, idx) => ({ track, idx })),
+);
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Ошибка";
+}
+
+function defaultStep(): ItemFormStep {
+  if (isNew.value) return "main";
+  if (props.initialStep === "weights" && !canEditWeights.value) return "tracks";
+  return props.initialStep;
+}
+
+watch(
+  () => [props.open, props.itemId] as const,
+  async ([open, itemId]) => {
+    if (!open) return;
+    loading.value = true;
+    try {
+      const [loadedItem, allCustomers] = await Promise.all([
+        itemId ? parcelItemRepository.findById(itemId) : Promise.resolve(null),
+        customerRepository.findAll(),
+      ]);
+      customers.value = allCustomers;
+      item.value = loadedItem ?? null;
+      isNew.value = !loadedItem;
+      name.value = loadedItem?.name ?? "";
+      customerId.value = loadedItem?.customerId ?? allCustomers[0]?.id ?? 0;
+      priceCNY.value = loadedItem ? String(loadedItem.priceCNY) : "";
+      priceBYN.value = loadedItem ? String(loadedItem.priceBYN) : "";
+      quantity.value = String(loadedItem?.quantity ?? 1);
+      unit.value = loadedItem?.unit ?? "pcs";
+      tracks.value = loadedItem?.trackNumbers.length ? [...loadedItem.trackNumbers] : [""];
+      weights.value = Object.fromEntries(
+        (loadedItem?.trackNumbers ?? []).map((track, idx) => [
+          track,
+          String(loadedItem?.weightsG[idx] ?? ""),
+        ]),
+      );
+      tracksCompleted.value = loadedItem?.tracksCompleted ?? false;
+      step.value = defaultStep();
+      await nextTick();
+      focusStepPanel();
+    } finally {
+      loading.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+function focusStepPanel(): void {
+  form.value
+    ?.querySelector<HTMLElement>(
+      `[data-panel="${step.value}"] input, [data-panel="${step.value}"] select, [data-panel="${step.value}"] button`,
+    )
+    ?.focus();
+}
+
+function goTo(next: ItemFormStep): void {
+  if (next === "tracks" && form.value && !form.value.reportValidity()) return;
+  step.value = next;
+  void nextTick(focusStepPanel);
+}
+
+function stepClass(current: ItemFormStep, index: number): Record<string, boolean> {
+  const order: ItemFormStep[] = ["main", "tracks", "weights"];
+  return {
+    "is-active": step.value === current,
+    "is-done": order.indexOf(step.value) > index,
+  };
+}
+
+function addTrackRow(): void {
+  tracks.value.push("");
+  void nextTick(() => trackInputs.value?.at(-1)?.focus());
+}
+
+function removeTrackRow(index: number): void {
+  if (tracks.value.length > 1) tracks.value.splice(index, 1);
+  else tracks.value[index] = "";
+}
+
+function setCompleteValidity(message: string): void {
+  completeCheckbox.value?.setCustomValidity(message);
+  if (message) completeCheckbox.value?.setAttribute("aria-invalid", "true");
+  else completeCheckbox.value?.removeAttribute("aria-invalid");
+}
+
+function onTracksInput(): void {
+  setCompleteValidity("");
+}
+
+function onCompleteChange(): void {
+  if (!tracksCompleted.value) {
+    setCompleteValidity("");
+    return;
+  }
+  const hasEmpty = tracks.value.some((track) => !track.trim());
+  setCompleteValidity(hasEmpty ? "Заполните все трек-номера" : "");
+  if (hasEmpty) completeCheckbox.value?.reportValidity();
+}
+
+async function submit(): Promise<void> {
+  const currentForm = form.value;
+  if (!currentForm || !currentForm.reportValidity()) return;
+
+  const rawData = {
+    parcelId: props.parcelId,
+    name: name.value.trim() || "",
+    customerId: Number(customerId.value),
+    priceCNY: Number(priceCNY.value) || 0,
+    priceBYN: Number(priceBYN.value) || 0,
+    quantity: Number(quantity.value) || 1,
+    unit: unit.value,
+  };
+  const data: ParcelItemUpdateInput = { ...rawData };
+  const cleanTracks = tracks.value.map((track) => track.trim()).filter(Boolean);
+  const hasEmptyTrack = tracks.value.some((track) => !track.trim());
+
+  if (canEditTracks.value && tracksCompleted.value && hasEmptyTrack) {
+    setCompleteValidity("Заполните все трек-номера");
+    completeCheckbox.value?.reportValidity();
+    return;
+  }
+  if (
+    canEditTracks.value &&
+    (cleanTracks.length > 0 || (item.value?.trackNumbers.length ?? 0) > 0)
+  ) {
+    data.trackNumbers = cleanTracks;
+    if (canEditWeights.value) {
+      data.weightsG = cleanTracks.map((track) => Number(weights.value[track] ?? 0) || 0);
+    }
+  }
+
+  try {
+    if (isNew.value) {
+      await parcelCommands.commitBatch(props.parcelId, [rawData]);
+    } else if (item.value) {
+      const { parcelId: _, ...updateData } = data;
+      await parcelCommands.updateItem(item.value.id, updateData);
+      if (canEditTracks.value && tracksCompleted.value) {
+        await parcelCommands.updateItem(item.value.id, {
+          tracksCompletedAt: new Date().toISOString(),
+        });
+      }
+    }
+    emit("update:open", false);
+    emit("saved");
+    toastState.add({ message: "Товар сохранён", type: "success" });
+  } catch (err) {
+    toastState.add({ message: errorMessage(err), type: "error" });
+  }
+}
+</script>
+
+<template>
+  <AppDrawer
+    :open="open"
+    :title="isNew ? 'Новый товар' : 'Редактировать товар'"
+    @update:open="emit('update:open', $event)"
+  >
+    <form
+      v-if="!loading"
+      ref="form"
+      id="itemForm"
+      class="item-wizard"
+      novalidate
+      @submit.prevent="submit"
+    >
+      <nav v-if="canEditTracks" class="wizard-steps" aria-label="Шаги редактирования товара">
+        <ol class="item-wizard__steps">
+          <li>
+            <button
+              type="button"
+              class="wizard-step"
+              data-step="main"
+              :class="stepClass('main', 0)"
+              @click="goTo('main')"
+            >
+              <span class="wizard-step__dot" aria-hidden="true">1</span>
+              <span class="wizard-step__label">Товар</span>
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              class="wizard-step"
+              data-step="tracks"
+              :class="stepClass('tracks', 1)"
+              @click="goTo('tracks')"
+            >
+              <span class="wizard-step__dot" aria-hidden="true">2</span>
+              <span class="wizard-step__label">Треки</span>
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              class="wizard-step"
+              :class="[{ 'is-locked': !canEditWeights }, stepClass('weights', 2)]"
+              data-step="weights"
+              :disabled="!canEditWeights"
+              :aria-disabled="!canEditWeights"
+              :title="canEditWeights ? 'Веса' : 'Веса доступны после получения'"
+              @click="goTo('weights')"
+            >
+              <span class="wizard-step__dot" aria-hidden="true">3</span>
+              <span class="wizard-step__label">Веса</span>
+            </button>
+          </li>
+        </ol>
+      </nav>
+
+      <div
+        class="item-wizard__panel grid grid-cols-2 gap-3"
+        data-panel="main"
+        :hidden="step !== 'main'"
+      >
+        <div class="field col-span-2">
+          <label for="itemName">Название *</label>
+          <input id="itemName" v-model="name" name="name" required autocomplete="off" />
+        </div>
+        <div class="field col-span-2">
+          <label for="itemCustomer">Заказчик *</label>
+          <div class="picker">
+            <select
+              id="itemCustomer"
+              v-model.number="customerId"
+              class="picker__control"
+              name="customer_id"
+              required
+            >
+              <option v-for="option in customerOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <span v-html="pickerCaretHtml" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="itemPriceCNY">Цена за всю позицию (CNY) *</label>
+          <input
+            id="itemPriceCNY"
+            v-model="priceCNY"
+            name="priceCNY"
+            type="number"
+            step="0.01"
+            required
+          />
+        </div>
+        <div class="field">
+          <label for="itemPriceBYN">Цена за всю позицию (BYN) *</label>
+          <input
+            id="itemPriceBYN"
+            v-model="priceBYN"
+            name="priceBYN"
+            type="number"
+            step="0.01"
+            required
+          />
+        </div>
+        <div class="field">
+          <label for="itemQuantity">Количество *</label>
+          <input
+            id="itemQuantity"
+            v-model="quantity"
+            name="quantity"
+            type="number"
+            step="1"
+            min="1"
+            required
+          />
+        </div>
+        <div class="field">
+          <label for="itemUnit">Единица</label>
+          <div class="picker">
+            <select id="itemUnit" v-model="unit" class="picker__control" name="unit">
+              <option v-for="option in UNIT_OPTIONS" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <span v-html="pickerCaretHtml" />
+          </div>
+        </div>
+        <div class="item-wizard__actions col-span-2">
+          <button
+            v-if="canEditTracks"
+            type="button"
+            class="btn-secondary"
+            data-goto="tracks"
+            enterkeyhint="next"
+            @click="goTo('tracks')"
+          >
+            Далее: треки
+          </button>
+          <button type="submit" class="btn-primary" enterkeyhint="done">
+            {{ isNew ? "Добавить" : "Сохранить" }}
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="canEditTracks"
+        class="item-wizard__panel"
+        data-panel="tracks"
+        :hidden="step !== 'tracks'"
+      >
+        <p class="item-wizard__context"><span>Товар</span> <b>{{ name }}</b></p>
+        <fieldset class="item-wizard__tracks">
+          <legend>Трек-номера</legend>
+          <div class="grid gap-2" data-track-rows @input="onTracksInput">
+            <div v-for="(track, idx) in tracks" :key="idx" class="item-track-row" data-track-row>
+              <div class="field">
+                <label :for="`itemTrack${idx}`" data-track-label>Трек {{ idx + 1 }}</label>
+                <input
+                  :id="`itemTrack${idx}`"
+                  ref="trackInputs"
+                  v-model="tracks[idx]"
+                  name="track"
+                  :placeholder="`Трек ${idx + 1}`"
+                  autocomplete="off"
+                  autocapitalize="none"
+                  autocorrect="off"
+                  spellcheck="false"
+                />
+              </div>
+              <button
+                type="button"
+                class="track-remove"
+                data-remove-track
+                :hidden="tracks.length === 1"
+                @click="removeTrackRow(idx)"
+              >
+                <span class="sr-only" data-remove-label>Удалить трек {{ idx + 1 }}</span>
+                <AppIcon name="x" />
+              </button>
+            </div>
+          </div>
+          <button type="button" class="text-btn" data-add-track-row @click="addTrackRow">
+            <AppIcon name="plus" /> Добавить трек
+          </button>
+        </fieldset>
+        <label class="checkline item-wizard__complete">
+          <input
+            ref="completeCheckbox"
+            v-model="tracksCompleted"
+            type="checkbox"
+            name="tracksCompleted"
+            @change="onCompleteChange"
+          />
+          <span>Треки заполнены</span>
+        </label>
+        <div class="item-wizard__actions">
+          <button type="button" class="text-btn" data-goto="main" @click="goTo('main')">
+            Назад
+          </button>
+          <button
+            v-if="canEditWeights"
+            type="button"
+            class="btn-secondary"
+            data-goto="weights"
+            enterkeyhint="next"
+            @click="goTo('weights')"
+          >
+            Далее: веса
+          </button>
+          <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
+        </div>
+      </div>
+
+      <div
+        v-if="canEditWeights"
+        class="item-wizard__panel"
+        data-panel="weights"
+        :hidden="step !== 'weights'"
+      >
+        <p class="item-wizard__context"><span>Товар</span> <b>{{ name }}</b></p>
+        <fieldset class="item-wizard__weights">
+          <legend>Веса треков</legend>
+          <div class="grid gap-2" data-weight-rows>
+            <div v-if="weightRows.length === 0" class="empty">Сначала добавьте трек-номера</div>
+            <div
+              v-for="row in weightRows"
+              :key="row.track"
+              class="weight-row"
+              data-weight-row
+              :data-track="row.track"
+            >
+              <span class="weight-row__code">{{ row.idx + 1 }}. {{ row.track }}</span>
+              <div class="field">
+                <label :for="`itemWeight${row.idx}`">Вес {{ row.idx + 1 }}, г</label>
+                <input
+                  :id="`itemWeight${row.idx}`"
+                  v-model="weights[row.track]"
+                  name="weight"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                  placeholder="г"
+                />
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        <div class="item-wizard__actions">
+          <button type="button" class="text-btn" data-goto="tracks" @click="goTo('tracks')">
+            Назад
+          </button>
+          <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
+        </div>
+      </div>
+    </form>
+  </AppDrawer>
+</template>

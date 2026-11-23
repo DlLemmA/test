@@ -366,3 +366,31 @@ test("customer drawer creates, validates and edits a customer", async ({ page })
   await page.locator("#customerForm button[type='submit']").click();
   await expect(page.locator(".customer-index")).toContainText("Проверка 2");
 });
+
+test("item wizard adds a draft item with tracks", async ({ page }) => {
+  await page.goto("/#parcel/1");
+  await expect(page.locator(".page-parcel-detail")).toBeVisible();
+
+  await page.locator("#addItem").click();
+  await expect(page.locator("#itemForm")).toBeVisible();
+
+  await page.locator("#itemName").fill("Новый товар");
+  await page.locator("#itemPriceCNY").fill("10");
+  await page.locator("#itemPriceBYN").fill("3");
+  await page.locator("[data-panel='main'] button[type='submit']").click();
+
+  await expect(page.locator("#toastContainer")).toContainText("Товар сохранён");
+  await page.locator('details[data-item-group][data-customer="1"] > summary').click();
+  const row = page.locator(".item-entry").filter({ hasText: "Новый товар" });
+  await expect(row).toBeVisible();
+
+  await row.locator("[data-edit]").click();
+  await expect(page.locator("#itemForm")).toBeVisible();
+  await expect(page.locator("[data-panel='tracks']")).toBeVisible();
+  await page.locator("[data-track-row] input[name='track']").first().fill("TRACK-NEW");
+  await page.locator("input[name='tracksCompleted']").check();
+  await page.locator("[data-panel='tracks'] button[type='submit']").click();
+
+  await expect(page.locator("#toastContainer")).toContainText("Товар сохранён");
+  await expect(row).toContainText("Треки готовы");
+});
