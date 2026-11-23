@@ -92,6 +92,9 @@ export const toastState = {
     }
     return id;
   },
+  getAll(): Toast[] {
+    return [...toasts];
+  },
   remove(id: string) {
     const idx = toasts.findIndex((t) => t.id === id);
     if (idx >= 0) {

@@ -14,7 +14,7 @@ import {
 import { createListenerScope } from "@/core/listeners";
 import { toastState } from "@/core/state";
 import { mountAppShell } from "./AppShell";
-import { mountToastRendering } from "./toastRendering";
+import { mountToastHost } from "./toastRendering";
 
 // ---- Initialize ----
 async function init(): Promise<void> {
@@ -23,7 +23,7 @@ async function init(): Promise<void> {
 
     const scope = createListenerScope();
     const toastContainer = document.getElementById("toastContainer");
-    if (toastContainer) mountToastRendering(toastContainer, scope);
+    if (toastContainer) mountToastHost(toastContainer);
     mountAppShell(scope);
 
     console.log("App initialized");
