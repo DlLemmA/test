@@ -5,11 +5,8 @@ declare global {
     XLSX?: any;
   }
 }
-import {
-  parcelServiceInstance as parcelService,
-  parcelItemServiceInstance as parcelItemService,
-} from "@/features/shared/services";
-import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
+import { parcelService } from "@/features/shared/wiring";
+import { confirmDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
 import { I, esc, kg, money } from "@/core/utils";

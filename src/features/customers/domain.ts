@@ -79,9 +79,18 @@ export interface CustomerWithItems {
 export class CustomerService {
   constructor(private repo: CustomerRepository) {}
 
+  async findAll(): Promise<Customer[]> {
+    return this.repo.findAll();
+  }
+
   async getSelfCustomer(): Promise<Customer | null> {
-    const all = await this.repo.findAll();
+    const all = await this.findAll();
     return all.find((c) => c.isSelf) ?? null;
+  }
+
+  async createCustomer(name: string): Promise<Customer> {
+    await this.validateUniqueName(name);
+    return this.repo.save(Customer.create({ name, isSelf: false }));
   }
 
   async ensureSelfCustomerExists(name: string): Promise<Customer> {

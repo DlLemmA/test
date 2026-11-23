@@ -21,10 +21,7 @@ import { Customer } from "@/features/customers/domain";
 import { on } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
 import { I, esc, money } from "@/core/utils";
-import {
-  customerService,
-  paymentServiceInstance as paymentService,
-} from "@/features/shared/services";
+import { customerService, paymentService } from "@/features/shared/wiring";
 import { customerMark } from "./ui/CustomerMark";
 
 export async function renderCustomerDetailView(customerId: number): Promise<void> {

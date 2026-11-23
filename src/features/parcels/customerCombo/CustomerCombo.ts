@@ -1,7 +1,7 @@
 import { I, esc } from "@/core/utils";
 import { on } from "@/core/listeners";
 import { toastState } from "@/core/state";
-import { createCustomer } from "@/features/shared/services";
+import { customerService } from "@/features/shared/wiring";
 import type { Customer } from "@/features/customers/domain";
 import { customerKey, findCustomerByName, rankCustomers } from "./CustomerComboMatch";
 import { pickerCaretHtml } from "../ui/Select";
@@ -153,7 +153,7 @@ export function createCustomerCombo(
       return false;
     }
     try {
-      const customer = await createCustomer(name);
+      const customer = await customerService.createCustomer(name);
       state.customers.push(customer);
       select(customer);
       toastState.add({ message: `Заказчик «${customer.name}» добавлен`, type: "success" });

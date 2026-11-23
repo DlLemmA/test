@@ -4,7 +4,7 @@
 // ============================================
 
 import { customerRepository } from "./infrastructure";
-import { customerService } from "@/features/shared/services";
+import { customerService } from "@/features/shared/wiring";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
@@ -16,7 +16,6 @@ import {
 } from "@/features/parcels/infrastructure";
 import { Parcel, ParcelItem, Payment, paymentStateFromPayments } from "@/features/parcels/domain";
 import { customerBalances } from "@/features/balances/domain";
-import { Customer } from "@/features/customers/domain";
 import { customerMark } from "./ui/CustomerMark";
 
 export async function renderCustomersView(): Promise<void> {
@@ -33,10 +32,6 @@ export async function renderCustomersView(): Promise<void> {
   const balances = customers.map((c) =>
     calculateCustomerTotalBalance(c.id, parcels, allItems, allPayments, selfCustomerId),
   );
-
-  const debtors = balances.filter((b) => b.remaining > 0).length;
-  const totalDebt = balances.reduce((sum, b) => sum + Math.max(0, b.remaining), 0);
-  const totalPaid = balances.reduce((sum, b) => sum + b.paid, 0);
 
   root.innerHTML = `
     <div class="page page-customers">

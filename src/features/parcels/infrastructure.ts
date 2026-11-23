@@ -8,7 +8,6 @@ import {
   type ParcelWithItems,
   type PaymentRepository,
 } from "./domain";
-import { Customer } from "@/features/customers/domain";
 
 // ============================================
 // Parcel Repository Implementation

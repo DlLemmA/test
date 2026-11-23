@@ -3,7 +3,6 @@
 // ============================================
 
 import { db } from "@/core/database";
-import { initializeApp } from "@/features/shared/services";
 import { renderParcelListView } from "@/features/parcels/ParcelListView";
 import { renderParcelDetailView } from "@/features/parcels/ParcelDetailView";
 import { renderParcelAddView } from "@/features/parcels/ParcelAddView";
@@ -109,21 +108,6 @@ function renderBottomBar(): void {
   });
 }
 
-async function createNewParcel(): Promise<void> {
-  const { parcelRepository } = await import("@/features/parcels/infrastructure");
-  const parcels = await parcelRepository.findAll();
-  // Find last draft parcel, or create new one
-  const lastDraft = parcels.find((p) => p.status === "draft");
-  let parcel;
-  if (lastDraft) {
-    parcel = lastDraft;
-  } else {
-    const { parcelServiceInstance } = await import("@/features/shared/services");
-    parcel = await parcelServiceInstance.createParcel();
-  }
-  router.navigate("parcel", { parcelId: String(parcel.id) });
-}
-
 function bindHeader(): void {
   const backupBtn = document.getElementById("backupBtn");
   if (backupBtn) {
@@ -217,9 +201,6 @@ async function init(): Promise<void> {
   try {
     // Initialize database
     await db.open();
-
-    // Initialize app (create self customer if needed)
-    await initializeApp();
 
     // Setup reactive rendering
     setupToastRendering();

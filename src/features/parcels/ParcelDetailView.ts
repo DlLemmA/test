@@ -1,13 +1,6 @@
 import { parcelRepository, parcelItemRepository } from "./infrastructure";
-import {
-  parcelServiceInstance as parcelService,
-  parcelItemServiceInstance as parcelItemService,
-  getParcelWithCalculation,
-  updateParcel,
-  shipParcel,
-  receiveParcel,
-  paymentServiceInstance as paymentService,
-} from "@/features/shared/services";
+import { getParcelWithCalculation } from "@/features/shared/services";
+import { parcelItemService, parcelService, paymentService } from "@/features/shared/wiring";
 import { customerRepository } from "@/features/customers/infrastructure";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
@@ -339,7 +332,8 @@ function bindParcelDetailActions(
       const next = (commentDraft ?? commentText.value).trim();
       commentDraft = null;
       if (next === (parcel.comment || "")) return;
-      void updateParcel(parcel.id, { comment: next || null })
+      void parcelService
+        .updateParcel(parcel.id, { comment: next || null })
         .then(() => toastState.add({ message: "Заметка сохранена", type: "success" }))
         .catch((err) => {
           toastState.add({ message: "Не удалось сохранить заметку", type: "error" });
@@ -422,7 +416,7 @@ function bindParcelDetailActions(
     void openReceiveFlow(target, () => renderParcelDetailView());
   document.getElementById("receiveParcel")?.addEventListener("click", async () => {
     try {
-      const received = await receiveParcel(
+      const received = await parcelService.receiveParcel(
         parcel.id,
         parcel.boxWeightG || 0,
         parcel.shippingCostBYN || 0,
@@ -619,7 +613,7 @@ function openShipForm(parcel: Parcel): void {
     }
     weightInput?.setAttribute("aria-invalid", "false");
     amountInput?.setAttribute("aria-invalid", "false");
-    await shipParcel(parcel.id, boxWeightG, shippingCostBYN);
+    await parcelService.shipParcel(parcel.id, boxWeightG, shippingCostBYN);
     closeDrawer();
     renderParcelDetailView();
     toastState.add({ message: "Посылка отправлена", type: "success" });

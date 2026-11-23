@@ -1,10 +1,7 @@
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { parcelItemRepository } from "./infrastructure";
-import {
-  parcelItemServiceInstance as parcelItemService,
-  receiveParcel,
-} from "@/features/shared/services";
+import { parcelItemService, parcelService } from "@/features/shared/wiring";
 import { toastState } from "@/core/state";
 import { I, esc, kg, money } from "@/core/utils";
 import type { Parcel, ParcelItem } from "./domain";
@@ -120,7 +117,6 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
   const lostItems = new Set<number>(items.filter((i) => i.status === "lost").map((i) => i.id));
 
   let mode: Mode = "camera";
-  let activeKey: string | null = null;
   let pendingItemId: number | null = null;
   let closed = false;
 
@@ -354,7 +350,6 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
   }
 
   function showTicket(unit: Unit): void {
-    activeKey = unit.key;
     pendingItemId = unit.itemId;
     const item = itemOf(unit);
     if (!item) return;
@@ -472,7 +467,6 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
   }
 
   function afterUnit(): void {
-    activeKey = null;
     if (remaining().length === 0) {
       renderFinish();
       return;
@@ -671,7 +665,7 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
             await parcelItemService.updateItem(item.id, { status: "received" });
           }
         }
-        if (!isRescan) await receiveParcel(parcel.id, boxWeightG, shippingCostBYN);
+        if (!isRescan) await parcelService.receiveParcel(parcel.id, boxWeightG, shippingCostBYN);
         dialog.close();
         toastState.add({
           message: isRescan ? "Веса обновлены" : "Товары приняты",

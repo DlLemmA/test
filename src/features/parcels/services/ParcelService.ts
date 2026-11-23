@@ -18,6 +18,20 @@ export class ParcelService {
     return this.parcelRepo.save(Parcel.create());
   }
 
+  async updateParcel(
+    parcelId: number,
+    input: {
+      name?: string | null;
+      comment?: string | null;
+      boxWeightG?: number | null;
+      shippingCostBYN?: number | null;
+    },
+  ): Promise<Parcel> {
+    const parcel = await this.parcelRepo.findById(parcelId);
+    if (!parcel) throw new Error("Parcel not found");
+    return this.parcelRepo.save(parcel.update(input));
+  }
+
   async shipParcel(
     parcelId: number,
     boxWeightG?: number,
