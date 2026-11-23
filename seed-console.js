@@ -270,7 +270,7 @@ void (async () => {
       current.items.push({
         name: m[1].trim().replace(/\s+/g, " "),
         quantity: +m[2],
-        unit: m[3] === "уп" ? "packs" : "pcs",
+        unit: m[3] === "уп" ? "packs" : m[3].startsWith("пар") ? "pairs" : "pcs",
         priceBYN,
         tracks,
       });
@@ -304,7 +304,12 @@ void (async () => {
     return {
       name: m[1].trim().replace(/\s+/g, " "),
       quantity: +m[2],
-      unit: m[3] === "уп" || m[3].startsWith("рулон") ? "packs" : "pcs",
+      unit:
+        m[3] === "уп" || m[3].startsWith("рулон")
+          ? "packs"
+          : m[3].startsWith("пар")
+            ? "pairs"
+            : "pcs",
       priceBYN,
       tracks,
     };
