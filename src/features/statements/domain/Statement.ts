@@ -12,12 +12,12 @@ import {
   type CustomerBalanceResult,
 } from "@/features/balances/domain";
 import type { Customer } from "@/features/customers/domain";
+import { settlementFacts, type SettlementFacts } from "@/features/settlement/domain";
 import {
   paymentStateFromPayments,
   type Parcel,
   type ParcelItem,
   type Payment,
-  type PaymentState,
 } from "@/features/parcels/domain";
 
 /** Everything the statement builder needs; the loader supplies it. */
@@ -34,7 +34,7 @@ export interface ParcelStatement {
   items: ParcelItem[];
   customers: Customer[];
   balance: CustomerBalanceResult;
-  paymentState: PaymentState;
+  settlement: SettlementFacts;
 }
 
 /** One customer's slice of a parcel, with the whole parcel's balance context. */
@@ -42,7 +42,7 @@ export interface CustomerParcelStatement {
   parcel: Parcel;
   items: ParcelItem[];
   balance: CustomerBalanceResult;
-  paymentState: PaymentState;
+  settlement: SettlementFacts;
 }
 
 /** A customer across every parcel they appear in. */
@@ -68,14 +68,21 @@ export function buildParcelStatement(
   const items = data.items.filter((item) => item.parcelId === parcelId);
   const payments = data.payments.filter((payment) => payment.parcelId === parcelId);
   const paymentState = paymentStateFromPayments(payments);
+  const selfId = selfCustomerId(data.customers);
   const balance = customerBalances({
     parcel,
     items,
     paymentState,
-    selfCustomerId: selfCustomerId(data.customers),
+    selfCustomerId: selfId,
   });
 
-  return { parcel, items, customers: data.customers, balance, paymentState };
+  return {
+    parcel,
+    items,
+    customers: data.customers,
+    balance,
+    settlement: settlementFacts({ parcel, items, paymentState, selfCustomerId: selfId }),
+  };
 }
 
 export function buildCustomerStatement(
@@ -108,7 +115,17 @@ export function buildCustomerStatement(
       selfCustomerId: selfId,
     });
     balances.push(balance.byCustomer.get(customerId) ?? emptyCustomerBalance());
-    parcels.push({ parcel, items: customerItems, balance, paymentState });
+    parcels.push({
+      parcel,
+      items: customerItems,
+      balance,
+      settlement: settlementFacts({
+        parcel,
+        items: parcelItems,
+        paymentState,
+        selfCustomerId: selfId,
+      }),
+    });
   }
 
   return {

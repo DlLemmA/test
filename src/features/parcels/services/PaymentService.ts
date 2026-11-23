@@ -1,3 +1,4 @@
+import { effectivePaid } from "@/features/settlement/domain";
 import { Payment } from "../domain/Payment";
 import type { PaymentRepository } from "../domain/ports";
 
@@ -79,7 +80,7 @@ export class PaymentService {
 
     for (const itemId of itemIds) {
       const current = payments.find((p) => p.type === "item" && p.itemId === itemId);
-      if ((current?.paid ?? false) === this.effectivePaid(customerId, paid, selfCustomerId)) {
+      if ((current?.paid ?? false) === effectivePaid(customerId, selfCustomerId, paid)) {
         continue;
       }
       changed.push(
@@ -89,7 +90,7 @@ export class PaymentService {
 
     if (shipping) {
       const current = payments.find((p) => p.type === "shipping");
-      if ((current?.paid ?? false) !== this.effectivePaid(customerId, paid, selfCustomerId)) {
+      if ((current?.paid ?? false) !== effectivePaid(customerId, selfCustomerId, paid)) {
         changed.push(await this.saveShipping(current, parcelId, customerId, paid, selfCustomerId));
       }
     }
@@ -108,14 +109,6 @@ export class PaymentService {
     return this.setParcelPayment(parcelId, selfCustomerId, itemIds, true, false);
   }
 
-  private effectivePaid(
-    customerId: number,
-    paid: boolean,
-    selfCustomerId: number | undefined,
-  ): boolean {
-    return customerId === selfCustomerId ? true : paid;
-  }
-
   private async saveItem(
     current: Payment | undefined,
     parcelId: number,
@@ -124,7 +117,7 @@ export class PaymentService {
     paid: boolean,
     selfCustomerId: number | undefined,
   ): Promise<Payment> {
-    const effective = this.effectivePaid(customerId, paid, selfCustomerId);
+    const effective = effectivePaid(customerId, selfCustomerId, paid);
     if (current) {
       return current.paid === effective
         ? current
@@ -142,7 +135,7 @@ export class PaymentService {
     paid: boolean,
     selfCustomerId: number | undefined,
   ): Promise<Payment> {
-    const effective = this.effectivePaid(customerId, paid, selfCustomerId);
+    const effective = effectivePaid(customerId, selfCustomerId, paid);
     if (current) {
       return current.paid === effective
         ? current

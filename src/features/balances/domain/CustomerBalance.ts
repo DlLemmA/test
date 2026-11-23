@@ -1,6 +1,7 @@
 import type { Parcel } from "@/features/parcels/domain/Parcel";
 import type { ParcelItem } from "@/features/parcels/domain/ParcelItem";
 import type { PaymentState } from "@/features/parcels/domain/Payment";
+import { deliveryInvoiced, effectivePaid } from "@/features/settlement/domain";
 
 export interface Amounts {
   owed: number;
@@ -48,15 +49,6 @@ export function sumCustomerBalances(balances: CustomerBalance[]): CustomerBalanc
   return total;
 }
 
-/** Delivery is allocated only once a received/done parcel has weight and an invoice. */
-export function deliveryEnabled(parcel: Parcel): boolean {
-  return (
-    (parcel.status === "received" || parcel.status === "done") &&
-    !!parcel.boxWeightG &&
-    !!parcel.shippingCostBYN
-  );
-}
-
 function weightOf(item: ParcelItem): number {
   return item.weightsG.reduce((sum, weight) => sum + weight, 0);
 }
@@ -91,7 +83,7 @@ export function customerBalances({
     itemsByCustomer.set(item.customerId, group);
   }
 
-  const enabled = deliveryEnabled(parcel);
+  const enabled = deliveryInvoiced(parcel);
   const totalWeight = enabled ? items.reduce((sum, item) => sum + weightOf(item), 0) : 0;
   const shippingCost = parcel.shippingCostBYN || 0;
 
@@ -116,19 +108,19 @@ export function customerBalances({
   };
 
   for (const [customerId, customerItems] of itemsByCustomer) {
-    const isSelf = customerId === selfCustomerId;
-
     const goods = emptyAmounts();
     for (const item of customerItems) {
       goods.owed += item.totalPriceBYN;
-      if (isSelf || paymentState.itemPaid.get(item.id)) {
+      if (effectivePaid(customerId, selfCustomerId, paymentState.itemPaid.get(item.id) ?? false)) {
         goods.paid += item.totalPriceBYN;
       }
     }
 
     const delivery = emptyAmounts();
     delivery.owed = deliveryByCustomer.get(customerId) || 0;
-    if (isSelf || paymentState.shippingPaid.get(customerId)) {
+    if (
+      effectivePaid(customerId, selfCustomerId, paymentState.shippingPaid.get(customerId) ?? false)
+    ) {
       delivery.paid = delivery.owed;
     }
 

@@ -3,7 +3,7 @@
 // Shows all items + payments for a specific customer across all parcels
 // ============================================
 
-import { deliveryEnabled, emptyCustomerBalance } from "@/features/balances/domain";
+import { emptyCustomerBalance } from "@/features/balances/domain";
 import { getCustomerStatement, type CustomerStatement } from "@/features/statements/service";
 import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
 import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
@@ -43,12 +43,12 @@ export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
 
     // Build items HTML grouped by parcel
     const itemsHtml = parcelStatements
-      .map(({ parcel, items, balance: calculation, paymentState }) => {
+      .map(({ parcel, items, balance: calculation, settlement }) => {
         const customerBalance = calculation.byCustomer.get(customerId) || emptyCustomerBalance();
 
         const itemsList = items
           .map((item) => {
-            const isItemPaid = isSelf || !!paymentState.itemPaid.get(item.id);
+            const isItemPaid = settlement.paidItems.has(item.id);
             const deliveryShare = calculation.deliveryByItem.get(item.id) || 0;
             const priceWithDelivery = item.totalPriceBYN + deliveryShare;
 
@@ -66,12 +66,12 @@ export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
           })
           .join("");
 
-        const paidItems = items.filter((item) => isSelf || !!paymentState.itemPaid.get(item.id));
+        const paidItems = items.filter((item) => settlement.paidItems.has(item.id));
         const allItemsPaid = items.length > 0 && paidItems.length === items.length;
 
-        const isShippingPaid = isSelf || !!paymentState.shippingPaid.get(customerId);
+        const isShippingPaid = settlement.paidDelivery.has(customerId);
 
-        const showShipping = deliveryEnabled(parcel);
+        const showShipping = settlement.deliveryInvoiced;
         const shippingShare = customerBalance.delivery.owed;
         const parcelPaid = allItemsPaid && (!showShipping || isShippingPaid);
         const parcelLabel = parcel.name || `Посылка #${parcel.id}`;
@@ -210,15 +210,11 @@ function bindActions(
     const parcelId = parseInt(input.dataset.toggleParcel!);
     const entry = parcels.find((candidate) => candidate.parcel.id === parcelId);
     if (!entry) return;
-    const parcel = entry.parcel;
 
     const parcelItems = customerItems.filter((i) => i.parcelId === parcelId);
-    const paidFlags = parcelItems.map(
-      (i) => customer.isSelf || !!entry.paymentState.itemPaid.get(i.id),
-    );
-    const shippingInvoiced =
-      (parcel.status === "received" || parcel.status === "done") && !!parcel.shippingCostBYN;
-    const shippingPaid = customer.isSelf || !!entry.paymentState.shippingPaid.get(customer.id);
+    const paidFlags = parcelItems.map((i) => entry.settlement.paidItems.has(i.id));
+    const shippingInvoiced = entry.settlement.deliveryInvoiced;
+    const shippingPaid = entry.settlement.paidDelivery.has(customer.id);
     const allPaid =
       parcelItems.length > 0 && paidFlags.every(Boolean) && (!shippingInvoiced || shippingPaid);
     input.indeterminate =

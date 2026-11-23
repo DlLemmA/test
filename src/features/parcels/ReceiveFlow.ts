@@ -7,6 +7,7 @@ import { I, esc, kg, money, t } from "@/core/utils";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { ITEM_FORMS, TRACK_FORMS } from "./ui/ParcelPresentation";
 import type { Parcel, ParcelItem } from "./domain";
+import { shippingInfoComplete } from "@/features/settlement/domain";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 
@@ -634,7 +635,7 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
     const weighed = units.filter(hasWeight).length;
     const boxWeightG = parcel.boxWeightG ?? 0;
     const shippingCostBYN = parcel.shippingCostBYN ?? 0;
-    const hasShippingInfo = boxWeightG > 0 && shippingCostBYN > 0;
+    const hasShippingInfo = shippingInfoComplete(parcel);
 
     sheet.innerHTML = `
       <div class="rf-grab"></div>

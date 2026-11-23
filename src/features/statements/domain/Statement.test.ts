@@ -109,7 +109,9 @@ describe("statements", () => {
     expect(katya.delivery.owed).toBeCloseTo(20);
     expect(katya.owed).toBeCloseTo(120);
     expect(statement.balance.totals.owed).toBeCloseTo(230);
-    expect(statement.paymentState.itemPaid.get(11)).toBe(true);
+    expect(statement.settlement.deliveryInvoiced).toBe(true);
+    expect(statement.settlement.paidItems.has(11)).toBe(true);
+    expect(statement.settlement.paidItems.has(10)).toBe(true); // self
     expect(buildParcelStatement(statements(), 999)).toBeNull();
   });
 
@@ -129,6 +131,25 @@ describe("statements", () => {
     expect(customer.balance.owed).toBeCloseTo(180);
     expect(customer.balance.paid).toBeCloseTo(110);
     expect(customer.balance.remaining).toBeCloseTo(70);
+  });
+
+  it("does not invoice delivery when the parcel weight is missing", () => {
+    const data = statements();
+    data.parcels[0] = Parcel.fromPersistence({
+      id: 1,
+      status: "received",
+      shippingCostBYN: 30,
+      createdAt: CREATED_AT,
+    });
+
+    const statement = buildParcelStatement(data, 1)!;
+    expect(statement.settlement.deliveryInvoiced).toBe(false);
+    expect(statement.balance.byCustomer.get(2)!.delivery.owed).toBe(0);
+    expect(statement.balance.byCustomer.get(2)!.owed).toBe(100);
+
+    const customer = buildCustomerStatement(data, 2)!;
+    expect(customer.parcels[0]!.settlement.deliveryInvoiced).toBe(false);
+    expect(customer.parcels[0]!.balance.byCustomer.get(2)!.delivery.owed).toBe(0);
   });
 
   it("keeps the self customer fully paid in the customer list too", () => {

@@ -17,9 +17,9 @@ import {
   itemsWithoutTracks,
   parcelReadiness,
   type ParcelItemUpdateInput,
-  type PaymentState,
 } from "./domain";
 import type { CustomerBalance } from "@/features/balances/domain";
+import type { SettlementFacts } from "@/features/settlement/domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { selectHtml } from "./ui/Select";
@@ -109,7 +109,7 @@ export function mountParcelDetailView(host: HTMLElement): ViewHandle {
       return;
     }
 
-    const { parcel, items, customers, balance, paymentState } = result;
+    const { parcel, items, customers, balance, settlement } = result;
 
     if (ctx.announceTimer) {
       clearTimeout(ctx.announceTimer);
@@ -196,7 +196,7 @@ export function mountParcelDetailView(host: HTMLElement): ViewHandle {
             customers,
             balance.byCustomer,
             balance.deliveryByItem,
-            paymentState,
+            settlement,
             ctx.openCustomerGroups,
           )}
           ${items.length > 0 ? '<p class="empty item-search__empty" id="parcelItemNoResults" hidden>Ничего не найдено. Измените запрос.</p>' : ""}
@@ -205,7 +205,7 @@ export function mountParcelDetailView(host: HTMLElement): ViewHandle {
     </div>
   `;
 
-    bindParcelDetailActions(parcel, items, paymentState, ctx);
+    bindParcelDetailActions(parcel, items, settlement, ctx);
   }
 
   ctx.refresh = () => {
@@ -312,7 +312,7 @@ function applyItemSearch(ctx: DetailContext): void {
 function bindParcelDetailActions(
   parcel: Parcel,
   items: ParcelItem[],
-  paymentState: PaymentState,
+  settlement: SettlementFacts,
   ctx: DetailContext,
 ): void {
   document.getElementById("backToParcels")?.addEventListener("click", () => {
@@ -537,8 +537,8 @@ function bindParcelDetailActions(
     const el = checkbox as HTMLInputElement;
     const customerId = parseInt(el.dataset.customer!);
     const customerItems = items.filter((i) => i.customerId === customerId);
-    const allPaid = customerItems.every((i) => paymentState.itemPaid.get(i.id));
-    el.indeterminate = !allPaid && customerItems.some((i) => paymentState.itemPaid.get(i.id));
+    const allPaid = customerItems.every((i) => settlement.paidItems.has(i.id));
+    el.indeterminate = !allPaid && customerItems.some((i) => settlement.paidItems.has(i.id));
 
     ctx.scope.on(el, "change", async () => {
       await paymentService.setParcelPayment(
@@ -557,7 +557,7 @@ function bindParcelDetailActions(
     const customerId = parseInt(el.dataset.customer!);
 
     ctx.scope.on(el, "change", async () => {
-      if (parcel.status !== "done") return;
+      if (!settlement.deliveryInvoiced) return;
       await paymentService.toggleShippingPayment(parcel.id, customerId);
       ctx.refresh();
     });

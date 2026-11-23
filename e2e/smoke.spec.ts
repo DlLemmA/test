@@ -54,6 +54,26 @@ test("amounts agree between the parcel and customer screens", async ({ page }) =
   expect(customerDebt).toBe(parcelRemaining);
 });
 
+test("delivery follows one fact on both screens when weight is missing", async ({ page }) => {
+  await page.goto("/#customer/2");
+  await expect(page.locator("[data-toggle-shipping]")).toHaveCount(1);
+  const withWeight = await page.locator(".check-row--total b").innerText();
+
+  await page.evaluate(async () => {
+    const db = (window as unknown as { appDb: AppDb }).appDb;
+    await db.parcels.update(2, { boxWeightG: null });
+  });
+  await page.reload();
+
+  await page.goto("/#customer/2");
+  await expect(page.locator("[data-toggle-shipping]")).toHaveCount(0);
+  const withoutWeight = await page.locator(".check-row--total b").innerText();
+  expect(withoutWeight).not.toBe(withWeight);
+
+  await page.goto("/#parcel/2");
+  await expect(page.locator(".shipping-paid")).toHaveCount(0);
+});
+
 test("payment toggle persists and self stays paid", async ({ page }) => {
   await page.goto("/#parcel/2");
   await openKatyaItemMenu(page);

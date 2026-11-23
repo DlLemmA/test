@@ -2,12 +2,9 @@ import { I, esc, kg, money, t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { customerMark } from "@/features/customers/ui/CustomerMark";
-import { itemTrackState, type Parcel, type ParcelItem, type PaymentState } from "../domain";
-import {
-  deliveryEnabled,
-  emptyCustomerBalance,
-  type CustomerBalance,
-} from "@/features/balances/domain";
+import { itemTrackState, type Parcel, type ParcelItem } from "../domain";
+import { emptyCustomerBalance, type CustomerBalance } from "@/features/balances/domain";
+import { canPayDelivery, type SettlementFacts } from "@/features/settlement/domain";
 import { parcelItemStatusInfo } from "./ParcelStatusInfo";
 import { itemTrackBadge } from "./ReadinessCopy";
 import {
@@ -30,7 +27,7 @@ function renderCustomerGroup(
   customerItems: ParcelItem[],
   parcel: Parcel,
   balance: CustomerBalance,
-  paymentState: PaymentState,
+  settlement: SettlementFacts,
 ): string {
   const customerId = customer?.id ?? 0;
   const isSelf = customer?.isSelf || false;
@@ -42,10 +39,10 @@ function renderCustomerGroup(
   );
   const itemTotal = customerItems.reduce((sum, item) => sum + item.totalPriceBYN, 0);
   const shippingShare = balance.delivery.owed;
-  const goodsPaid = isSelf || customerItems.every((i) => paymentState.itemPaid.get(i.id));
-  const deliveryPaid = isSelf || paymentState.shippingPaid.get(customerId) || false;
+  const goodsPaid = customerItems.every((i) => settlement.paidItems.has(i.id));
+  const deliveryPaid = settlement.paidDelivery.has(customerId);
   const canToggleGoods = !isSelf && parcel.status !== "draft";
-  const canPayShipping = !isSelf && parcel.status === "done" && !!parcel.shippingCostBYN;
+  const canPayShipping = canPayDelivery(parcel, isSelf);
 
   return `
     <summary class="parcel-entry item-group__head settle-entry" data-status="${parcel.status}">
@@ -66,7 +63,7 @@ function renderCustomerGroup(
             <span>Товары: ${goodsPaid ? "оплачено" : "не оплачено"}</span>
           </label>
           ${
-            deliveryEnabled(parcel)
+            settlement.deliveryInvoiced
               ? `<label class="payment-bullet ${deliveryPaid ? "is-paid" : ""} ${canPayShipping ? "" : "is-locked"}">
                   <input type="checkbox" class="shipping-paid" data-customer="${customerId}" ${deliveryPaid ? "checked" : ""} ${canPayShipping ? "" : "disabled"}>
                   <span>Доставка: ${deliveryPaid ? "оплачено" : "не оплачено"}</span>
@@ -84,7 +81,7 @@ function itemHtml(
   deliveryByItem: Map<number, number>,
   parcel: Parcel,
   customer: Customer | undefined,
-  paymentState: PaymentState,
+  settlement: SettlementFacts,
   position: number,
 ): string {
   const isDraft = parcel.status === "draft";
@@ -99,7 +96,7 @@ function itemHtml(
   const isSelf = customer?.isSelf || false;
   const ownerName = customer?.name || "Без заказчика";
   const label = customerLabel({ name: ownerName, isSelf });
-  const itemPaid = isSelf || paymentState?.itemPaid.get(item.id) || false;
+  const itemPaid = settlement.paidItems.has(item.id);
   const deliveryShare = deliveryByItem.get(item.id) || 0;
   const showWeights = parcel.status === "received" || parcel.status === "done";
   const trackLines =
@@ -190,7 +187,7 @@ export function renderItemGroups(
   customers: Customer[],
   balances: Map<number, CustomerBalance>,
   deliveryByItem: Map<number, number>,
-  paymentState: PaymentState,
+  settlement: SettlementFacts,
   openCustomerGroups: ReadonlySet<number>,
 ): string {
   if (items.length === 0) return '<div class="empty">Нет товаров</div>';
@@ -215,7 +212,7 @@ export function renderItemGroups(
             groupItems,
             parcel,
             balances.get(customerId) || zeroBalance,
-            paymentState,
+            settlement,
           )}
           <div class="item-group__items">
             ${groupItems
@@ -225,7 +222,7 @@ export function renderItemGroups(
                   deliveryByItem,
                   parcel,
                   customerMap.get(item.customerId),
-                  paymentState,
+                  settlement,
                   position++,
                 ),
               )
