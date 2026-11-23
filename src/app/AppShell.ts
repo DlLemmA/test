@@ -157,7 +157,7 @@ function bindHeader(scope: ListenerScope): void {
 }
 
 /** Mount once at startup: from here on, every route change has exactly one owner. */
-export function mountAppShell(scope: ListenerScope): void {
+export async function mountAppShell(scope: ListenerScope): Promise<void> {
   const screens = new Map<Route, { panel: HTMLElement; view: HTMLElement; mount: ViewMount }>();
   for (const route of Object.keys(SCREENS) as Route[]) {
     const screen = SCREENS[route];
@@ -203,8 +203,9 @@ export function mountAppShell(scope: ListenerScope): void {
     bottomBar.update(route);
   }
 
+  // Adopt the URL first: the initial navigation has no subscriber yet, so the
+  // shell performs exactly one initial render.
+  await initRouterFromHash();
   router.subscribe((route, params) => activate(route, params));
-
-  initRouterFromHash();
   activate(router.currentRoute, router.currentParams);
 }

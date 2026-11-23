@@ -24,7 +24,7 @@ async function init(): Promise<void> {
     const scope = createListenerScope();
     const toastContainer = document.getElementById("toastContainer");
     if (toastContainer) mountToastHost(toastContainer);
-    mountAppShell(scope);
+    await mountAppShell(scope);
 
     console.log("App initialized");
   } catch (err) {
