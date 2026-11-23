@@ -1,16 +1,16 @@
 import { I, esc, kg, money, t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
 import { customerMark } from "@/features/customers/ui/CustomerMark";
-import type { Parcel, ParcelItem, PaymentState } from "../domain";
+import { itemTrackState, type Parcel, type ParcelItem, type PaymentState } from "../domain";
 import {
   deliveryEnabled,
   emptyCustomerBalance,
   type CustomerBalance,
 } from "@/features/balances/domain";
 import { parcelItemStatusInfo } from "./ParcelStatusInfo";
+import { itemTrackBadge } from "./ReadinessCopy";
 
 const ITEMS_FORMS = "нет товаров | {count} товар | {count} товара | {count} товаров";
-const TRACKS_FORMS = "треков | трек | трека | треков";
 
 export type ItemGroupsSearchResult = {
   visible: number;
@@ -18,14 +18,6 @@ export type ItemGroupsSearchResult = {
   queryLength: number;
   missingOnly: boolean;
 };
-
-export function filledTracks(item: ParcelItem): number {
-  return item.trackNumbers.filter((track) => track.trim() !== "").length;
-}
-
-export function itemsWithoutTracks(items: ParcelItem[]): number {
-  return items.filter((item) => filledTracks(item) === 0).length;
-}
 
 function renderCustomerGroup(
   customer: Customer | undefined,
@@ -90,28 +82,13 @@ function itemHtml(
 ): string {
   const isDraft = parcel.status === "draft";
   const status = parcelItemStatusInfo(item.status);
-  const filled = filledTracks(item);
-  const needed = Math.max(item.quantity, item.trackNumbers.length);
-  const noTracks = filled === 0;
-  const tracksReady = filled >= needed;
-  const trackBadge =
+  const track = itemTrackState(item);
+  const noTracks = track.state === "none";
+  const badge =
     isDraft && item.status !== "lost"
-      ? `<span class="parcel-entry__state ${
-          !tracksReady ? "state-warn" : item.tracksCompleted ? "state-good" : "state-info"
-        }" title="${
-          !tracksReady
-            ? "Заполните трек-номера"
-            : item.tracksCompleted
-              ? "Треки готовы"
-              : "Отметьте «Треки заполнены» в карточке товара"
-        }">${
-          noTracks
-            ? "Нет треков"
-            : item.tracksCompleted
-              ? "Треки готовы"
-              : `${filled}/${needed} ${t(TRACKS_FORMS, filled)}`
-        }</span>`
-      : `<span class="parcel-entry__state state-${status.class}">${esc(status.label)}</span>`;
+      ? itemTrackBadge(track)
+      : { label: status.label, class: status.class, title: "" };
+  const trackBadge = `<span class="parcel-entry__state state-${badge.class}" title="${badge.title}">${esc(badge.label)}</span>`;
   const isSelf = customer?.isSelf || false;
   const itemPaid = isSelf || paymentState?.itemPaid.get(item.id) || false;
   const deliveryShare = deliveryByItem.get(item.id) || 0;

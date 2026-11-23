@@ -96,6 +96,45 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   expect(selfPayment?.paid).toBe(true);
 });
 
+test("ship button explains why a draft is not ready", async ({ page }) => {
+  await page.evaluate(async () => {
+    const db = (window as unknown as { appDb: AppDb }).appDb;
+    await db.parcelItems.add({
+      parcelId: 1,
+      name: "Товар без треков",
+      priceCNY: 1,
+      priceBYN: 0.1,
+      quantity: 1,
+      unit: "pcs",
+      customerId: 2,
+      trackNumbers: "[]",
+      weightsG: "[]",
+      status: "ordered",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+  });
+
+  await page.goto("/#parcel/1");
+  await page.locator('details[data-item-group][data-customer="2"] > summary').click();
+  await expect(page.locator(".page-parcel-detail").getByText("Нет треков")).toBeVisible();
+
+  await page.locator("#shipParcel").click();
+  await expect(page.locator("#toastContainer").getByText(/не отмечены/)).toBeVisible();
+});
+
+test("finish button explains which items are unweighed", async ({ page }) => {
+  await page.evaluate(async () => {
+    const db = (window as unknown as { appDb: AppDb }).appDb;
+    await db.parcelItems.update(11, { weightsG: "[]" });
+  });
+
+  await page.goto("/#parcel/2");
+  await expect(page.locator(".detail-action__hint")).toContainText("Взвесьте все треки");
+
+  await page.locator("#markAsDone").click();
+  await expect(page.locator("#toastContainer").getByText(/не взвешены/)).toBeVisible();
+});
+
 test("customer card toggles one item and the whole parcel", async ({ page }) => {
   await page.goto("/#customer/2");
 

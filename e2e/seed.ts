@@ -2,6 +2,8 @@ import type { Page } from "@playwright/test";
 
 export type Table = {
   clear(): Promise<void>;
+  add(row: Record<string, unknown>): Promise<unknown>;
+  update(id: number, changes: Record<string, unknown>): Promise<unknown>;
   bulkAdd(rows: unknown[]): Promise<unknown>;
   toArray(): Promise<Array<Record<string, unknown>>>;
 };

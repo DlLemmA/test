@@ -147,18 +147,6 @@ export class ParcelItem {
     return this.tracksCompletedAt !== undefined;
   }
 
-  get filledTracksCount(): number {
-    return this.trackNumbers.filter((t) => t.trim() !== "").length;
-  }
-
-  get hasAllWeights(): boolean {
-    return this.weightsG.length >= this.trackNumbers.length && this.weightsG.every((w) => w > 0);
-  }
-
-  get filledWeightsCount(): number {
-    return this.weightsG.filter((w) => w > 0).length;
-  }
-
   get totalPriceBYN(): number {
     return this.priceBYN;
   }

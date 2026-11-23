@@ -1,5 +1,10 @@
 import { Parcel } from "../domain/Parcel";
+import { parcelReadiness } from "../domain/ParcelReadiness";
 import type { ParcelItemRepository, ParcelRepository, ParcelWithItems } from "../domain/ports";
+
+function reasons(issues: { reason: string }[]): string {
+  return issues.map((issue) => issue.reason).join(", ");
+}
 
 export class ParcelService {
   constructor(
@@ -39,8 +44,8 @@ export class ParcelService {
   ): Promise<Parcel> {
     let parcel = await this.parcelRepo.findById(parcelId);
     if (!parcel) throw new Error("Parcel not found");
-    const canShip = await this.canShip(parcelId);
-    if (!canShip) throw new Error("Cannot ship parcel: not all items have track numbers");
+    const { ship } = parcelReadiness(parcel, await this.itemRepo.findByParcelId(parcelId));
+    if (!ship.ok) throw new Error(`Cannot ship parcel: ${reasons(ship.issues)}`);
     const update: { boxWeightG?: number; shippingCostBYN?: number } = {};
     if (boxWeightG !== undefined) update.boxWeightG = boxWeightG;
     if (shippingCostBYN !== undefined) update.shippingCostBYN = shippingCostBYN;
@@ -63,29 +68,22 @@ export class ParcelService {
   async markAsDoneParcel(parcelId: number): Promise<Parcel> {
     const parcel = await this.parcelRepo.findById(parcelId);
     if (!parcel) throw new Error("Parcel not found");
-    const items = await this.itemRepo.findByParcelId(parcelId);
-    const notReady = items.filter(
-      (item) => item.status !== "lost" && item.trackNumbers.length > 0 && !item.hasAllWeights,
-    );
-    if (notReady.length > 0) {
-      throw new Error("Cannot complete parcel: not all items are weighed or marked lost");
-    }
+    const { finish } = parcelReadiness(parcel, await this.itemRepo.findByParcelId(parcelId));
+    if (!finish.ok) throw new Error(`Cannot complete parcel: ${reasons(finish.issues)}`);
     const done = parcel.markAsDone();
     return this.parcelRepo.save(done);
-  }
-
-  async canShip(parcelId: number): Promise<boolean> {
-    const items = await this.itemRepo.findByParcelId(parcelId);
-    return items.length > 0 && items.every((item) => item.tracksCompleted);
   }
 
   // Mark parcel as having all tracks filled (sets completedAt)
   async completeTracks(parcelId: number): Promise<Parcel> {
     const parcel = await this.parcelRepo.findById(parcelId);
     if (!parcel) throw new Error("Parcel not found");
-    const items = await this.itemRepo.findByParcelId(parcelId);
-    if (!items.every((item) => item.tracksCompleted)) {
-      throw new Error("Not all items have all track numbers filled");
+    const { completeTracks } = parcelReadiness(
+      parcel,
+      await this.itemRepo.findByParcelId(parcelId),
+    );
+    if (!completeTracks.ok) {
+      throw new Error(`Cannot complete tracks: ${reasons(completeTracks.issues)}`);
     }
     const completed = parcel.setCompleted();
     return this.parcelRepo.save(completed);

@@ -5,19 +5,22 @@ import { customerRepository } from "@/features/customers/infrastructure";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
-import { I, esc, kg, money, t } from "@/core/utils";
-import { Parcel, ParcelItem, type ParcelItemUpdateInput, type PaymentState } from "./domain";
+import { I, esc, kg, money } from "@/core/utils";
+import {
+  Parcel,
+  ParcelItem,
+  itemsWithoutTracks,
+  parcelReadiness,
+  type ParcelItemUpdateInput,
+  type PaymentState,
+} from "./domain";
 import type { CustomerBalance } from "@/features/balances/domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { selectHtml } from "./ui/Select";
 import { unitsSelectHtml } from "./ui/UnitsSelect";
-import {
-  applyItemGroupsSearch,
-  itemSearchCountText,
-  itemsWithoutTracks,
-  renderItemGroups,
-} from "./ui/ItemGroups";
+import { applyItemGroupsSearch, itemSearchCountText, renderItemGroups } from "./ui/ItemGroups";
+import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/ReadinessCopy";
 import { openReceiveFlow } from "./ReceiveFlow";
 import { exportParcel } from "./ParcelListView";
 
@@ -236,19 +239,15 @@ function primaryAction(parcel: Parcel, items: ParcelItem[]): string {
         <button type="button" class="text-btn" id="openBatchForm">${I.plus} Партия товаров</button>`;
     case "shipped":
       return `<button type="button" class="btn-primary btn-action" id="receiveParcel">${I.scan} Получить посылку</button>`;
-    case "received":
+    case "received": {
+      const hint = finishHint(parcelReadiness(parcel, items).finish);
       return `<button type="button" class="btn-primary btn-action" id="markAsDone">${I.checkCircle} Завершить</button>
         <button type="button" class="text-btn" id="rescanParcel">${I.scan} Сканировать ещё</button>
-        ${allItemsReady(items) ? "" : '<p class="detail-action__hint">Взвесьте все треки или отметьте товар потерянным</p>'}`;
+        ${hint ? `<p class="detail-action__hint">${esc(hint)}</p>` : ""}`;
+    }
     case "done":
       return `<button type="button" class="text-btn" id="exportParcel">${I.sheet} Экспорт в Excel</button>`;
   }
-}
-
-function allItemsReady(items: ParcelItem[]): boolean {
-  return items.every(
-    (item) => item.status === "lost" || item.trackNumbers.length === 0 || item.hasAllWeights,
-  );
 }
 
 function detailDate(parcel: Parcel): { day: string; month: string; title: string } {
@@ -263,8 +262,6 @@ function detailDate(parcel: Parcel): { day: string; month: string; title: string
       : `создана ${valid ? d.toLocaleDateString("ru-RU") : ""}`,
   };
 }
-
-const ITEMS_GENITIVE_FORMS = "товаров | {count} товара | {count} товара | {count} товаров";
 
 function applyItemSearch(): void {
   const input = document.getElementById("parcelItemSearch") as HTMLInputElement | null;
@@ -393,19 +390,9 @@ function bindParcelDetailActions(
 
   // Ship parcel — box weight is entered before the parcel leaves
   document.getElementById("shipParcel")?.addEventListener("click", () => {
-    if (items.length === 0) {
-      toastState.add({
-        message: "Нельзя отправить пустую посылку. Добавьте хотя бы один товар.",
-        type: "error",
-      });
-      return;
-    }
-    const itemsWithoutTracks = items.filter((i) => !i.tracksCompleted);
-    if (itemsWithoutTracks.length > 0) {
-      toastState.add({
-        message: `У ${t(ITEMS_GENITIVE_FORMS, itemsWithoutTracks.length)} не отмечены «Треки заполнены». Откройте товар, проверьте треки и поставьте галочку.`,
-        type: "error",
-      });
+    const message = shipBlockMessage(parcelReadiness(parcel, items).ship);
+    if (message) {
+      toastState.add({ message, type: "error" });
       return;
     }
     openShipForm(parcel);
@@ -432,14 +419,9 @@ function bindParcelDetailActions(
 
   // Mark parcel as done (received -> done) only when every item is weighed or lost.
   document.getElementById("markAsDone")?.addEventListener("click", async () => {
-    const notReady = items.filter(
-      (item) => item.status !== "lost" && item.trackNumbers.length > 0 && !item.hasAllWeights,
-    );
-    if (notReady.length > 0) {
-      toastState.add({
-        message: `Нельзя завершить: не взвешены ${notReady.map((item) => `«${item.name}»`).join(", ")}. Взвесьте треки или отметьте товар потерянным.`,
-        type: "error",
-      });
+    const message = finishBlockMessage(parcelReadiness(parcel, items).finish, items);
+    if (message) {
+      toastState.add({ message, type: "error" });
       return;
     }
     try {
