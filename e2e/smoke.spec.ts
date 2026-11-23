@@ -211,6 +211,58 @@ test("finish button explains which items are unweighed", async ({ page }) => {
   await expect(page.locator("#toastContainer").getByText(/не взвешены/)).toBeVisible();
 });
 
+test("receiving saves weights and commits items without reopening the parcel", async ({ page }) => {
+  await page.evaluate(async (createdAt) => {
+    const db = (window as unknown as { appDb: AppDb }).appDb;
+    await db.parcels.add({
+      id: 3,
+      status: "shipped",
+      createdAt,
+      shippedAt: createdAt,
+      boxWeightG: 100,
+      shippingCostBYN: 10,
+    });
+    await db.parcelItems.add({
+      id: 30,
+      parcelId: 3,
+      name: "Товар на приёмку",
+      priceCNY: 10,
+      priceBYN: 1.3,
+      quantity: 1,
+      unit: "pcs",
+      customerId: 1,
+      trackNumbers: JSON.stringify(["RCV-1"]),
+      weightsG: "[]",
+      status: "ordered",
+      createdAt,
+    });
+  }, "2026-01-01T00:00:00.000Z");
+
+  await page.goto("/#parcel/3");
+  await page.locator("#receiveParcel").click();
+  await expect(page.locator("#receiveFlow")).toBeVisible();
+  await expect(page.locator("#rfTitle")).toHaveText("Посылка №3");
+
+  await page.locator("#rfManualStart").click();
+  await page.locator('[data-weight-key="30:0"]').fill("150");
+  await page.locator("#rfSaveAll").click();
+  await expect(page.locator("#rfConfirm")).toBeVisible();
+  await page.locator("#rfConfirm").click();
+
+  await expect(page.locator("#receiveFlow")).toHaveCount(0);
+  await expect(page.locator("#toastContainer")).toContainText("Веса обновлены");
+
+  const saved = await page.evaluate(async () => {
+    const db = (window as unknown as { appDb: AppDb }).appDb;
+    const parcel = await db.parcels.get(3);
+    const item = await db.parcelItems.get(30);
+    return { status: parcel?.status, weight: item?.weightsG, itemStatus: item?.status };
+  });
+  expect(saved.status).toBe("received");
+  expect(JSON.parse(saved.weight as string)).toEqual([150]);
+  expect(saved.itemStatus).toBe("received");
+});
+
 test("customer card toggles one item and the whole parcel", async ({ page }) => {
   await page.goto("/#customer/2");
 
