@@ -9,7 +9,10 @@ import {
   ParcelItem,
   Payment,
   type PaymentState,
+  type BatchItemInput,
+  type BatchTotals,
   paymentStateFromPayments,
+  reconcileBatch,
 } from "@/features/parcels/domain";
 import { customerBalances, type CustomerBalanceResult } from "@/features/balances/domain";
 import { ParcelService } from "@/features/parcels/services/ParcelService";
@@ -31,8 +34,7 @@ export const parcelItemServiceInstance = new ParcelItemService(
 );
 export const paymentServiceInstance = new PaymentService(
   paymentRepository,
-  parcelRepository,
-  parcelItemRepository,
+  async () => (await customerService.getSelfCustomer())?.id,
 );
 const parcelService = parcelServiceInstance;
 const parcelItemService = parcelItemServiceInstance;
@@ -129,75 +131,17 @@ export async function canShipParcel(parcelId: number): Promise<boolean> {
   return parcelService.canShip(parcelId);
 }
 
-export interface BatchItemInput {
-  name: string;
-  priceCNY: number;
-  priceBYN: number;
-  quantity: number;
-  unit: "pcs" | "packs" | "pairs";
-  customerId: number;
-}
-
-const round2 = (value: number): number => Math.round(value * 100) / 100;
-
-/**
- * The gap between the paid batch totals and the sum of item prices is the
- * payment service commission. Spread it over items in proportion to their
- * prices, so every customer pays their own share instead of the self customer
- * covering the whole commission.
- *
- * Both currencies are scaled by the same factor, which keeps the batch rate
- * intact and makes the item sums add up to the entered totals.
- */
-export function distributeCommission(
-  items: BatchItemInput[],
-  totals: { totalCNY: number; totalBYN: number },
-): BatchItemInput[] {
-  const itemCNY = items.reduce((sum, item) => sum + item.priceCNY, 0);
-  const itemBYN = items.reduce((sum, item) => sum + item.priceBYN, 0);
-  const diffCNY = totals.totalCNY - itemCNY;
-  const diffBYN = totals.totalBYN - itemBYN;
-
-  // A shortfall is a commission. An excess means the prices were entered
-  // incorrectly — do not silently rewrite them.
-  if (itemCNY <= 0 || diffCNY <= 0.005 || diffBYN <= 0.005) return items;
-
-  const factor = totals.totalCNY / itemCNY;
-  const adjusted = items.map((item) => ({
-    ...item,
-    priceCNY: round2(item.priceCNY * factor),
-    priceBYN: round2(item.priceBYN * factor),
-  }));
-
-  // Absorb rounding residue into the last item so the sums match the totals.
-  const last = adjusted[adjusted.length - 1];
-  if (last) {
-    const restCNY = adjusted.reduce((sum, item) => sum + item.priceCNY, 0);
-    const restBYN = adjusted.reduce((sum, item) => sum + item.priceBYN, 0);
-    last.priceCNY = round2(last.priceCNY + (totals.totalCNY - restCNY));
-    last.priceBYN = round2(last.priceBYN + (totals.totalBYN - restBYN));
-  }
-
-  return adjusted;
-}
-
 export async function addItemsToParcel(
   parcelId: number,
   items: BatchItemInput[],
-  totals?: { totalCNY: number; totalBYN: number },
+  totals?: BatchTotals,
 ): Promise<ParcelItem[]> {
-  const finalItems = totals ? distributeCommission(items, totals) : items;
+  const finalItems = totals ? reconcileBatch(items, totals).items : items;
   const itemsWithParcelId = finalItems.map((item) => ({ ...item, parcelId }));
   const createdItems = await parcelItemService.addBatch(parcelId, itemsWithParcelId);
 
-  // Auto-create paid payments for self customer's items
-  const selfCustomer = await customerService.getSelfCustomer();
-  if (selfCustomer) {
-    const selfItems = createdItems.filter((item) => item.customerId === selfCustomer.id);
-    for (const item of selfItems) {
-      await paymentService.setItemPaid(parcelId, item.id, selfCustomer.id, true);
-    }
-  }
+  // Payment recording resolves the self customer and marks their items paid.
+  await paymentService.markSelfItemsPaid(parcelId, createdItems);
 
   return createdItems;
 }
@@ -242,37 +186,6 @@ export async function createCustomer(name: string): Promise<Customer> {
 
 export async function createSelfCustomer(name: string): Promise<Customer> {
   return customerService.ensureSelfCustomerExists(name);
-}
-
-// Payment functions
-export async function toggleItemPayment(
-  parcelId: number,
-  itemId: number,
-  customerId: number,
-): Promise<void> {
-  const payments = await paymentRepository.findByParcelAndCustomer(parcelId, customerId);
-  const itemPayment = payments.find((p) => p.type === "item" && p.itemId === itemId);
-
-  if (itemPayment) {
-    const updated = itemPayment.update({ paid: !itemPayment.paid });
-    await paymentRepository.save(updated);
-  } else {
-    const payment = Payment.create({ parcelId, customerId, itemId, type: "item", paid: true });
-    await paymentRepository.save(payment);
-  }
-}
-
-export async function toggleShippingPayment(parcelId: number, customerId: number): Promise<void> {
-  const payments = await paymentRepository.findByParcelAndCustomer(parcelId, customerId);
-  const shippingPayment = payments.find((p) => p.type === "shipping");
-
-  if (shippingPayment) {
-    const updated = shippingPayment.update({ paid: !shippingPayment.paid });
-    await paymentRepository.save(updated);
-  } else {
-    const payment = Payment.create({ parcelId, customerId, type: "shipping", paid: true });
-    await paymentRepository.save(payment);
-  }
 }
 
 export async function completeParcelTracks(parcelId: number): Promise<Parcel> {

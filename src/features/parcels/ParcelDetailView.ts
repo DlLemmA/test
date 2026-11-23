@@ -6,8 +6,7 @@ import {
   updateParcel,
   shipParcel,
   receiveParcel,
-  toggleItemPayment,
-  toggleShippingPayment,
+  paymentServiceInstance as paymentService,
 } from "@/features/shared/services";
 import { customerRepository } from "@/features/customers/infrastructure";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
@@ -26,7 +25,6 @@ import {
   itemsWithoutTracks,
   renderItemGroups,
 } from "./ui/ItemGroups";
-import type { Customer } from "@/features/customers/domain";
 import { openReceiveFlow } from "./ReceiveFlow";
 import { exportParcel } from "./ParcelListView";
 
@@ -189,7 +187,7 @@ export async function renderParcelDetailView(): Promise<void> {
     </div>
   `;
 
-  bindParcelDetailActions(parcel, items, customers, paymentState);
+  bindParcelDetailActions(parcel, items, paymentState);
 }
 
 function renderCalculation(
@@ -302,7 +300,6 @@ function applyItemSearch(): void {
 function bindParcelDetailActions(
   parcel: Parcel,
   items: ParcelItem[],
-  customers: Customer[],
   paymentState: PaymentState,
 ): void {
   document.getElementById("backToParcels")?.addEventListener("click", () => {
@@ -527,8 +524,7 @@ function bindParcelDetailActions(
         const itemId = parseInt(el.dataset.togglePayment!);
         const item = items.find((i) => i.id === itemId);
         if (!item) return;
-        const newPaid = !paymentState.itemPaid.get(itemId);
-        await toggleItemPayment(parcel.id, itemId, item.customerId);
+        await paymentService.toggleItemPayment(parcel.id, itemId, item.customerId);
         renderParcelDetailView();
       });
     });
@@ -548,9 +544,13 @@ function bindParcelDetailActions(
     el.indeterminate = !allPaid && customerItems.some((i) => paymentState.itemPaid.get(i.id));
 
     on(el, "change", async () => {
-      for (const item of customerItems) {
-        await toggleItemPayment(parcel.id, item.id, customerId);
-      }
+      await paymentService.setParcelPayment(
+        parcel.id,
+        customerId,
+        customerItems.map((item) => item.id),
+        el.checked,
+        false,
+      );
       renderParcelDetailView();
     });
   });
@@ -561,7 +561,7 @@ function bindParcelDetailActions(
 
     on(el, "change", async () => {
       if (parcel.status !== "done") return;
-      await toggleShippingPayment(parcel.id, customerId);
+      await paymentService.toggleShippingPayment(parcel.id, customerId);
       renderParcelDetailView();
     });
   });

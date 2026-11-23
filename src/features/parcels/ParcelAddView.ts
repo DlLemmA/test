@@ -1,7 +1,7 @@
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { parcelRepository } from "./infrastructure";
-import type { Parcel } from "./domain";
+import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { selectHtml } from "./ui/Select";
 import { unitsSelectHtml } from "./ui/UnitsSelect";
@@ -14,14 +14,7 @@ import { I, esc, money } from "@/core/utils";
 // Parcel Add View — two-step batch form
 // ============================================
 
-type BatchItem = {
-  name: string;
-  priceCNY: number;
-  priceBYN: number;
-  quantity: number;
-  unit: "pcs" | "packs" | "pairs";
-  customerId: number;
-};
+type BatchItem = BatchItemInput;
 
 type BatchState = {
   step: 1 | 2 | 3;
@@ -576,27 +569,30 @@ function renderStep3(root: HTMLElement, state: BatchState): void {
   const expectedCount = state.expectedItemsCount;
   const actualCount = state.items.length;
   const countMismatch = expectedCount !== null && expectedCount !== actualCount;
-  const itemCNY = state.items.reduce((sum, item) => sum + item.priceCNY, 0);
-  const itemBYN = state.items.reduce((sum, item) => sum + item.priceBYN, 0);
-  const diffCNY = state.totalCNY - itemCNY;
-  const diffBYN = state.totalBYN - itemBYN;
-  const overPaid = diffCNY < -0.005;
-  const absCNY = Math.abs(diffCNY);
-  const absBYN = Math.abs(diffBYN);
-  const hasDiff = absCNY > 0.005 || absBYN > 0.005;
-  const percent = itemCNY > 0 ? (absCNY / itemCNY) * 100 : 0;
+  const { review } = reconcileBatch(state.items, {
+    totalCNY: state.totalCNY,
+    totalBYN: state.totalBYN,
+  });
+  const overPaid = review.kind === "overpayment";
+  const hasDiff = review.kind !== "balanced";
 
-  const diffLabel = overPaid
-    ? "Добавлено сверх оплаты"
-    : hasDiff
-      ? "Комиссия (распределится по товарам)"
-      : "Не учтено";
-  const diffValue = hasDiff ? `${cny(absCNY)} · ${money(absBYN)}` : `${cny(0)} · ${money(0)}`;
-  const notice = overPaid
-    ? `Сумма товаров превышает оплату на ${cny(absCNY)} (${money(absBYN)}). Проверьте цены товаров.`
-    : hasDiff
-      ? `Похоже на комиссию сервиса оплаты: ${cny(absCNY)} (${percent.toFixed(1)}% от суммы товаров) = ${money(absBYN)}. При сохранении она будет добавлена к ценам товаров пропорционально их стоимости — каждый заказчик заплатит свою долю, а не только вы.`
-      : "Вся сумма распределена по товарам. Неучтённых BYN нет.";
+  const diffLabel = review.distributed
+    ? "Комиссия (распределится по товарам)"
+    : overPaid
+      ? "Добавлено сверх оплаты"
+      : hasDiff
+        ? "Разница не распределена"
+        : "Не учтено";
+  const diffValue = hasDiff
+    ? `${cny(review.absCNY)} · ${money(review.absBYN)}`
+    : `${cny(0)} · ${money(0)}`;
+  const notice = review.distributed
+    ? `Похоже на комиссию сервиса оплаты: ${cny(review.absCNY)} (${review.commissionPercent.toFixed(1)}% от суммы товаров) = ${money(review.absBYN)}. При сохранении она будет добавлена к ценам товаров пропорционально их стоимости — каждый заказчик заплатит свою долю, а не только вы.`
+    : overPaid
+      ? `Сумма товаров превышает оплату на ${cny(review.absCNY)} (${money(review.absBYN)}). Проверьте цены товаров.`
+      : hasDiff
+        ? `Разница ${cny(review.absCNY)} · ${money(review.absBYN)} не будет добавлена к ценам товаров: проверьте суммы в обеих валютах.`
+        : "Вся сумма распределена по товарам. Неучтённых BYN нет.";
 
   root.innerHTML = `
     <div class="page page-batch">
@@ -612,7 +608,7 @@ function renderStep3(root: HTMLElement, state: BatchState): void {
         <div class="check-row"><span>Курс</span><b>1 CNY = ${rate.toFixed(4)}</b></div>
         <div class="check-row"><span>Ожидалось товаров</span><b>${expectedCount ?? "—"}</b></div>
         <div class="check-row"><span>Товаров в партии</span><b>${actualCount}</b></div>
-        <div class="check-row"><span>Сумма товаров</span><b>${cny(itemCNY)} · ${money(itemBYN)}</b></div>
+        <div class="check-row"><span>Сумма товаров</span><b>${cny(review.itemCNY)} · ${money(review.itemBYN)}</b></div>
         <div class="check-row check-row--total"><span>${diffLabel}</span><b>${diffValue}</b></div>
       </div>
 
