@@ -14,12 +14,8 @@ import {
   parcelItemRepository,
   paymentRepository,
 } from "@/features/parcels/infrastructure";
-import {
-  Parcel,
-  ParcelItem,
-  calculateCustomerBalance,
-  paymentStateFromPayments,
-} from "@/features/parcels/domain";
+import { Parcel, ParcelItem, Payment, paymentStateFromPayments } from "@/features/parcels/domain";
+import { customerBalances } from "@/features/balances/domain";
 import { Customer } from "@/features/customers/domain";
 import { customerMark } from "./ui/CustomerMark";
 
@@ -33,8 +29,9 @@ export async function renderCustomersView(): Promise<void> {
   const allPayments = await paymentRepository.findAll();
 
   // Pre-calculate balances for all customers
-  const balances = await Promise.all(
-    customers.map((c) => calculateCustomerTotalBalance(c.id, parcels, allItems, allPayments)),
+  const selfCustomerId = customers.find((c) => c.isSelf)?.id;
+  const balances = customers.map((c) =>
+    calculateCustomerTotalBalance(c.id, parcels, allItems, allPayments, selfCustomerId),
   );
 
   const debtors = balances.filter((b) => b.remaining > 0).length;
@@ -95,26 +92,15 @@ export async function renderCustomersView(): Promise<void> {
   bindActions(root);
 }
 
-async function calculateCustomerTotalBalance(
+function calculateCustomerTotalBalance(
   customerId: number,
   parcels: Parcel[],
   items: ParcelItem[],
-  payments: Array<{
-    id: number;
-    parcelId: number;
-    customerId: number;
-    itemId?: number;
-    type: "item" | "shipping";
-    paid: boolean;
-    paidAt?: string;
-    createdAt: string;
-  }>,
-): Promise<{ owed: number; paid: number; remaining: number; parcelCount: number }> {
+  payments: Payment[],
+  selfCustomerId?: number,
+): { owed: number; paid: number; remaining: number; parcelCount: number } {
   const customerItems = items.filter((i) => i.customerId === customerId);
   const customerPayments = payments.filter((p) => p.customerId === customerId);
-  const selfCustomer = await customerService.getSelfCustomer();
-  const selfCustomerId = selfCustomer?.id;
-
   const parcelsWithItems = new Set<number>();
   let totalOwed = 0;
   let totalPaid = 0;
@@ -129,16 +115,13 @@ async function calculateCustomerTotalBalance(
     // otherwise shipping flags from other parcels overwrite each other.
     const parcelItems = items.filter((i) => i.parcelId === parcel.id);
     const parcelPayments = customerPayments.filter((p) => p.parcelId === parcel.id);
-    const paymentState = paymentStateFromPayments(parcelPayments as any);
-
-    const balances = calculateCustomerBalance(
-      parcelItems,
-      [{ id: customerId, name: "", isSelf: false }] as any,
+    const paymentState = paymentStateFromPayments(parcelPayments);
+    const balance = customerBalances({
       parcel,
+      items: parcelItems,
       paymentState,
       selfCustomerId,
-    );
-    const balance = balances.get(customerId);
+    }).byCustomer.get(customerId);
     if (balance) {
       totalOwed += balance.owed;
       totalPaid += balance.paid;

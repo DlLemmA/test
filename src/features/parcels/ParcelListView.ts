@@ -171,17 +171,21 @@ export async function exportParcel(parcel: Parcel): Promise<void> {
   if (!window.XLSX) return;
 
   // Import here to avoid circular deps
-  const { parcelItemRepository } = await import("./infrastructure");
-  const { calculateCustomerBalance, createEmptyPaymentState } = await import("./domain");
+  const { parcelItemRepository, paymentRepository } = await import("./infrastructure");
+  const { paymentStateFromPayments } = await import("./domain");
+  const { customerBalances } = await import("@/features/balances/domain");
   const { customerRepository } = await import("@/features/customers/infrastructure");
-  const { customerService } = await import("@/features/shared/services");
 
   const items = await parcelItemRepository.findByParcelId(parcel.id);
   const customers = await customerRepository.findAll();
-  const selfCustomer = await customerService.getSelfCustomer();
-  const selfCustomerId = selfCustomer?.id;
-  const paymentState = createEmptyPaymentState();
-  const balances = calculateCustomerBalance(items, customers, parcel, paymentState, selfCustomerId);
+  const payments = (await paymentRepository.findAll()).filter((p) => p.parcelId === parcel.id);
+  const selfCustomerId = customers.find((customer) => customer.isSelf)?.id;
+  const balance = customerBalances({
+    parcel,
+    items,
+    paymentState: paymentStateFromPayments(payments),
+    selfCustomerId,
+  });
 
   const wb = window.XLSX.utils.book_new();
   const rows: (string | number)[][] = [];
@@ -210,17 +214,17 @@ export async function exportParcel(parcel: Parcel): Promise<void> {
     "Остаток, BYN",
   ]);
   const customerMap = new Map(customers.map((c) => [c.id, c]));
-  for (const [customerId, balance] of balances) {
+  for (const [customerId, customerBalance] of balance.byCustomer) {
     const customer = customerMap.get(customerId);
     const customerItems = items.filter((i) => i.customerId === customerId);
     rows.push([
       customer?.name || "",
       customerItems.length,
-      money(balance.owed - (parcel.shippingCostBYN ? balance.owed * 0.3 : 0)), // approximate
-      money(parcel.shippingCostBYN ? balance.owed * 0.3 : 0),
-      money(balance.owed),
-      money(balance.paid),
-      money(balance.remaining),
+      money(customerBalance.goods.owed),
+      money(customerBalance.delivery.owed),
+      money(customerBalance.owed),
+      money(customerBalance.paid),
+      money(customerBalance.remaining),
     ]);
   }
   rows.push([]);

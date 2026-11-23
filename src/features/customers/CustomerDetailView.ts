@@ -9,14 +9,12 @@ import {
   parcelItemRepository,
   paymentRepository,
 } from "@/features/parcels/infrastructure";
+import { ParcelItem, Parcel, Payment, paymentStateFromPayments } from "@/features/parcels/domain";
 import {
-  ParcelItem,
-  Parcel,
-  Payment,
-  calculateCustomerBalance,
-  itemShippingShare,
-  paymentStateFromPayments,
-} from "@/features/parcels/domain";
+  customerBalances,
+  deliveryEnabled,
+  emptyCustomerBalance,
+} from "@/features/balances/domain";
 import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
 import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
 import { Customer } from "@/features/customers/domain";
@@ -71,7 +69,7 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
     return {
       parcel,
       parcelItems,
-      paymentState: paymentStateFromPayments(parcelPayments as Payment[]),
+      paymentState: paymentStateFromPayments(parcelPayments),
     };
   };
 
@@ -83,14 +81,12 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
   for (const parcelId of itemsByParcel.keys()) {
     const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
     if (!parcel) continue;
-    const balances = calculateCustomerBalance(
-      parcelItems,
-      [customer as any],
+    const balance = customerBalances({
       parcel,
+      items: parcelItems,
       paymentState,
       selfCustomerId,
-    );
-    const balance = balances.get(customerId);
+    }).byCustomer.get(customerId);
     if (balance) {
       totalOwed += balance.owed;
       totalPaid += balance.paid;
@@ -107,14 +103,13 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
       const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
       if (!parcel) return "";
 
-      const balances = calculateCustomerBalance(
-        parcelItems,
-        [customer as any],
+      const calculation = customerBalances({
         parcel,
+        items: parcelItems,
         paymentState,
         selfCustomerId,
-      );
-      const balance = balances.get(customerId) || { owed: 0, paid: 0, remaining: 0 };
+      });
+      const balance = calculation.byCustomer.get(customerId) || emptyCustomerBalance();
 
       const itemsList = items
         .map((item) => {
@@ -122,7 +117,7 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
             (p) => p.type === "item" && p.itemId === item.id,
           );
           const isItemPaid = isSelf || !!itemPayment?.paid;
-          const deliveryShare = itemShippingShare(item, parcelItems, parcel);
+          const deliveryShare = calculation.deliveryByItem.get(item.id) || 0;
           const priceWithDelivery = item.totalPriceBYN + deliveryShare;
 
           return `
@@ -152,10 +147,8 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
       );
       const isShippingPaid = isSelf || !!shippingPayment?.paid;
 
-      const showShipping =
-        (parcel.status === "received" || parcel.status === "done") && !!parcel.shippingCostBYN;
-      const itemTotal = items.reduce((s, i) => s + i.totalPriceBYN, 0);
-      const shippingShare = showShipping ? balance.owed - itemTotal : 0;
+      const showShipping = deliveryEnabled(parcel);
+      const shippingShare = balance.delivery.owed;
       const parcelPaid = allItemsPaid && (!showShipping || isShippingPaid);
       const parcelLabel = parcel.name || `Посылка #${parcel.id}`;
       const date = parcelDate(parcel.shippedAt);

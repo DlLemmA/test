@@ -14,14 +14,8 @@ import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
 import { I, esc, kg, money, t } from "@/core/utils";
-import {
-  Parcel,
-  ParcelItem,
-  type ParcelItemUpdateInput,
-  type PaymentState,
-  createEmptyPaymentState,
-  calculateCustomerBalance,
-} from "./domain";
+import { Parcel, ParcelItem, type ParcelItemUpdateInput, type PaymentState } from "./domain";
+import type { CustomerBalance } from "@/features/balances/domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { selectHtml } from "./ui/Select";
@@ -98,7 +92,7 @@ export async function renderParcelDetailView(): Promise<void> {
     return;
   }
 
-  const { parcel, items, customers, balances, paymentState } = result;
+  const { parcel, items, customers, balance, paymentState } = result;
 
   if (itemSearchAnnounceTimer) {
     clearTimeout(itemSearchAnnounceTimer);
@@ -149,7 +143,7 @@ export async function renderParcelDetailView(): Promise<void> {
         </div>
       </section>
 
-      ${renderCalculation(parcel, items, balances, tariffPerKg, boxWeight)}
+      ${renderCalculation(parcel, items, balance.byCustomer, tariffPerKg, boxWeight)}
 
       <div class="detail-action">${primaryAction(parcel, items)}</div>
 
@@ -180,20 +174,28 @@ export async function renderParcelDetailView(): Promise<void> {
           ${parcel.status === "draft" ? `<button type="button" class="text-btn" id="addItem">${I.plus} Добавить</button>` : ""}
         </header>
         <div id="parcelItemsList">
-          ${renderItemGroups(items, parcel, customers, balances, paymentState, openCustomerGroups)}
+          ${renderItemGroups(
+            items,
+            parcel,
+            customers,
+            balance.byCustomer,
+            balance.deliveryByItem,
+            paymentState,
+            openCustomerGroups,
+          )}
           ${items.length > 0 ? '<p class="empty item-search__empty" id="parcelItemNoResults" hidden>Ничего не найдено. Измените запрос.</p>' : ""}
         </div>
       </section>
     </div>
   `;
 
-  bindParcelDetailActions(parcel, items, customers, balances, paymentState);
+  bindParcelDetailActions(parcel, items, customers, paymentState);
 }
 
 function renderCalculation(
   parcel: Parcel,
   items: ParcelItem[],
-  balances: Map<number, { owed: number; paid: number; remaining: number }>,
+  balances: Map<number, CustomerBalance>,
   tariffPerKg: number,
   boxWeight: number,
 ): string {
@@ -301,7 +303,6 @@ function bindParcelDetailActions(
   parcel: Parcel,
   items: ParcelItem[],
   customers: Customer[],
-  balances: Map<number, { owed: number; paid: number; remaining: number }>,
   paymentState: PaymentState,
 ): void {
   document.getElementById("backToParcels")?.addEventListener("click", () => {

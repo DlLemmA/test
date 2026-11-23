@@ -1,7 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 
-import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   base: "/test/",
@@ -9,6 +9,14 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
+  test: {
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "json-summary", "html", "lcov"],
+      reportsDirectory: "coverage",
+      include: ["src/**/*.ts"],
     },
   },
 });

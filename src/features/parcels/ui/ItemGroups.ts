@@ -1,13 +1,16 @@
 import { I, esc, kg, money, t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
 import { customerMark } from "@/features/customers/ui/CustomerMark";
-import { itemShippingShare, type Parcel, type ParcelItem, type PaymentState } from "../domain";
+import type { Parcel, ParcelItem, PaymentState } from "../domain";
+import {
+  deliveryEnabled,
+  emptyCustomerBalance,
+  type CustomerBalance,
+} from "@/features/balances/domain";
 import { parcelItemStatusInfo } from "./ParcelStatusInfo";
 
 const ITEMS_FORMS = "нет товаров | {count} товар | {count} товара | {count} товаров";
 const TRACKS_FORMS = "треков | трек | трека | треков";
-
-export type CustomerBalance = { owed: number; paid: number; remaining: number };
 
 export type ItemGroupsSearchResult = {
   visible: number;
@@ -39,7 +42,7 @@ function renderCustomerGroup(
     0,
   );
   const itemTotal = customerItems.reduce((sum, item) => sum + item.totalPriceBYN, 0);
-  const shippingShare = balance.owed - itemTotal;
+  const shippingShare = balance.delivery.owed;
   const goodsPaid = isSelf || customerItems.every((i) => paymentState.itemPaid.get(i.id));
   const deliveryPaid = isSelf || paymentState.shippingPaid.get(customerId) || false;
   const canToggleGoods = !isSelf && parcel.status !== "draft";
@@ -64,7 +67,7 @@ function renderCustomerGroup(
             <span>Товары: ${goodsPaid ? "оплачено" : "не оплачено"}</span>
           </label>
           ${
-            parcel.shippingCostBYN
+            deliveryEnabled(parcel)
               ? `<label class="payment-bullet ${deliveryPaid ? "is-paid" : ""} ${canPayShipping ? "" : "is-locked"}">
                   <input type="checkbox" class="shipping-paid" data-customer="${customerId}" ${deliveryPaid ? "checked" : ""} ${canPayShipping ? "" : "disabled"}>
                   <span>Доставка: ${deliveryPaid ? "оплачено" : "не оплачено"}</span>
@@ -79,7 +82,7 @@ function renderCustomerGroup(
 
 function itemHtml(
   item: ParcelItem,
-  parcelItems: ParcelItem[],
+  deliveryByItem: Map<number, number>,
   parcel: Parcel,
   customer: Customer | undefined,
   paymentState: PaymentState,
@@ -111,7 +114,7 @@ function itemHtml(
       : `<span class="parcel-entry__state state-${status.class}">${esc(status.label)}</span>`;
   const isSelf = customer?.isSelf || false;
   const itemPaid = isSelf || paymentState?.itemPaid.get(item.id) || false;
-  const deliveryShare = itemShippingShare(item, parcelItems, parcel);
+  const deliveryShare = deliveryByItem.get(item.id) || 0;
   const showWeights = parcel.status === "received" || parcel.status === "done";
   const trackLines =
     item.trackNumbers
@@ -200,6 +203,7 @@ export function renderItemGroups(
   parcel: Parcel,
   customers: Customer[],
   balances: Map<number, CustomerBalance>,
+  deliveryByItem: Map<number, number>,
   paymentState: PaymentState,
   openCustomerGroups: ReadonlySet<number>,
 ): string {
@@ -215,7 +219,7 @@ export function renderItemGroups(
 
   // Positions follow the rendered order, not the original array indices.
   let position = 0;
-  const zeroBalance: CustomerBalance = { owed: 0, paid: 0, remaining: 0 };
+  const zeroBalance = emptyCustomerBalance();
   return Array.from(groups.entries())
     .map(([customerId, groupItems]) => {
       return `
@@ -232,7 +236,7 @@ export function renderItemGroups(
               .map((item) =>
                 itemHtml(
                   item,
-                  items,
+                  deliveryByItem,
                   parcel,
                   customerMap.get(item.customerId),
                   paymentState,

@@ -8,11 +8,10 @@ import {
   Parcel,
   ParcelItem,
   Payment,
-  calculateCustomerBalance,
   type PaymentState,
-  createEmptyPaymentState,
   paymentStateFromPayments,
 } from "@/features/parcels/domain";
+import { customerBalances, type CustomerBalanceResult } from "@/features/balances/domain";
 import { ParcelService } from "@/features/parcels/services/ParcelService";
 import { ParcelItemService } from "@/features/parcels/services/ParcelItemService";
 import { PaymentService } from "@/features/parcels/services/PaymentService";
@@ -56,7 +55,7 @@ export async function getParcelWithCalculation(parcelId: number): Promise<{
   parcel: Parcel;
   items: ParcelItem[];
   customers: Customer[];
-  balances: Map<number, { owed: number; paid: number; remaining: number }>;
+  balance: CustomerBalanceResult;
   paymentState: PaymentState;
   payments: Payment[];
 } | null> {
@@ -66,21 +65,19 @@ export async function getParcelWithCalculation(parcelId: number): Promise<{
   const customers = await customerRepository.findAll();
   const payments = await paymentService.getPaymentsForParcel(parcelId);
   const paymentState = paymentStateFromPayments(payments);
-  const selfCustomer = await customerService.getSelfCustomer();
-  const selfCustomerId = selfCustomer?.id;
-  const balances = calculateCustomerBalance(
-    result.items,
-    customers,
-    result.parcel,
+  const selfCustomerId = customers.find((customer) => customer.isSelf)?.id;
+  const balance = customerBalances({
+    parcel: result.parcel,
+    items: result.items,
     paymentState,
     selfCustomerId,
-  );
+  });
 
   return {
     parcel: result.parcel,
     items: result.items,
     customers,
-    balances,
+    balance,
     paymentState,
     payments,
   };
@@ -284,7 +281,6 @@ export async function completeParcelTracks(parcelId: number): Promise<Parcel> {
 
 // Re-export for convenience
 export {
-  calculateCustomerBalance,
   createEmptyPaymentState,
   type PaymentState,
   paymentStateFromPayments,
