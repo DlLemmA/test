@@ -265,3 +265,28 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   expect(renders.parcelView).toBe(1);
   expect(renders.bottombar).toBe(1);
 });
+
+test("customer drawer creates, validates and edits a customer", async ({ page }) => {
+  await page.goto("/#people");
+  await expect(page.locator(".page-customers")).toBeVisible();
+
+  await page.locator("#addCustomer").click();
+  await expect(page.locator("#customerForm")).toBeVisible();
+
+  await page.locator("#customerForm button[type='submit']").click();
+  await expect(page.locator("#customerNameError")).toHaveText("Укажите имя заказчика");
+
+  await page.locator("#customerName").fill("Проверка");
+  await expect(page.locator("#customerNameError")).toBeHidden();
+  await page.locator("#customerForm button[type='submit']").click();
+
+  await expect(page.locator("#toastContainer")).toContainText("Заказчик сохранён");
+  const row = page.locator(".customer-index li").filter({ hasText: "Проверка" });
+  await expect(row).toBeVisible();
+
+  await row.locator("[data-edit-customer]").click();
+  await expect(page.locator("#customerName")).toHaveValue("Проверка");
+  await page.locator("#customerName").fill("Проверка 2");
+  await page.locator("#customerForm button[type='submit']").click();
+  await expect(page.locator(".customer-index")).toContainText("Проверка 2");
+});

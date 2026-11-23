@@ -1,22 +1,30 @@
 <script setup lang="ts">
-import { onUnmounted, shallowRef } from "vue";
+import { computed, shallowRef } from "vue";
 import { useRenderRefresh } from "@/app/useRenderRefresh";
 import type { VueViewProps } from "@/app/mountVueView";
-import { router } from "@/core/state";
+import { router, toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
 import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
 import { getCustomerStatements } from "@/features/statements/service";
 import type { CustomerStatement } from "@/features/statements/service";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import CustomerForm from "./ui/CustomerForm.vue";
 import { SELF_SUFFIX } from "./ui/CustomerPresentation";
 import CustomerMark from "./ui/CustomerMark.vue";
-import { openCustomerForm } from "./ui/customerForm";
 
 const props = defineProps<VueViewProps>();
 const statements = shallowRef<CustomerStatement[]>([]);
-const lifetime = new AbortController();
+const formTarget = shallowRef<number | "new" | null>(null);
 
-onUnmounted(() => lifetime.abort());
+const formOpen = computed({
+  get: () => formTarget.value !== null,
+  set: (open: boolean) => {
+    if (!open) formTarget.value = null;
+  },
+});
+const formCustomer = computed(
+  () => statements.value.find((statement) => statement.customer.id === formTarget.value)?.customer,
+);
 
 const refresh = useRenderRefresh(props, async (signal) => {
   const facts = await getCustomerStatements();
@@ -25,6 +33,12 @@ const refresh = useRenderRefresh(props, async (signal) => {
 
 function openCustomer(id: number): void {
   router.navigate("customer", { customerId: String(id) });
+}
+
+function onSaved(): void {
+  formTarget.value = null;
+  refresh();
+  toastState.add({ message: "Заказчик сохранён", type: "success" });
 }
 
 function balanceAmount(statement: CustomerStatement): string {
@@ -82,7 +96,7 @@ function balanceAmount(statement: CustomerStatement): string {
               class="btn-icon btn-secondary customer-edit"
               :data-edit-customer="statement.customer.id"
               :aria-label="`Редактировать заказчика ${statement.customer.name}`"
-              @click="openCustomerForm(statement.customer.id, lifetime.signal, refresh)"
+              @click="formTarget = statement.customer.id"
             >
               <AppIcon name="pencil" />
             </button>
@@ -93,14 +107,16 @@ function balanceAmount(statement: CustomerStatement): string {
     <div v-else class="empty">Нет заказчиков. Нажмите «Добавить заказчика», чтобы начать.</div>
 
     <div class="form-actions form-actions--final">
-      <button
-        type="button"
-        class="btn-primary w-full"
-        id="addCustomer"
-        @click="openCustomerForm(undefined, lifetime.signal, refresh)"
-      >
+      <button type="button" class="btn-primary w-full" id="addCustomer" @click="formTarget = 'new'">
         <AppIcon name="plus" /> Добавить заказчика
       </button>
     </div>
+
+    <CustomerForm
+      v-model:open="formOpen"
+      :customer="formCustomer"
+      :is-new="formTarget === 'new'"
+      @saved="onSaved"
+    />
   </div>
 </template>
