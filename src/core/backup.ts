@@ -1,17 +1,26 @@
 // ============================================
 // Backup / Restore (JSON)
+// The store seam keeps parsing and id-remapping testable without IndexedDB;
+// the Dexie adapter uses the shared transactional replace from dbSchema.
 // ============================================
 
+import { db } from "./database";
 import {
-  db,
+  BACKUP_FORMAT,
+  BACKUP_VERSION,
+  ITEM_STATUSES,
+  PARCEL_STATUSES,
+  PAYMENT_TYPES,
+  UNITS,
+  numberArray,
+  stringArray,
+  replaceAll,
   type CustomerRow,
   type ParcelRow,
   type ParcelItemRow,
   type PaymentRow,
-} from "./database";
-
-const FORMAT = "pinduoduo-backup";
-const VERSION = 1;
+  type DbSnapshot,
+} from "./dbSchema";
 
 export interface BackupData {
   format: string;
@@ -30,22 +39,45 @@ export interface ImportResult {
   payments: number;
 }
 
-export async function createBackup(): Promise<BackupData> {
-  const [customers, parcels, parcelItems, payments] = await Promise.all([
-    db.customers.toArray(),
-    db.parcels.toArray(),
-    db.parcelItems.toArray(),
-    db.payments.toArray(),
-  ]);
+/** The only storage boundary backup knows about. */
+export interface BackupStore {
+  snapshot(): Promise<DbSnapshot>;
+  replace(snapshot: DbSnapshot): Promise<void>;
+}
 
+export const dexieBackupStore: BackupStore = {
+  async snapshot() {
+    const [customers, parcels, parcelItems, payments] = await Promise.all([
+      db.customers.toArray(),
+      db.parcels.toArray(),
+      db.parcelItems.toArray(),
+      db.payments.toArray(),
+    ]);
+    return { customers, parcels, parcelItems, payments };
+  },
+  async replace(snapshot) {
+    await replaceAll(db, snapshot);
+  },
+};
+
+let store: BackupStore = dexieBackupStore;
+
+/** Test seam: swap the store without touching IndexedDB. */
+export function setBackupStore(next: BackupStore): () => void {
+  const previous = store;
+  store = next;
+  return () => {
+    store = previous;
+  };
+}
+
+export async function createBackup(): Promise<BackupData> {
+  const data = await store.snapshot();
   return {
-    format: FORMAT,
-    version: VERSION,
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
-    customers,
-    parcels,
-    parcelItems,
-    payments,
+    ...data,
   };
 }
 
@@ -127,21 +159,22 @@ function oneOf<T extends string>(
   return value as T;
 }
 
-function jsonArrayString(row: UnknownRow, key: string, label: string): string {
-  const value = optionalText(row, key, label) ?? "[]";
+/** Decode through the shared codec, then re-encode so storage stays canonical. */
+function jsonField(
+  row: UnknownRow,
+  key: string,
+  label: string,
+  codec: { decode(value: string | null | undefined): unknown[]; encode(value: never[]): string },
+): string {
+  const raw = optionalText(row, key, label) ?? "[]";
   try {
-    if (!Array.isArray(JSON.parse(value))) throw new Error();
+    return codec.encode(codec.decode(raw) as never[]);
   } catch {
     throw new Error(`${label}.${key}: ожидается JSON-массив`);
   }
-  return value;
 }
 
-const PARCEL_STATUSES = ["draft", "shipped", "received", "done"] as const;
-const ITEM_STATUSES = ["ordered", "shipped", "received", "lost"] as const;
-const PAYMENT_TYPES = ["item", "shipping"] as const;
-
-function parseBackup(text: string): BackupData {
+export function parseBackup(text: string): BackupData {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -153,12 +186,13 @@ function parseBackup(text: string): BackupData {
   }
   const root = raw as UnknownRow;
   // Старые копии сохранялись без полей format/version — принимаем и их.
-  if (root.format !== undefined && root.format !== FORMAT) {
+  if (root.format !== undefined && root.format !== BACKUP_FORMAT) {
     throw new Error("Неизвестный формат резервной копии");
   }
-  const version = root.version === undefined ? VERSION : requiredNumber(root, "version", "backup");
-  if (version > VERSION) {
-    throw new Error(`Версия копии ${version} новее поддерживаемой (${VERSION})`);
+  const version =
+    root.version === undefined ? BACKUP_VERSION : requiredNumber(root, "version", "backup");
+  if (version > BACKUP_VERSION) {
+    throw new Error(`Версия копии ${version} новее поддерживаемой (${BACKUP_VERSION})`);
   }
 
   const now = new Date().toISOString();
@@ -197,10 +231,10 @@ function parseBackup(text: string): BackupData {
       priceCNY: optionalNumber(row, "priceCNY", label) ?? 0,
       priceBYN: requiredNumber(row, "priceBYN", label),
       quantity: requiredNumber(row, "quantity", label),
-      unit: oneOf(row, "unit", ["pcs", "packs", "pairs"] as const, label),
+      unit: oneOf(row, "unit", UNITS, label),
       customerId: requiredNumber(row, "customerId", label),
-      trackNumbers: jsonArrayString(row, "trackNumbers", label),
-      weightsG: jsonArrayString(row, "weightsG", label),
+      trackNumbers: jsonField(row, "trackNumbers", label, stringArray),
+      weightsG: jsonField(row, "weightsG", label, numberArray),
       status: oneOf(row, "status", ITEM_STATUSES, label),
       tracksCompletedAt: optionalText(row, "tracksCompletedAt", label),
       createdAt: optionalText(row, "createdAt", label) ?? now,
@@ -222,8 +256,8 @@ function parseBackup(text: string): BackupData {
   });
 
   return {
-    format: FORMAT,
-    version: VERSION,
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
     exportedAt: optionalText(root, "exportedAt", "backup") ?? now,
     customers,
     parcels,
@@ -248,8 +282,8 @@ function resolveId(map: Map<number, number>, id: number | undefined, label: stri
   return resolved;
 }
 
-export async function importBackup(text: string): Promise<ImportResult> {
-  const data = parseBackup(text);
+/** Resolve backup-local ids to fresh ids, then hand the whole snapshot to the seam. */
+export function resolveBackupIds(data: BackupData): DbSnapshot {
   checkUniqueIds(data.customers, "customers");
   checkUniqueIds(data.parcels, "parcels");
   checkUniqueIds(data.parcelItems, "parcelItems");
@@ -258,67 +292,45 @@ export async function importBackup(text: string): Promise<ImportResult> {
   const customerIds = new Map<number, number>();
   const parcelIds = new Map<number, number>();
   const itemIds = new Map<number, number>();
+  let nextId = 1;
 
-  await db.transaction("rw", db.customers, db.parcels, db.parcelItems, db.payments, async () => {
-    await Promise.all([
-      db.customers.clear(),
-      db.parcels.clear(),
-      db.parcelItems.clear(),
-      db.payments.clear(),
-    ]);
-
-    for (const row of data.customers) {
-      const newId = await db.customers.add({ name: row.name, isSelf: row.isSelf });
-      if (row.id !== undefined) customerIds.set(row.id, newId);
-    }
-
-    for (const row of data.parcels) {
-      const newId = await db.parcels.add({
-        name: row.name,
-        status: row.status,
-        comment: row.comment,
-        boxWeightG: row.boxWeightG,
-        shippingCostBYN: row.shippingCostBYN,
-        shippedAt: row.shippedAt,
-        receivedAt: row.receivedAt,
-        completedAt: row.completedAt,
-        createdAt: row.createdAt,
-      });
-      if (row.id !== undefined) parcelIds.set(row.id, newId);
-    }
-
-    for (const row of data.parcelItems) {
-      const newId = await db.parcelItems.add({
-        parcelId: resolveId(parcelIds, row.parcelId, "товар.parcelId"),
-        name: row.name,
-        priceCNY: row.priceCNY,
-        priceBYN: row.priceBYN,
-        quantity: row.quantity,
-        unit: row.unit,
-        customerId: resolveId(customerIds, row.customerId, "товар.customerId"),
-        trackNumbers: row.trackNumbers,
-        weightsG: row.weightsG,
-        status: row.status,
-        tracksCompletedAt: row.tracksCompletedAt,
-        createdAt: row.createdAt,
-      });
-      if (row.id !== undefined) itemIds.set(row.id, newId);
-    }
-
-    for (const row of data.payments) {
-      await db.payments.add({
-        parcelId: resolveId(parcelIds, row.parcelId, "платёж.parcelId"),
-        customerId: resolveId(customerIds, row.customerId, "платёж.customerId"),
-        itemId:
-          row.itemId === undefined ? undefined : resolveId(itemIds, row.itemId, "платёж.itemId"),
-        type: row.type,
-        paid: row.paid,
-        paidAt: row.paidAt,
-        createdAt: row.createdAt,
-      });
-    }
+  const customers = data.customers.map((row) => {
+    const id = nextId++;
+    if (row.id !== undefined) customerIds.set(row.id, id);
+    return { ...row, id };
   });
 
+  const parcels = data.parcels.map((row) => {
+    const id = nextId++;
+    if (row.id !== undefined) parcelIds.set(row.id, id);
+    return { ...row, id };
+  });
+
+  const parcelItems = data.parcelItems.map((row) => {
+    const id = nextId++;
+    if (row.id !== undefined) itemIds.set(row.id, id);
+    return {
+      ...row,
+      id,
+      parcelId: resolveId(parcelIds, row.parcelId, "товар.parcelId"),
+      customerId: resolveId(customerIds, row.customerId, "товар.customerId"),
+    };
+  });
+
+  const payments = data.payments.map((row) => ({
+    ...row,
+    id: nextId++,
+    parcelId: resolveId(parcelIds, row.parcelId, "платёж.parcelId"),
+    customerId: resolveId(customerIds, row.customerId, "платёж.customerId"),
+    itemId: row.itemId === undefined ? undefined : resolveId(itemIds, row.itemId, "платёж.itemId"),
+  }));
+
+  return { customers, parcels, parcelItems, payments };
+}
+
+export async function importBackup(text: string): Promise<ImportResult> {
+  const data = parseBackup(text);
+  await store.replace(resolveBackupIds(data));
   return {
     customers: data.customers.length,
     parcels: data.parcels.length,

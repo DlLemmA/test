@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 5,
+  "backupFormat": "pinduoduo-backup",
+  "backupVersion": 1,
+  "tables": ["customers", "parcels", "parcelItems", "payments"],
+  "stores": {
+    "customers": "++id, name, isSelf",
+    "parcels": "++id, status, createdAt, shippedAt, receivedAt, completedAt",
+    "parcelItems": "++id, parcelId, customerId, status, createdAt",
+    "payments": "++id, parcelId, customerId, itemId, type"
+  },
+  "parcelStatuses": ["draft", "shipped", "received", "done"],
+  "itemStatuses": ["ordered", "shipped", "received", "lost"],
+  "paymentTypes": ["item", "shipping"],
+  "units": ["pcs", "packs", "pairs"],
+  "cnyToByn": 0.13,
+  "jsonFields": ["trackNumbers", "weightsG"],
+  "selfCustomerName": "Марина"
+}

@@ -1,58 +1,26 @@
 import Dexie, { type Table } from "dexie";
+import {
+  type CustomerRow,
+  type ParcelRow,
+  type ParcelItemRow,
+  type PaymentRow,
+  SCHEMA_VERSION,
+  STORES,
+} from "./dbSchema";
 
-// ============================================
-// Database Row Types
-// ============================================
-
-export interface CustomerRow {
-  id?: number;
-  name: string;
-  isSelf: boolean;
-}
-
-export interface ParcelRow {
-  id?: number;
-  name?: string;
-  status: ParcelStatus;
-  comment?: string; // свободный текст: заметки, долги, пожелания
-  boxWeightG?: number;
-  shippingCostBYN?: number;
-  shippedAt?: string;
-  receivedAt?: string;
-  completedAt?: string; // when all tracks filled
-  createdAt: string;
-}
-
-export type ParcelStatus = "draft" | "shipped" | "received" | "done";
-
-export interface ParcelItemRow {
-  id?: number;
-  parcelId: number;
-  name: string;
-  priceCNY: number;
-  priceBYN: number;
-  quantity: number;
-  unit: "pcs" | "packs" | "pairs";
-  customerId: number;
-  trackNumbers: string; // JSON string[]
-  weightsG: string; // JSON number[]
-  status: ParcelItemStatus;
-  tracksCompletedAt?: string; // when all tracks filled (timestamp)
-  createdAt: string;
-}
-
-export type ParcelItemStatus = "ordered" | "shipped" | "received" | "lost";
-
-export interface PaymentRow {
-  id?: number;
-  parcelId: number;
-  customerId: number;
-  itemId?: number; // null = shipping payment
-  type: "item" | "shipping";
-  paid: boolean;
-  paidAt?: string;
-  createdAt: string;
-}
+// Row shapes and status strings belong to dbSchema; re-exported here so
+// existing feature imports stay stable.
+export type {
+  CustomerRow,
+  ParcelRow,
+  ParcelItemRow,
+  PaymentRow,
+  ParcelStatus,
+  ParcelItemStatus,
+  PaymentType,
+  Unit,
+} from "./dbSchema";
+export { PARCEL_STATUSES, ITEM_STATUSES, PAYMENT_TYPES, UNITS, CNY_TO_BYN } from "./dbSchema";
 
 // ============================================
 // Dexie Database Class
@@ -102,15 +70,8 @@ export class AppDatabase extends Dexie {
         });
       });
 
-    // v5: priceCNY/priceBYN now store the total for the whole line (quantity
-    // included) instead of a per-unit price. Existing rows are left as-is: they
-    // already contain the amount the user entered for the line.
-    this.version(5).stores({
-      customers: "++id, name, isSelf",
-      parcels: "++id, status, createdAt, shippedAt, receivedAt, completedAt",
-      parcelItems: "++id, parcelId, customerId, status, createdAt",
-      payments: "++id, parcelId, customerId, itemId, type",
-    });
+    // Current schema: one descriptor owns the store strings.
+    this.version(SCHEMA_VERSION).stores(STORES);
 
     // Hook to auto-set createdAt for parcels
     this.parcels.hook("creating", (_primKey, obj, _trans) => {

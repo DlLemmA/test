@@ -40,6 +40,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Generated console constants are current
+        run: npm run schema:codegen && git diff --exit-code seed-console.js
+
       - name: Test with coverage
         run: npm run coverage
 

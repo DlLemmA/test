@@ -8,9 +8,23 @@
 // и трек-номера придуманы, чтобы показать все статусы и расчёты.
 
 import { db } from "./database";
-import type { ParcelStatus } from "@/core/database";
-import { Customer } from "@/features/customers/domain";
-import { Parcel, ParcelItem, Payment } from "@/features/parcels/domain";
+import {
+  CNY_TO_BYN,
+  ITEM_STATUSES,
+  PARCEL_STATUSES,
+  SELF_CUSTOMER_NAME,
+  UNITS,
+  numberArray,
+  replaceAll,
+  stringArray,
+  type CustomerRow,
+  type ParcelRow,
+  type ParcelItemRow,
+  type PaymentRow,
+  type ParcelStatus,
+  type ParcelItemStatus,
+  type Unit,
+} from "./dbSchema";
 
 type CustomerKey =
   | "marina"
@@ -24,7 +38,7 @@ type CustomerKey =
   | "natasha"
   | "nazar";
 
-type SeedItemStatus = "received" | "shipped" | "ordered" | "lost";
+type SeedItemStatus = ParcelItemStatus;
 
 interface SeedItem {
   name: string;
@@ -32,7 +46,7 @@ interface SeedItem {
   weightKg: number;
   customer: CustomerKey;
   qty?: number;
-  unit?: "pcs" | "packs" | "pairs";
+  unit?: Unit;
   tracks?: string[];
   noWeight?: boolean;
   paid?: boolean;
@@ -65,8 +79,7 @@ const CUSTOMERS: Record<CustomerKey, string> = {
   nazar: "Назар",
 };
 
-// Курс из старых демо-данных: 1 CNY ≈ 0,13 BYN.
-const CNY_TO_BYN = 0.13;
+// Курс живёт в схеме БД; демо-данные используют то же значение, что и приложение.
 const priceCNY = (byn: number) => Math.round(byn / CNY_TO_BYN);
 
 const it = (
@@ -476,27 +489,34 @@ export async function seedDemo(force = false): Promise<void> {
       console.log("Demo data already exists, skipping seed (use force=true to override)");
       return;
     }
-  } else {
-    await db.customers.clear();
-    await db.parcels.clear();
-    await db.parcelItems.clear();
-    await db.payments.clear();
   }
 
   console.log("Seeding demo data...");
   trackCounter = 0;
 
+  // Build the whole snapshot first: nothing is written until it is complete.
+  const customerRows: CustomerRow[] = [];
+  const parcelRows: ParcelRow[] = [];
+  const itemRows: ParcelItemRow[] = [];
+  const paymentRows: PaymentRow[] = [];
+  let nextId = 1;
+
   const customerIds = {} as Record<CustomerKey, number>;
   for (const key of Object.keys(CUSTOMERS) as CustomerKey[]) {
-    customerIds[key] = await db.customers.add(
-      Customer.create({ name: CUSTOMERS[key], isSelf: key === "marina" }).toPersistence() as any,
-    );
+    const id = nextId++;
+    customerIds[key] = id;
+    customerRows.push({
+      id,
+      name: CUSTOMERS[key],
+      isSelf: CUSTOMERS[key] === SELF_CUSTOMER_NAME,
+    });
   }
   const selfId = customerIds.marina;
 
   for (const config of seedParcels) {
-    const parcelId = await db.parcels.add(Parcel.create().toPersistence() as any);
-    await db.parcels.update(parcelId, {
+    const parcelId = nextId++;
+    parcelRows.push({
+      id: parcelId,
       name: config.name,
       status: config.status,
       createdAt: config.createdAt,
@@ -508,61 +528,73 @@ export async function seedDemo(force = false): Promise<void> {
     });
 
     const defaultStatus: SeedItemStatus =
-      config.status === "draft" ? "ordered" : config.status === "shipped" ? "shipped" : "received";
+      config.status === PARCEL_STATUSES[0]
+        ? ITEM_STATUSES[0]
+        : config.status === PARCEL_STATUSES[1]
+          ? ITEM_STATUSES[1]
+          : ITEM_STATUSES[2];
 
     for (const item of config.items) {
       const qty = item.qty ?? 1;
-      const tracks = config.status === "draft" ? [] : (item.tracks ?? nextTracks(qty));
+      const tracks = config.status === PARCEL_STATUSES[0] ? [] : (item.tracks ?? nextTracks(qty));
       const weights =
-        (config.status === "received" || config.status === "done") && !item.noWeight
+        (config.status === PARCEL_STATUSES[2] || config.status === PARCEL_STATUSES[3]) &&
+        !item.noWeight
           ? splitWeight(item.weightKg, tracks.length || qty)
           : [];
       const customerId = customerIds[item.customer];
+      const itemId = nextId++;
 
-      const createInput = {
+      itemRows.push({
+        id: itemId,
         parcelId,
         name: item.name,
         priceCNY: priceCNY(item.priceBYN),
         priceBYN: item.priceBYN,
         quantity: qty,
-        unit: item.unit ?? "pcs",
+        unit: item.unit ?? UNITS[0],
         customerId,
-        trackNumbers: tracks,
-        weightsG: weights,
+        trackNumbers: stringArray.encode(tracks),
+        weightsG: numberArray.encode(weights),
         status: item.status ?? defaultStatus,
         tracksCompletedAt: tracks.length ? (config.shippedAt ?? config.createdAt) : undefined,
-      };
-      const itemId = await db.parcelItems.add(
-        ParcelItem.create({ ...createInput }).toPersistence() as any,
-      );
+        createdAt: config.createdAt,
+      });
 
       if (customerId !== selfId) {
-        await db.payments.add(
-          Payment.create({
-            parcelId,
-            customerId,
-            itemId,
-            type: "item",
-            paid: config.allPaid || (item.paid ?? false),
-          }).toPersistence() as any,
-        );
+        paymentRows.push({
+          id: nextId++,
+          parcelId,
+          customerId,
+          itemId,
+          type: "item",
+          paid: config.allPaid || (item.paid ?? false),
+          createdAt: config.createdAt,
+        });
       }
     }
 
     if (config.shippingCostBYN) {
       for (const key of Object.keys(customerIds) as CustomerKey[]) {
         if (key === "marina") continue;
-        await db.payments.add(
-          Payment.create({
-            parcelId,
-            customerId: customerIds[key],
-            type: "shipping",
-            paid: config.allPaid || (config.shippingPaid?.[key] ?? false),
-          }).toPersistence() as any,
-        );
+        paymentRows.push({
+          id: nextId++,
+          parcelId,
+          customerId: customerIds[key],
+          type: "shipping",
+          paid: config.allPaid || (config.shippingPaid?.[key] ?? false),
+          createdAt: config.createdAt,
+        });
       }
     }
   }
+
+  await replaceAll(db, {
+    customers: customerRows,
+    parcels: parcelRows,
+    parcelItems: itemRows,
+    payments: paymentRows,
+  });
 
   console.log("Demo data seeded successfully");
 }
