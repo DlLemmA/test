@@ -237,20 +237,22 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   await page.goto("/#parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();
 
-  // Count innerHTML writes per host: duplicate route owners show up as 2+.
+  // Count root element insertions per host, not innerHTML writes: duplicate
+  // route owners show up as 2+ whether a view uses innerHTML or Vue's renderer.
   await page.evaluate(() => {
     const target = window as unknown as { viewRenders: Record<string, number> };
     target.viewRenders = {};
-    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
-    if (!descriptor?.get || !descriptor.set) throw new Error("innerHTML is not writable");
-    Object.defineProperty(Element.prototype, "innerHTML", {
-      configurable: true,
-      get: descriptor.get,
-      set(this: Element, value: string) {
-        if (this.id) target.viewRenders[this.id] = (target.viewRenders[this.id] ?? 0) + 1;
-        descriptor.set!.call(this, value);
-      },
-    });
+    for (const id of ["parcelView", "bottombar"]) {
+      const host = document.getElementById(id);
+      if (!host) throw new Error(`missing #${id}`);
+      new MutationObserver((records) => {
+        for (const record of records) {
+          if (Array.from(record.addedNodes).some((node) => node instanceof Element)) {
+            target.viewRenders[id] = (target.viewRenders[id] ?? 0) + 1;
+          }
+        }
+      }).observe(host, { childList: true });
+    }
   });
 
   await page.locator('[data-open="2"]').click();
