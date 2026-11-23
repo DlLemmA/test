@@ -15,3 +15,12 @@ describe("screenFromLocation", () => {
     expect(screenFromLocation(appRouter.resolve(path))).toEqual(expected);
   });
 });
+
+describe("unknown hashes", () => {
+  it("redirect to parcels without leaking the catch-all param", async () => {
+    await appRouter.push("/unknown");
+
+    expect(appRouter.currentRoute.value.fullPath).toBe("/parcels");
+    expect(appRouter.currentRoute.value.params).toEqual({});
+  });
+});

@@ -29,7 +29,7 @@ export const appRouter = createRouter({
     { path: "/people", name: "people", component: noView },
     { path: "/customer/:customerId", name: "customer", component: noView },
     { path: "/add/:parcelId?", name: "add", component: noView },
-    { path: "/:pathMatch(.*)*", redirect: { name: "parcels" } },
+    { path: "/:pathMatch(.*)*", redirect: { name: "parcels", params: {} } },
   ],
 });
 
