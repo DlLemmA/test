@@ -3,24 +3,19 @@ import type { ParcelItem } from "./ParcelItem";
 import type { Payment } from "./Payment";
 
 // ============================================
-// Repository Interfaces (Ports)
+// Read ports. Every mutation goes through ParcelWriteStore and the named
+// commands in ../commands; adapters may do more, but callers cannot.
 // ============================================
 
 export interface ParcelRepository {
   findAll(): Promise<Parcel[]>;
   findById(id: number): Promise<Parcel | null>;
-  findByIdWithItems(id: number): Promise<ParcelWithItems | null>;
-  save(parcel: Parcel): Promise<Parcel>;
-  delete(id: number): Promise<void>;
 }
 
 export interface ParcelItemRepository {
   findByParcelId(parcelId: number): Promise<ParcelItem[]>;
   findAll(): Promise<ParcelItem[]>;
   findById(id: number): Promise<ParcelItem | null>;
-  save(item: ParcelItem): Promise<ParcelItem>;
-  delete(id: number): Promise<void>;
-  deleteByParcelId(parcelId: number): Promise<void>;
 }
 
 export interface PaymentRepository {
@@ -29,10 +24,15 @@ export interface PaymentRepository {
   findByParcelAndCustomer(parcelId: number, customerId: number): Promise<Payment[]>;
   findByCustomer(customerId: number): Promise<Payment[]>;
   save(payment: Payment): Promise<Payment>;
-  delete(id: number): Promise<void>;
 }
 
-export interface ParcelWithItems {
-  parcel: Parcel;
-  items: ParcelItem[];
+/** One operation = one adapter transaction; no CRUD surface leaks to callers. */
+export interface ParcelWriteStore {
+  saveParcel(parcel: Parcel): Promise<Parcel>;
+  /** Insert a batch atomically and return the persisted items with their ids. */
+  addItems(items: ParcelItem[]): Promise<ParcelItem[]>;
+  saveItem(item: ParcelItem): Promise<ParcelItem>;
+  deleteItem(id: number): Promise<void>;
+  /** Delete a parcel with its items and payments in one transaction. */
+  deleteParcel(id: number): Promise<void>;
 }

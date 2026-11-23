@@ -1,6 +1,6 @@
 import { parcelRepository, parcelItemRepository } from "./infrastructure";
 import { getParcelStatement } from "@/features/statements/service";
-import { parcelItemService, parcelService, paymentService } from "@/features/shared/wiring";
+import { parcelCommands, paymentService } from "@/features/shared/wiring";
 import { customerRepository } from "@/features/customers/infrastructure";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { createListenerScope } from "@/core/listeners";
@@ -28,6 +28,10 @@ import { applyItemGroupsSearch, itemSearchCountText, renderItemGroups } from "./
 import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/ReadinessCopy";
 import { openReceiveFlow } from "./ReceiveFlow";
 import { exportParcel } from "./ParcelListView";
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Ошибка";
+}
 
 interface DetailContext {
   host: HTMLElement;
@@ -352,7 +356,7 @@ function bindParcelDetailActions(
       const next = (ctx.commentDraft ?? commentText.value).trim();
       ctx.commentDraft = null;
       if (next === (parcel.comment || "")) return;
-      void parcelService
+      void parcelCommands
         .updateParcel(parcel.id, { comment: next || null })
         .then(() => toastState.add({ message: "Заметка сохранена", type: "success" }))
         .catch((err) => {
@@ -423,7 +427,7 @@ function bindParcelDetailActions(
   const openScan = (target: Parcel = parcel) => void openReceiveFlow(target, () => ctx.refresh());
   document.getElementById("receiveParcel")?.addEventListener("click", async () => {
     try {
-      const received = await parcelService.receiveParcel(
+      const received = await parcelCommands.receiveParcel(
         parcel.id,
         parcel.boxWeightG || 0,
         parcel.shippingCostBYN || 0,
@@ -445,7 +449,7 @@ function bindParcelDetailActions(
       return;
     }
     try {
-      await parcelService.markAsDoneParcel(parcel.id);
+      await parcelCommands.markAsDoneParcel(parcel.id);
       ctx.refresh();
       toastState.add({ message: "Посылка завершена", type: "success" });
     } catch (err) {
@@ -616,7 +620,7 @@ function openShipForm(parcel: Parcel, ctx: DetailContext): void {
     }
     weightInput?.setAttribute("aria-invalid", "false");
     amountInput?.setAttribute("aria-invalid", "false");
-    await parcelService.shipParcel(parcel.id, boxWeightG, shippingCostBYN);
+    await parcelCommands.shipParcel(parcel.id, boxWeightG, shippingCostBYN);
     closeDrawer();
     ctx.refresh();
     toastState.add({ message: "Посылка отправлена", type: "success" });
@@ -651,17 +655,19 @@ async function openParcelEditForm(parcel: Parcel, ctx: DetailContext): Promise<v
       const boxWeightG = boxWeightRaw === "" ? null : Number(boxWeightRaw);
       const shippingCostBYN = formData.get("shippingCostBYN")?.toString();
 
-      await parcelRepository.save(
-        parcel.update({
+      try {
+        await parcelCommands.updateParcel(parcel.id, {
           name,
           comment,
           boxWeightG,
           shippingCostBYN: shippingCostBYN ? parseFloat(shippingCostBYN) : null,
-        }),
-      );
-      closeDrawer();
-      ctx.refresh();
-      toastState.add({ message: "Посылка сохранена", type: "success" });
+        });
+        closeDrawer();
+        ctx.refresh();
+        toastState.add({ message: "Посылка сохранена", type: "success" });
+      } catch (err) {
+        toastState.add({ message: errorMessage(err), type: "error" });
+      }
     });
   }
 }
@@ -995,22 +1001,24 @@ function renderItemForm(
         }
       }
 
-      if (isNew) {
-        const newItem = ParcelItem.create(rawData);
-        await parcelItemRepository.save(newItem);
-      } else if (item) {
-        const { parcelId: _, ...updateData } = data;
-        const updated = item.update(updateData);
-        await parcelItemRepository.save(updated);
-        if (canEditTracks && tracksComplete) {
-          await parcelItemService.updateItem(item.id, {
-            tracksCompletedAt: new Date().toISOString(),
-          });
+      try {
+        if (isNew) {
+          await parcelCommands.commitBatch(parcelId, [rawData]);
+        } else if (item) {
+          const { parcelId: _, ...updateData } = data;
+          await parcelCommands.updateItem(item.id, updateData);
+          if (canEditTracks && tracksComplete) {
+            await parcelCommands.updateItem(item.id, {
+              tracksCompletedAt: new Date().toISOString(),
+            });
+          }
         }
+        closeDrawer();
+        ctx.refresh();
+        toastState.add({ message: "Товар сохранён", type: "success" });
+      } catch (err) {
+        toastState.add({ message: errorMessage(err), type: "error" });
       }
-      closeDrawer();
-      ctx.refresh();
-      toastState.add({ message: "Товар сохранён", type: "success" });
     });
   });
 }
@@ -1049,10 +1057,14 @@ async function moveItem(itemId: number, ctx: DetailContext): Promise<void> {
       const formData = new FormData(form);
       const targetId = parseInt(formData.get("targetParcel")?.toString() || "0");
       if (targetId) {
-        await parcelItemRepository.save(item.update({ parcelId: targetId }));
-        closeDrawer();
-        ctx.refresh();
-        toastState.add({ message: "Товар перемещён", type: "success" });
+        try {
+          await parcelCommands.moveItem(itemId, targetId);
+          closeDrawer();
+          ctx.refresh();
+          toastState.add({ message: "Товар перемещён", type: "success" });
+        } catch (err) {
+          toastState.add({ message: errorMessage(err), type: "error" });
+        }
       }
     });
   }
@@ -1064,9 +1076,13 @@ async function deleteItem(itemId: number, ctx: DetailContext): Promise<void> {
     "Товар будет удалён. Это действие нельзя отменить.",
     "Удалить",
     async () => {
-      await parcelItemRepository.delete(itemId);
-      ctx.refresh();
-      toastState.add({ message: "Товар удалён", type: "success" });
+      try {
+        await parcelCommands.deleteItem(itemId);
+        ctx.refresh();
+        toastState.add({ message: "Товар удалён", type: "success" });
+      } catch (err) {
+        toastState.add({ message: errorMessage(err), type: "error" });
+      }
     },
   );
 }

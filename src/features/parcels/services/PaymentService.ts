@@ -16,10 +16,6 @@ export class PaymentService {
     private selfCustomerId: SelfCustomerIdProvider,
   ) {}
 
-  async getPaymentsForParcel(parcelId: number): Promise<Payment[]> {
-    return this.paymentRepo.findByParcelId(parcelId);
-  }
-
   async setItemPaid(
     parcelId: number,
     itemId: number,

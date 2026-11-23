@@ -13,10 +13,10 @@ export const ParcelItemCreateSchema = z.object({
 
 export const ParcelItemUpdateSchema = z.object({
   parcelId: z.number().int().positive().optional(),
-  name: z.string().min(1).max(200).optional(),
-  priceCNY: z.number().min(0).optional(),
-  priceBYN: z.number().min(0).optional(),
-  quantity: z.number().int().min(1).optional(),
+  name: z.string().min(1, "Название обязательно").max(200, "Название слишком длинное").optional(),
+  priceCNY: z.number().min(0, "Сумма в юанях должна быть >= 0").optional(),
+  priceBYN: z.number().min(0, "Сумма в рублях должна быть >= 0").optional(),
+  quantity: z.number().int().min(1, "Количество >= 1").optional(),
   unit: z.enum(["pcs", "packs", "pairs"]).optional(),
   customerId: z.number().int().positive().optional(),
   trackNumbers: z.array(z.string()).optional(),

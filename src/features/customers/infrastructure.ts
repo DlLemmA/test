@@ -1,8 +1,8 @@
-import { Customer, CustomerRepository, CustomerWithItems } from "./domain";
+import { Customer, type CustomerRepository, type CustomerWriteStore } from "./domain";
 import { db } from "@/core/database";
 
 // ============================================
-// Customer Repository Implementation
+// Read adapter
 // ============================================
 
 export class DexieCustomerRepository implements CustomerRepository {
@@ -11,34 +11,25 @@ export class DexieCustomerRepository implements CustomerRepository {
     return rows.map(Customer.fromPersistence);
   }
 
-  async findAllWithItems(): Promise<CustomerWithItems[]> {
-    const customers = await this.findAll();
-    return customers.map((customer) => ({
-      customer,
-      items: [],
-    }));
-  }
-
   async findById(id: number): Promise<Customer | null> {
     const row = await db.customers.get(id);
     return row ? Customer.fromPersistence(row) : null;
   }
+}
 
-  async findByIdWithItems(id: number): Promise<CustomerWithItems | null> {
-    const customer = await this.findById(id);
-    if (!customer) return null;
-    return { customer, items: [] };
-  }
+// ============================================
+// Write adapter
+// ============================================
 
+export class DexieCustomerWriteStore implements CustomerWriteStore {
   async save(customer: Customer): Promise<Customer> {
     const data = customer.toPersistence();
     if (customer.id === 0) {
       const id = await db.customers.add(data as any);
       return Customer.fromPersistence({ ...data, id });
-    } else {
-      await db.customers.update(customer.id, data);
-      return customer;
     }
+    await db.customers.update(customer.id, data);
+    return customer;
   }
 
   async delete(id: number): Promise<void> {
@@ -47,3 +38,4 @@ export class DexieCustomerRepository implements CustomerRepository {
 }
 
 export const customerRepository = new DexieCustomerRepository();
+export const customerWriteStore = new DexieCustomerWriteStore();

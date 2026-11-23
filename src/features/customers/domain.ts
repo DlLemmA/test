@@ -31,7 +31,6 @@ export class Customer {
   }
 
   static create(input: CustomerCreateInput): Customer {
-    // Validation happens at boundary via Zod
     return new Customer(0, input.name, input.isSelf);
   }
 
@@ -50,32 +49,43 @@ export class Customer {
 }
 
 // ============================================
-// Repository Interface (Port)
+// Ports — reads are separated from writes so no view can bypass the rules
 // ============================================
 
 export interface CustomerRepository {
   findAll(): Promise<Customer[]>;
-  findAllWithItems(): Promise<CustomerWithItems[]>;
   findById(id: number): Promise<Customer | null>;
-  findByIdWithItems(id: number): Promise<CustomerWithItems | null>;
+}
+
+export interface CustomerWriteStore {
   save(customer: Customer): Promise<Customer>;
   delete(id: number): Promise<void>;
 }
 
-export interface CustomerWithItems {
-  customer: Customer;
-  items: any[];
+function validated<T>(schema: z.ZodType<T>, input: unknown): T {
+  const result = schema.safeParse(input);
+  if (!result.success) {
+    throw new Error(result.error.issues[0]?.message ?? "Некорректные данные");
+  }
+  return result.data;
 }
 
 // ============================================
-// Domain Service (if needed)
+// Domain service — the only writer of customers
 // ============================================
 
 export class CustomerService {
-  constructor(private repo: CustomerRepository) {}
+  constructor(
+    private readonly repo: CustomerRepository,
+    private readonly writes: CustomerWriteStore,
+  ) {}
 
   async findAll(): Promise<Customer[]> {
     return this.repo.findAll();
+  }
+
+  async findById(id: number): Promise<Customer | null> {
+    return this.repo.findById(id);
   }
 
   async getSelfCustomer(): Promise<Customer | null> {
@@ -83,20 +93,40 @@ export class CustomerService {
     return all.find((c) => c.isSelf) ?? null;
   }
 
-  async createCustomer(name: string): Promise<Customer> {
-    await this.validateUniqueName(name);
-    return this.repo.save(Customer.create({ name, isSelf: false }));
+  async createCustomer(input: CustomerCreateInput): Promise<Customer> {
+    const data = validated(CustomerCreateSchema, input);
+    await this.validateUniqueName(data.name);
+    return this.writes.save(Customer.create(data));
+  }
+
+  async updateCustomer(id: number, input: CustomerUpdateInput): Promise<Customer> {
+    const data = validated(CustomerUpdateSchema, input);
+    const existing = await this.requireCustomer(id);
+    if (data.name !== undefined) await this.validateUniqueName(data.name, id);
+    return this.writes.save(existing.update(data));
+  }
+
+  async deleteCustomer(id: number): Promise<void> {
+    await this.requireCustomer(id);
+    await this.writes.delete(id);
   }
 
   async ensureSelfCustomerExists(name: string): Promise<Customer> {
     const existing = await this.getSelfCustomer();
     if (existing) return existing;
-    return this.repo.save(Customer.create({ name, isSelf: true }));
+    return this.writes.save(Customer.create({ name, isSelf: true }));
   }
 
   async validateUniqueName(name: string, excludeId?: number): Promise<void> {
     const all = await this.repo.findAll();
-    const exists = all.some((c) => c.name === name && c.id !== excludeId);
-    if (exists) throw new Error("Заказчик с таким именем уже существует");
+    if (all.some((c) => c.name === name && c.id !== excludeId)) {
+      throw new Error("Заказчик с таким именем уже существует");
+    }
+  }
+
+  private async requireCustomer(id: number): Promise<Customer> {
+    const customer = await this.repo.findById(id);
+    if (!customer) throw new Error("Заказчик не найден");
+    return customer;
   }
 }

@@ -8,10 +8,10 @@ import type { ParcelRow, ParcelStatus } from "@/core/database";
 export const ParcelCreateSchema = z.object({});
 
 export const ParcelUpdateSchema = z.object({
-  name: z.string().max(200).optional().nullable(),
-  comment: z.string().max(20000).optional().nullable(),
-  boxWeightG: z.number().int().min(0).optional().nullable(),
-  shippingCostBYN: z.number().min(0).optional().nullable(),
+  name: z.string().max(200, "Название слишком длинное").optional().nullable(),
+  comment: z.string().max(20000, "Комментарий слишком длинный").optional().nullable(),
+  boxWeightG: z.number().int().min(0, "Вес должен быть >= 0").optional().nullable(),
+  shippingCostBYN: z.number().min(0, "Стоимость доставки должна быть >= 0").optional().nullable(),
 });
 
 export type ParcelCreateInput = z.infer<typeof ParcelCreateSchema>;

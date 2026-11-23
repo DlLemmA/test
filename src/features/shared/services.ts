@@ -10,7 +10,7 @@ import {
   type ParcelItem,
   reconcileBatch,
 } from "@/features/parcels/domain";
-import { parcelItemService, paymentService } from "./wiring";
+import { parcelCommands, paymentService } from "./wiring";
 
 /** Reconcile a batch, add it to a draft parcel and record self payments. */
 export async function addItemsToParcel(
@@ -20,7 +20,7 @@ export async function addItemsToParcel(
 ): Promise<ParcelItem[]> {
   const finalItems = totals ? reconcileBatch(items, totals).items : items;
   const itemsWithParcelId = finalItems.map((item) => ({ ...item, parcelId }));
-  const createdItems = await parcelItemService.addBatch(parcelId, itemsWithParcelId);
+  const createdItems = await parcelCommands.commitBatch(parcelId, itemsWithParcelId);
   await paymentService.markSelfItemsPaid(parcelId, createdItems);
   return createdItems;
 }

@@ -3,7 +3,6 @@
 // Shows all customers with debts; click a customer to see their items & payments
 // ============================================
 
-import { customerRepository } from "./infrastructure";
 import { customerService } from "@/features/shared/wiring";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { createListenerScope } from "@/core/listeners";
@@ -107,7 +106,7 @@ function bindActions(root: HTMLElement, scope: ListenerScope, refresh: () => voi
 
 function openCustomerForm(id: number | undefined, scope: ListenerScope, refresh: () => void): void {
   if (id) {
-    customerRepository.findById(id).then((c) => {
+    customerService.findById(id).then((c) => {
       if (c) renderCustomerForm(c, false, scope, refresh);
     });
   } else {
@@ -177,18 +176,9 @@ function renderCustomerForm(
 
     try {
       if (isNew) {
-        await customerService.validateUniqueName(name);
-        await customerRepository.save(
-          (await import("@/features/customers/domain.js")).Customer.create({ name, isSelf }),
-        );
+        await customerService.createCustomer({ name, isSelf });
       } else if (customer) {
-        await customerService.validateUniqueName(name, customer.id);
-        const updated = (await import("@/features/customers/domain.js")).Customer.fromPersistence({
-          id: customer.id,
-          name,
-          isSelf,
-        });
-        await customerRepository.save(updated);
+        await customerService.updateCustomer(customer.id, { name, isSelf });
       }
       closeDrawer();
       refresh();
@@ -202,7 +192,7 @@ function renderCustomerForm(
 
 async function deleteCustomer(id: number, refresh: () => void): Promise<void> {
   confirmDrawer("Удалить заказчика", "Заказчик будет удалён.", "Удалить", async () => {
-    await customerRepository.delete(id);
+    await customerService.deleteCustomer(id);
     refresh();
     toastState.add({ message: "Заказчик удалён", type: "success" });
   });

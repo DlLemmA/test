@@ -187,7 +187,7 @@ export function mountCustomerCombo(
       return false;
     }
     try {
-      const customer = await customerService.createCustomer(name);
+      const customer = await customerService.createCustomer({ name, isSelf: false });
       select(customer);
       toastState.add({ message: `Заказчик «${customer.name}» добавлен`, type: "success" });
       return true;

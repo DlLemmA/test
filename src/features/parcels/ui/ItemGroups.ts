@@ -139,7 +139,7 @@ function itemHtml(
         <div class="entry-menu__list">
           ${paymentBtn}
           ${isDraft ? `<button type="button" data-move="${item.id}" aria-label="Переместить товар «${esc(item.name)}»">${I.arrowRight} Переместить</button>` : ""}
-          <button type="button" class="is-danger" data-delete="${item.id}" aria-label="Удалить товар «${esc(item.name)}»">${I.trash} Удалить</button>
+          ${isDraft ? `<button type="button" class="is-danger" data-delete="${item.id}" aria-label="Удалить товар «${esc(item.name)}»">${I.trash} Удалить</button>` : ""}
         </div>
       </details>`
     : "";

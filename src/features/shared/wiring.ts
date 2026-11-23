@@ -3,19 +3,22 @@
 // ============================================
 
 import { CustomerService } from "@/features/customers/domain";
-import { customerRepository } from "@/features/customers/infrastructure";
+import { customerRepository, customerWriteStore } from "@/features/customers/infrastructure";
+import { ParcelCommands } from "@/features/parcels/commands/ParcelCommands";
 import { PaymentService } from "@/features/parcels/services/PaymentService";
-import { ParcelItemService } from "@/features/parcels/services/ParcelItemService";
-import { ParcelService } from "@/features/parcels/services/ParcelService";
 import {
   parcelItemRepository,
   parcelRepository,
+  parcelWriteStore,
   paymentRepository,
 } from "@/features/parcels/infrastructure";
 
-export const customerService = new CustomerService(customerRepository);
-export const parcelService = new ParcelService(parcelRepository, parcelItemRepository);
-export const parcelItemService = new ParcelItemService(parcelItemRepository, parcelRepository);
+export const customerService = new CustomerService(customerRepository, customerWriteStore);
+export const parcelCommands = new ParcelCommands(
+  parcelRepository,
+  parcelItemRepository,
+  parcelWriteStore,
+);
 export const paymentService = new PaymentService(
   paymentRepository,
   async () => (await customerService.getSelfCustomer())?.id,

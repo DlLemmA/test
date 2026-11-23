@@ -1,7 +1,7 @@
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { parcelItemRepository } from "./infrastructure";
-import { parcelItemService, parcelService } from "@/features/shared/wiring";
+import { parcelCommands } from "@/features/shared/wiring";
 import { toastState } from "@/core/state";
 import { I, esc, kg, money, t } from "@/core/utils";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
@@ -164,7 +164,7 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
     const next = item.trackNumbers.map((_, idx) => weights.get(`${itemId}:${idx}`) ?? 0);
-    const saved = await parcelItemService.updateItem(itemId, { weightsG: next });
+    const saved = await parcelCommands.updateItem(itemId, { weightsG: next });
     items = items.map((i) => (i.id === itemId ? saved : i));
   }
 
@@ -461,7 +461,7 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
   }
 
   async function markLost(item: ParcelItem): Promise<void> {
-    await parcelItemService.updateItem(item.id, { status: "lost" });
+    await parcelCommands.updateItem(item.id, { status: "lost" });
     lostItems.add(item.id);
     for (const unit of itemUnits(item.id)) done.add(unit.key);
     updateProgress();
@@ -665,10 +665,10 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
           if (lostItems.has(item.id)) continue;
           const list = itemUnits(item.id);
           if (list.length > 0 && list.every(hasWeight)) {
-            await parcelItemService.updateItem(item.id, { status: "received" });
+            await parcelCommands.updateItem(item.id, { status: "received" });
           }
         }
-        if (!isRescan) await parcelService.receiveParcel(parcel.id, boxWeightG, shippingCostBYN);
+        if (!isRescan) await parcelCommands.receiveParcel(parcel.id, boxWeightG, shippingCostBYN);
         dialog.close();
         toastState.add({
           message: isRescan ? "Веса обновлены" : "Товары приняты",

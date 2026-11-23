@@ -5,12 +5,12 @@ import {
   Payment,
   type ParcelRepository,
   type ParcelItemRepository,
-  type ParcelWithItems,
+  type ParcelWriteStore,
   type PaymentRepository,
 } from "./domain";
 
 // ============================================
-// Parcel Repository Implementation
+// Read adapters
 // ============================================
 
 export class DexieParcelRepository implements ParcelRepository {
@@ -23,36 +23,7 @@ export class DexieParcelRepository implements ParcelRepository {
     const row = await db.parcels.get(id);
     return row ? Parcel.fromPersistence(row) : null;
   }
-
-  async findByIdWithItems(id: number): Promise<ParcelWithItems | null> {
-    const parcel = await this.findById(id);
-    if (!parcel) return null;
-    const items = await parcelItemRepository.findByParcelId(id);
-    return { parcel, items };
-  }
-
-  async save(parcel: Parcel): Promise<Parcel> {
-    const data = parcel.toPersistence();
-    if (parcel.id === 0) {
-      const id = await db.parcels.add(data as any);
-      return Parcel.fromPersistence({ ...data, id });
-    } else {
-      await db.parcels.update(parcel.id, data);
-      return parcel;
-    }
-  }
-
-  async delete(id: number): Promise<void> {
-    await db.transaction("rw", db.parcels, db.parcelItems, async () => {
-      await db.parcelItems.where("parcelId").equals(id).delete();
-      await db.parcels.delete(id);
-    });
-  }
 }
-
-// ============================================
-// ParcelItem Repository Implementation
-// ============================================
 
 export class DexieParcelItemRepository implements ParcelItemRepository {
   async findByParcelId(parcelId: number): Promise<ParcelItem[]> {
@@ -69,30 +40,7 @@ export class DexieParcelItemRepository implements ParcelItemRepository {
     const row = await db.parcelItems.get(id);
     return row ? ParcelItem.fromPersistence(row) : null;
   }
-
-  async save(item: ParcelItem): Promise<ParcelItem> {
-    const data = item.toPersistence();
-    if (item.id === 0) {
-      const id = await db.parcelItems.add(data as any);
-      return ParcelItem.fromPersistence({ ...data, id });
-    } else {
-      await db.parcelItems.update(item.id, data);
-      return item;
-    }
-  }
-
-  async delete(id: number): Promise<void> {
-    await db.parcelItems.delete(id);
-  }
-
-  async deleteByParcelId(parcelId: number): Promise<void> {
-    await db.parcelItems.where("parcelId").equals(parcelId).delete();
-  }
 }
-
-// ============================================
-// Payment Repository Implementation
-// ============================================
 
 export class DexiePaymentRepository implements PaymentRepository {
   async findAll(): Promise<Payment[]> {
@@ -124,14 +72,59 @@ export class DexiePaymentRepository implements PaymentRepository {
     if (payment.id === 0) {
       const id = await db.payments.add(data as any);
       return Payment.fromPersistence({ ...data, id });
-    } else {
-      await db.payments.update(payment.id, data);
-      return payment;
     }
+    await db.payments.update(payment.id, data);
+    return payment;
+  }
+}
+
+// ============================================
+// Write adapter — aggregate operations, transactional by construction
+// ============================================
+
+export class DexieParcelWriteStore implements ParcelWriteStore {
+  async saveParcel(parcel: Parcel): Promise<Parcel> {
+    const data = parcel.toPersistence();
+    if (parcel.id === 0) {
+      const id = await db.parcels.add(data as any);
+      return Parcel.fromPersistence({ ...data, id });
+    }
+    await db.parcels.update(parcel.id, data);
+    return parcel;
   }
 
-  async delete(id: number): Promise<void> {
-    await db.payments.delete(id);
+  async addItems(items: ParcelItem[]): Promise<ParcelItem[]> {
+    return db.transaction("rw", db.parcelItems, async () => {
+      const saved: ParcelItem[] = [];
+      for (const item of items) {
+        const data = item.toPersistence();
+        const id = await db.parcelItems.add(data as any);
+        saved.push(ParcelItem.fromPersistence({ ...data, id }));
+      }
+      return saved;
+    });
+  }
+
+  async saveItem(item: ParcelItem): Promise<ParcelItem> {
+    const data = item.toPersistence();
+    if (item.id === 0) {
+      const id = await db.parcelItems.add(data as any);
+      return ParcelItem.fromPersistence({ ...data, id });
+    }
+    await db.parcelItems.update(item.id, data);
+    return item;
+  }
+
+  async deleteItem(id: number): Promise<void> {
+    await db.parcelItems.delete(id);
+  }
+
+  async deleteParcel(id: number): Promise<void> {
+    await db.transaction("rw", db.parcels, db.parcelItems, db.payments, async () => {
+      await db.payments.where("parcelId").equals(id).delete();
+      await db.parcelItems.where("parcelId").equals(id).delete();
+      await db.parcels.delete(id);
+    });
   }
 }
 
@@ -142,3 +135,4 @@ export class DexiePaymentRepository implements PaymentRepository {
 export const parcelRepository = new DexieParcelRepository();
 export const parcelItemRepository = new DexieParcelItemRepository();
 export const paymentRepository = new DexiePaymentRepository();
+export const parcelWriteStore = new DexieParcelWriteStore();

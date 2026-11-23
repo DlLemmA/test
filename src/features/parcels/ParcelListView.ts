@@ -5,7 +5,7 @@ declare global {
     XLSX?: any;
   }
 }
-import { parcelService } from "@/features/shared/wiring";
+import { parcelCommands } from "@/features/shared/wiring";
 import { getParcelStatement } from "@/features/statements/service";
 import { confirmDrawer } from "@/core/drawer";
 import { createListenerScope } from "@/core/listeners";
@@ -114,7 +114,7 @@ function bindParcelListActions(
 ): void {
   scope.on(host.querySelector<HTMLElement>("#addParcel"), "click", async () => {
     const draft = parcels.find((p) => p.status === "draft");
-    const parcel = draft || (await parcelService.createParcel());
+    const parcel = draft || (await parcelCommands.createParcel());
     router.navigate("parcel", { parcelId: String(parcel.id) });
   });
 
@@ -242,17 +242,23 @@ export async function exportParcel(parcelRef: Parcel): Promise<void> {
 }
 
 async function deleteParcel(parcelId: number): Promise<void> {
-  const { parcelRepository } = await import("./infrastructure");
   confirmDrawer(
     "Удалить посылку",
-    "Посылка будет удалена со всеми товарами. Это действие нельзя отменить.",
+    "Посылка, товары и платежи по ней будут удалены. Это действие нельзя отменить.",
     "Удалить",
     async () => {
-      await parcelRepository.delete(parcelId);
-      if (uiState.currentParcelId === parcelId) {
-        uiState.setCurrentParcelId(null);
+      try {
+        await parcelCommands.deleteParcel(parcelId);
+        if (uiState.currentParcelId === parcelId) {
+          uiState.setCurrentParcelId(null);
+        }
+        toastState.add({ message: "Посылка удалена", type: "success" });
+      } catch (err) {
+        toastState.add({
+          message: err instanceof Error ? err.message : "Не удалось удалить посылку",
+          type: "error",
+        });
       }
-      toastState.add({ message: "Посылка удалена", type: "success" });
     },
   );
 }
