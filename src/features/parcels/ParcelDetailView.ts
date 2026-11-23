@@ -6,6 +6,8 @@ import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
 import { I, esc, kg, money } from "@/core/utils";
+import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
+import { formatDateNumeric, parcelDate } from "./ui/ParcelPresentation";
 import {
   Parcel,
   ParcelItem,
@@ -103,7 +105,7 @@ export async function renderParcelDetailView(): Promise<void> {
     item.trackNumbers.map((track) => track.trim()).filter(Boolean),
   );
 
-  const date = detailDate(parcel);
+  const date = parcelDate(parcel);
   const status = parcelStatusInfo(parcel.status);
   const missingTracks = parcel.status === "draft" ? itemsWithoutTracks(items) : 0;
   const boxWeight = parcel.boxWeightG || 0;
@@ -248,19 +250,6 @@ function primaryAction(parcel: Parcel, items: ParcelItem[]): string {
     case "done":
       return `<button type="button" class="text-btn" id="exportParcel">${I.sheet} Экспорт в Excel</button>`;
   }
-}
-
-function detailDate(parcel: Parcel): { day: string; month: string; title: string } {
-  const iso = parcel.shippedAt || parcel.createdAt;
-  const d = new Date(iso);
-  const valid = !Number.isNaN(d.getTime());
-  return {
-    day: valid ? d.toLocaleDateString("ru-RU", { day: "2-digit" }) : "—",
-    month: valid ? d.toLocaleDateString("ru-RU", { month: "short" }).replace(".", "") : "нет",
-    title: parcel.shippedAt
-      ? `отправлена ${valid ? d.toLocaleDateString("ru-RU") : ""}`
-      : `создана ${valid ? d.toLocaleDateString("ru-RU") : ""}`,
-  };
 }
 
 function applyItemSearch(): void {
@@ -678,7 +667,7 @@ function renderItemForm(
   customerRepository.findAll().then((customers) => {
     const customerOptions = customers.map((c) => ({
       value: c.id,
-      label: `${c.name}${c.isSelf ? " (я)" : ""}`,
+      label: customerLabel(c),
       selected: c.id === item?.customerId,
     }));
 
@@ -1006,7 +995,7 @@ async function moveItem(itemId: number): Promise<void> {
 
   const options = otherDrafts.map((p) => ({
     value: p.id,
-    label: `Посылка №${p.id} (${p.formattedDate})`,
+    label: `Посылка №${p.id} (${formatDateNumeric(p.createdAt)})`,
   }));
 
   drawer(

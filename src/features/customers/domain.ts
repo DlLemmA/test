@@ -47,11 +47,6 @@ export class Customer {
   update(input: CustomerUpdateInput): Customer {
     return new Customer(this.id, input.name ?? this.name, input.isSelf ?? this.isSelf);
   }
-
-  // Domain behavior
-  get displayName(): string {
-    return this.isSelf ? `${this.name} (я)` : this.name;
-  }
 }
 
 // ============================================

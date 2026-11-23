@@ -20,8 +20,10 @@ import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
 import { Customer } from "@/features/customers/domain";
 import { on } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
-import { I, esc, money } from "@/core/utils";
+import { I, esc, money, t } from "@/core/utils";
+import { ITEM_FORMS, PARCEL_IN_FORMS, parcelDate } from "@/features/parcels/ui/ParcelPresentation";
 import { customerService, paymentService } from "@/features/shared/wiring";
+import { customerLabel } from "./ui/CustomerPresentation";
 import { customerMark } from "./ui/CustomerMark";
 
 export async function renderCustomerDetailView(customerId: number): Promise<void> {
@@ -150,14 +152,13 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
       const shippingShare = balance.delivery.owed;
       const parcelPaid = allItemsPaid && (!showShipping || isShippingPaid);
       const parcelLabel = parcel.name || `Посылка #${parcel.id}`;
-      const date = parcelDate(parcel.shippedAt);
-      const dateTitle = parcel.shippedAt ? `отправлена ${date.title}` : "не отправлена";
+      const date = parcelDate(parcel);
       const status = parcelStatusInfo(parcel.status);
 
       return `
         <section class="section customer-statement">
           <div class="parcel-entry parcel-line" data-status="${parcel.status}">
-            <div class="parcel-entry__date" title="${dateTitle}">
+            <div class="parcel-entry__date" title="${date.title}">
               <b>${date.day}</b>
               <span>${date.month}</span>
             </div>
@@ -206,9 +207,9 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
       <section class="detail-hero${isSelf ? " is-self" : ""}">
         ${customerMark(customer, "avatar")}
         <div class="detail-hero__body min-w-0">
-          <div class="detail-hero__title-row"><h1>${esc(customer.name)}</h1></div>
+          <div class="detail-hero__title-row"><h1>${esc(customerLabel(customer))}</h1></div>
           <p class="detail-hero__next">${isSelf ? "Мой профиль" : "Заказчик"}</p>
-          <p class="detail-hero__facts">${customerItems.length} товар${customerItems.length === 1 ? "" : customerItems.length < 5 ? "а" : "ов"} в ${itemsByParcel.size} посылк${itemsByParcel.size === 1 ? "е" : "ах"}</p>
+          <p class="detail-hero__facts">${t(ITEM_FORMS, customerItems.length)} в ${t(PARCEL_IN_FORMS, itemsByParcel.size)}</p>
         </div>
       </section>
 
@@ -327,17 +328,6 @@ function bindActions(
       router.navigate("parcel", { parcelId: btn.dataset.openParcel! });
     });
   });
-}
-
-function parcelDate(iso?: string): { day: string; month: string; title: string } {
-  if (!iso) return { day: "—", month: "нет", title: "дата не задана" };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { day: "—", month: "нет", title: iso };
-  return {
-    day: d.toLocaleDateString("ru-RU", { day: "2-digit" }),
-    month: d.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
-    title: d.toLocaleDateString("ru-RU"),
-  };
 }
 
 // Named export for static access

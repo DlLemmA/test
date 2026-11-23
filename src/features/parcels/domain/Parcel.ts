@@ -152,11 +152,6 @@ export class Parcel {
     });
   }
 
-  get formattedDate(): string {
-    const date = new Date(this.createdAt);
-    return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-  }
-
   get totalItems(): number {
     // Will be computed from items
     return 0;

@@ -3,7 +3,9 @@ import type { Customer } from "@/features/customers/domain";
 import { parcelItemRepository } from "./infrastructure";
 import { parcelItemService, parcelService } from "@/features/shared/wiring";
 import { toastState } from "@/core/state";
-import { I, esc, kg, money } from "@/core/utils";
+import { I, esc, kg, money, t } from "@/core/utils";
+import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
+import { ITEM_FORMS, TRACK_FORMS } from "./ui/ParcelPresentation";
 import type { Parcel, ParcelItem } from "./domain";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
@@ -148,13 +150,13 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
 
   function updateProgress(): void {
     const processed = units.length - remaining().length;
-    progress.textContent = `${processed} / ${units.length} треков · ${totalWeightG()} г`;
+    progress.textContent = `${processed} / ${t(TRACK_FORMS, units.length)} · ${totalWeightG()} г`;
     progressBar.style.width = `${units.length ? (processed / units.length) * 100 : 100}%`;
   }
 
   function customerName(customerId: number): string {
     const customer = customerMap.get(customerId);
-    return customer ? `${customer.name}${customer.isSelf ? " (я)" : ""}` : "";
+    return customer ? customerLabel(customer) : "";
   }
 
   async function persistWeights(itemId: number): Promise<void> {
@@ -293,7 +295,7 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
     sheet.innerHTML = `
       <div class="rf-grab"></div>
       <h2 class="rf-title">Приёмка товаров</h2>
-      <p class="rf-sub">${units.length} треков · ${items.length} товаров. Сканируйте по одному — вес сохраняется сразу.</p>
+      <p class="rf-sub">${t(TRACK_FORMS, units.length)} · ${t(ITEM_FORMS, items.length)}. Сканируйте по одному — вес сохраняется сразу.</p>
       <button type="button" class="rf-primary" id="rfStart" autofocus>${I.scan} Начать сканирование</button>
       <button type="button" class="rf-secondary" id="rfManualStart">Ввести веса списком</button>
       <p class="rf-note">Камеру можно выключить: трек всегда можно ввести с клавиатуры.</p>
@@ -637,9 +639,9 @@ export async function openReceiveFlow(parcel: Parcel, onComplete: () => void): P
     sheet.innerHTML = `
       <div class="rf-grab"></div>
       <h2 class="rf-title">${isRescan ? "Сохранить веса" : "Принять товары"}</h2>
-      <p class="rf-sub">Взвешено ${weighed} из ${units.length} треков · ${totalWeightG()} г товаров</p>
+      <p class="rf-sub">Взвешено ${weighed} из ${t(TRACK_FORMS, units.length)} · ${totalWeightG()} г товаров</p>
       <p class="rf-sub rf-shipping">Вес всей посылки ${kg(boxWeightG)} кг · доставка ${money(shippingCostBYN)}</p>
-      ${missing ? `<div class="rf-warn">Не обработано ${missing} треков — ${isRescan ? "веса можно сохранить позже" : "можно принять и без них"}.</div>` : ""}
+      ${missing ? `<div class="rf-warn">Не обработано ${t(TRACK_FORMS, missing)} — ${isRescan ? "веса можно сохранить позже" : "можно принять и без них"}.</div>` : ""}
       ${hasShippingInfo ? "" : '<div class="rf-warn">Вес посылки и доставка вводятся при отправке. Заполните их в редактировании посылки.</div>'}
       <p class="rf-error" id="rfFinishError" role="alert" hidden></p>
       <button type="button" class="rf-primary" id="rfConfirm" ${hasShippingInfo ? "" : "disabled"}>${I.check} ${isRescan ? "Сохранить веса" : "Принять товары"}</button>

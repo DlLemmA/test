@@ -28,6 +28,18 @@ test("opens a parcel from the list", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("presentation vocabulary stays consistent across screens", async ({ page }) => {
+  await page.goto("/#people");
+  await expect(page.locator(".customer-row__name").first()).toHaveText("Я (я)");
+  await expect(page.locator(".customer-row__meta").nth(1)).toHaveText("1 товар · 1 посылка");
+
+  await page.goto("/#parcel/2");
+  await page.locator('details[data-item-group][data-customer="2"] > summary').click();
+  await expect(
+    page.locator(".item-entry").filter({ hasText: "Товар Кати" }).locator(".parcel-entry__hint"),
+  ).toContainText("1 шт");
+});
+
 test("payment toggle persists and self stays paid", async ({ page }) => {
   await page.goto("/#parcel/2");
   await openKatyaItemMenu(page);
@@ -62,7 +74,7 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
 
   await expect(page.getByText("Комиссия (распределится по товарам)")).toBeVisible();
   await page.locator("#saveBatchBtn").click();
-  await expect(page.getByText("Партия сохранена (1 товаров)")).toBeVisible();
+  await expect(page.getByText("Партия сохранена (1 товар)")).toBeVisible();
 
   const batch = await page.evaluate(async () => {
     const db = (window as unknown as { appDb: AppDb }).appDb;
@@ -85,7 +97,7 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   await page.locator("#addBatchBtn").click();
   await page.locator("#checkStepBtn").click();
   await page.locator("#saveBatchBtn").click();
-  await expect(page.getByText("Партия сохранена (1 товаров)")).toBeVisible();
+  await expect(page.getByText("Партия сохранена (1 товар)")).toBeVisible();
 
   const selfPayment = await page.evaluate(async () => {
     const db = (window as unknown as { appDb: AppDb }).appDb;

@@ -1,5 +1,6 @@
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
+import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { parcelRepository } from "./infrastructure";
 import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
@@ -8,7 +9,8 @@ import { unitsSelectHtml } from "./ui/UnitsSelect";
 import { createCustomerCombo, customerComboHtml } from "./customerCombo/CustomerCombo";
 import { on } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
-import { I, esc, money } from "@/core/utils";
+import { I, esc, money, t } from "@/core/utils";
+import { formatDateNumeric, ITEM_BARE_FORMS, UNIT_HINT, unitLabel } from "./ui/ParcelPresentation";
 
 // ============================================
 // Parcel Add View — two-step batch form
@@ -34,32 +36,12 @@ type BatchState = {
 
 type Field = HTMLInputElement | HTMLSelectElement;
 
-function unitLabel(unit: BatchItem["unit"]): string {
-  switch (unit) {
-    case "pcs":
-      return "шт";
-    case "packs":
-      return "уп";
-    case "pairs":
-      return "пар";
-  }
-}
-
 function fromSelect(value: string): BatchItem["unit"] {
   return value === "packs" || value === "pairs" ? value : "pcs";
 }
 
 function cny(v: number): string {
   return `${v.toFixed(2)} CNY`;
-}
-
-function itemsWord(count: number): string {
-  const mod100 = count % 100;
-  const mod10 = count % 10;
-  if (mod100 >= 11 && mod100 <= 14) return "товаров";
-  if (mod10 === 1) return "товар";
-  if (mod10 >= 2 && mod10 <= 4) return "товара";
-  return "товаров";
 }
 
 type ItemRow = { name: string; priceCNY: number; quantity: number; unit: BatchItem["unit"] };
@@ -116,7 +98,7 @@ function parseItems(text: string): { rows: ItemRow[]; error?: string } {
     if (!Number.isInteger(quantity) || quantity < 1) {
       return error("неверное количество");
     }
-    if (!unit) return error("укажите единицу (шт/уп/пар)");
+    if (!unit) return error(`укажите единицу (${UNIT_HINT})`);
     if (!Number.isFinite(priceCNY) || priceCNY <= 0) {
       return error("неверная цена CNY");
     }
@@ -183,7 +165,7 @@ function stepNav(active: 1 | 2 | 3): string {
 function renderStep1(root: HTMLElement, state: BatchState, render: (focus?: string) => void): void {
   const parcelOptions = state.parcels.map((p) => ({
     value: p.id,
-    label: `Посылка №${p.id} · ${parcelStatusInfo(p.status).label} · ${p.formattedDate}`,
+    label: `Посылка №${p.id} · ${parcelStatusInfo(p.status).label} · ${formatDateNumeric(p.createdAt)}`,
     selected: p.id === state.selectedParcelId,
   }));
 
@@ -277,7 +259,7 @@ function batchAddHtml(state: BatchState): string {
       ? `
         <div class="batch-add__group">
           <p class="batch-add__label">Строки или файл</p>
-          <p class="small muted">Формат строки: название, количество, единица (шт/уп/пар), цена CNY. Например: «Носки 1 шт 22,35».</p>
+          <p class="small muted">Формат строки: название, количество, единица (${UNIT_HINT}), цена CNY. Например: «Носки 1 шт 22,35».</p>
           <div class="csv-file-row">
             <input id="csvFile" class="sr-only" type="file" accept=".txt,text/plain" tabindex="-1" aria-label="Файл со строками">
             <button type="button" class="btn-secondary" id="chooseCsvFile">${I.sheet} Выбрать файл</button>
@@ -497,7 +479,11 @@ function renderStep2(root: HTMLElement, state: BatchState, render: (focus?: stri
   const itemsHtml = state.items.length
     ? state.items
         .map((item, idx) => {
-          const customerName = customerMap.get(item.customerId)?.name || "Без заказчика";
+          const customer = customerMap.get(item.customerId);
+          const customerName = customerLabel({
+            name: customer?.name || "Без заказчика",
+            isSelf: customer?.isSelf || false,
+          });
           return `
             <div class="item batch-row">
               <div class="parcel-entry__body min-w-0">
@@ -614,7 +600,7 @@ function renderStep3(root: HTMLElement, state: BatchState): void {
 
       ${
         countMismatch
-          ? `<p class="check-notice" id="itemsCountNotice">Внимание: ожидалось ${expectedCount} ${itemsWord(expectedCount)}, добавлено ${actualCount} ${itemsWord(actualCount)}. Проверьте список товаров перед сохранением.</p>`
+          ? `<p class="check-notice" id="itemsCountNotice">Внимание: ожидалось ${t(ITEM_BARE_FORMS, expectedCount)}, добавлено ${t(ITEM_BARE_FORMS, actualCount)}. Проверьте список товаров перед сохранением.</p>`
           : ""
       }
       <p class="check-notice ${hasDiff ? "" : "is-ok"}" id="checkNotice">${notice}</p>
@@ -635,7 +621,7 @@ function renderStep3(root: HTMLElement, state: BatchState): void {
         totalBYN: state.totalBYN,
       });
       toastState.add({
-        message: `Партия сохранена (${state.items.length} товаров)`,
+        message: `Партия сохранена (${t(ITEM_BARE_FORMS, state.items.length)})`,
         type: "success",
       });
       router.navigate("parcels");

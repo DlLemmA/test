@@ -8,7 +8,9 @@ import { customerService } from "@/features/shared/wiring";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
-import { I, esc, money } from "@/core/utils";
+import { I, esc, money, t } from "@/core/utils";
+import { SELF_SUFFIX } from "./ui/CustomerPresentation";
+import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
 import {
   parcelRepository,
   parcelItemRepository,
@@ -59,8 +61,8 @@ export async function renderCustomersView(): Promise<void> {
               <div class="customer-row">
                 ${customerMark(c, "list")}
                 <div class="customer-row__body">
-                  <span class="customer-row__name">${esc(c.name)}${c.isSelf ? ' <span class="customer-row__self">(я)</span>' : ""}</span>
-                  <span class="customer-row__meta">товары ${itemCount} · посылки ${balance.parcelCount}</span>
+                  <span class="customer-row__name">${esc(c.name)}${c.isSelf ? ` <span class="customer-row__self">${esc(SELF_SUFFIX)}</span>` : ""}</span>
+                  <span class="customer-row__meta">${t(ITEM_BARE_FORMS, itemCount)} · ${t(PARCEL_FORMS, balance.parcelCount)}</span>
                   <span class="customer-row__balance ${hasDebt ? "is-debt" : "is-paid"}">${amount}</span>
                 </div>
               </div>

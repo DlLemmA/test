@@ -5,9 +5,7 @@
 
 import { t } from "@/core/utils";
 import type { ItemTrackState, ParcelItem, Readiness } from "../domain";
-
-const ITEMS_FORMS = "товаров | {count} товара | {count} товара | {count} товаров";
-const TRACKS_FORMS = "треков | трек | трека | треков";
+import { ITEM_BARE_FORMS, TRACK_BARE_FORMS } from "./ParcelPresentation";
 
 export type BadgeCopy = { label: string; class: string; title: string };
 
@@ -19,7 +17,7 @@ export function shipBlockMessage(readiness: Readiness): string | null {
   if (issue.reason === "parcelEmpty") {
     return "Нельзя отправить пустую посылку. Добавьте хотя бы один товар.";
   }
-  return `У ${t(ITEMS_FORMS, issue.itemIds.length)} не отмечены «Треки заполнены». Откройте товар, проверьте треки и поставьте галочку.`;
+  return `У ${t(ITEM_BARE_FORMS, issue.itemIds.length)} не отмечены «Треки заполнены». Откройте товар, проверьте треки и поставьте галочку.`;
 }
 
 export function finishBlockMessage(readiness: Readiness, items: ParcelItem[]): string | null {
@@ -47,13 +45,13 @@ export function itemTrackBadge(state: ItemTrackState): BadgeCopy {
       return { label: "Треки готовы", class: "state-good", title: "Треки готовы" };
     case "ready":
       return {
-        label: `${state.filled}/${state.needed} ${t(TRACKS_FORMS, state.filled)}`,
+        label: `${state.filled}/${state.needed} ${t(TRACK_BARE_FORMS, state.filled)}`,
         class: "state-info",
         title: "Отметьте «Треки заполнены» в карточке товара",
       };
     case "partial":
       return {
-        label: `${state.filled}/${state.needed} ${t(TRACKS_FORMS, state.filled)}`,
+        label: `${state.filled}/${state.needed} ${t(TRACK_BARE_FORMS, state.filled)}`,
         class: "state-warn",
         title: "Заполните трек-номера",
       };

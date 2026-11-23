@@ -155,17 +155,6 @@ export class ParcelItem {
     return this.priceCNY;
   }
 
-  get unitLabel(): string {
-    switch (this.unit) {
-      case "pcs":
-        return "шт";
-      case "packs":
-        return "упак";
-      case "pairs":
-        return "пар";
-    }
-  }
-
   // Derived status based on parcel status and own data
   static deriveStatus(
     parcelStatus: ParcelStatus,

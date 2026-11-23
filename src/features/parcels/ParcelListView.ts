@@ -13,6 +13,7 @@ import { I, esc, kg, money } from "@/core/utils";
 import { Parcel } from "./domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelItemStatusInfo, parcelStatusInfo } from "./ui/ParcelStatusInfo";
+import { formatDateNumeric, parcelDate, unitLabel } from "./ui/ParcelPresentation";
 
 // ============================================
 // Parcel List View (Parcels Tab)
@@ -47,16 +48,15 @@ export async function renderParcelListView(): Promise<void> {
           ordered.length
             ? ordered
                 .map((p) => {
-                  const date = dateParts(p.shippedAt);
+                  const date = parcelDate(p);
                   const status = parcelStatusInfo(p.status);
-                  const isDraft = p.status === "draft";
                   const parcelTitle = p.name ? esc(p.name) : `Посылка №${p.id}`;
 
                   return `
           <div class="item parcel-entry" data-status="${p.status}">
-            <div class="parcel-entry__date" title="${isDraft ? "не отправлена" : `отправлена ${formatLong(p.shippedAt)}`}">
-              <b>${date?.day ?? "—"}</b>
-              <span>${date?.month ?? "нет"}</span>
+            <div class="parcel-entry__date" title="${date.title}">
+              <b>${date.day}</b>
+              <span>${date.month}</span>
             </div>
             <div class="parcel-entry__body min-w-0">
               <div class="parcel-entry__head">
@@ -90,22 +90,6 @@ export async function renderParcelListView(): Promise<void> {
   `;
 
   bindParcelListActions(parcels);
-}
-
-function dateParts(iso?: string): { day: string; month: string } | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return {
-    day: d.toLocaleDateString("ru-RU", { day: "2-digit" }),
-    month: d.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""),
-  };
-}
-
-function formatLong(iso?: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU");
 }
 
 async function getParcelItemsCount(parcel: Parcel): Promise<number> {
@@ -190,7 +174,7 @@ export async function exportParcel(parcel: Parcel): Promise<void> {
   // Summary
   rows.push(["ОБЩАЯ СВОДКА ПОСЫЛКИ"]);
   rows.push(["Статус", parcelStatusInfo(parcel.status).label]);
-  rows.push(["Дата создания", parcel.formattedDate]);
+  rows.push(["Дата создания", formatDateNumeric(parcel.createdAt)]);
   if (parcel.shippedAt) rows.push(["Дата отправки", parcel.shippedAt]);
   if (parcel.receivedAt) rows.push(["Дата получения", parcel.receivedAt]);
   if (parcel.boxWeightG) rows.push(["Вес посылки, кг", kg(parcel.boxWeightG)]);
@@ -247,7 +231,7 @@ export async function exportParcel(parcel: Parcel): Promise<void> {
       item.priceCNY,
       money(item.totalPriceBYN),
       item.quantity,
-      item.unitLabel,
+      unitLabel(item.unit),
       item.trackNumbers.join(", ") || "—",
       item.weightsG.join(", ") || "—",
       parcelItemStatusInfo(item.status).label,
@@ -257,7 +241,7 @@ export async function exportParcel(parcel: Parcel): Promise<void> {
   window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(rows), "Посылка");
   window.XLSX.writeFile(
     wb,
-    `Посылка_${parcel.formattedDate.replace(/\./g, "-")}_${new Date().toISOString().split("T")[0]}.xlsx`,
+    `Посылка_${formatDateNumeric(parcel.createdAt).replace(/\./g, "-")}_${new Date().toISOString().split("T")[0]}.xlsx`,
   );
   toastState.add({ message: "Excel сохранён", type: "success" });
 }

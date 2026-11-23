@@ -1,5 +1,6 @@
 import { I, esc, kg, money, t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
+import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { customerMark } from "@/features/customers/ui/CustomerMark";
 import { itemTrackState, type Parcel, type ParcelItem, type PaymentState } from "../domain";
 import {
@@ -9,8 +10,13 @@ import {
 } from "@/features/balances/domain";
 import { parcelItemStatusInfo } from "./ParcelStatusInfo";
 import { itemTrackBadge } from "./ReadinessCopy";
-
-const ITEMS_FORMS = "нет товаров | {count} товар | {count} товара | {count} товаров";
+import {
+  FOUND_FORMS,
+  ITEM_BARE_FORMS,
+  ITEM_FORMS,
+  TRACK_FORMS,
+  unitLabel,
+} from "./ParcelPresentation";
 
 export type ItemGroupsSearchResult = {
   visible: number;
@@ -29,6 +35,7 @@ function renderCustomerGroup(
   const customerId = customer?.id ?? 0;
   const isSelf = customer?.isSelf || false;
   const name = customer?.name || "Без заказчика";
+  const label = customerLabel({ name, isSelf });
   const weight = customerItems.reduce(
     (sum, item) => sum + item.weightsG.reduce((a, b) => a + b, 0),
     0,
@@ -45,13 +52,13 @@ function renderCustomerGroup(
       ${customerMark(customer, "box")}
       <div class="parcel-entry__body min-w-0">
         <div class="parcel-entry__head">
-          <b title="${esc(name)}">${esc(name)}${isSelf ? " (я)" : ""}<span class="item-group__chevron" aria-hidden="true">›</span></b>
+          <b title="${esc(name)}">${esc(label)}<span class="item-group__chevron" aria-hidden="true">›</span></b>
           <span class="parcel-entry__state ${balance.remaining > 0 ? "state-warn" : "state-good"}">
             ${balance.remaining > 0 ? `Остаток ${money(balance.remaining)}` : "Оплачено"}
           </span>
         </div>
         <div class="parcel-entry__hint">
-          ${t(ITEMS_FORMS, customerItems.length)} · ${weight > 0 ? `${kg(weight)} кг` : "вес —"} · товары ${money(itemTotal)} · доставка ${money(shippingShare)} · <span class="settle-entry__total">итого ${money(balance.owed)}</span>
+          ${t(ITEM_FORMS, customerItems.length)} · ${weight > 0 ? `${kg(weight)} кг` : "вес —"} · товары ${money(itemTotal)} · доставка ${money(shippingShare)} · <span class="settle-entry__total">итого ${money(balance.owed)}</span>
         </div>
         <div class="settle-entry__checks">
           <label class="payment-bullet ${goodsPaid ? "is-paid" : ""} ${canToggleGoods ? "" : "is-locked"}">
@@ -90,6 +97,8 @@ function itemHtml(
       : { label: status.label, class: status.class, title: "" };
   const trackBadge = `<span class="parcel-entry__state state-${badge.class}" title="${badge.title}">${esc(badge.label)}</span>`;
   const isSelf = customer?.isSelf || false;
+  const ownerName = customer?.name || "Без заказчика";
+  const label = customerLabel({ name: ownerName, isSelf });
   const itemPaid = isSelf || paymentState?.itemPaid.get(item.id) || false;
   const deliveryShare = deliveryByItem.get(item.id) || 0;
   const showWeights = parcel.status === "received" || parcel.status === "done";
@@ -108,7 +117,7 @@ function itemHtml(
       .join("") || (isDraft ? '<div class="item-entry__no-tracks">Треков пока нет</div>' : "");
 
   const trackCountNote = item.trackNumbers.length
-    ? ` · ${item.trackNumbers.length} трек${item.trackNumbers.length === 1 ? "" : item.trackNumbers.length < 5 ? "а" : "ов"}`
+    ? ` · ${t(TRACK_FORMS, item.trackNumbers.length)}`
     : "";
   const trackControls = isDraft
     ? `<div class="item-entry__track-controls">
@@ -162,7 +171,7 @@ function itemHtml(
           ${trackBadge}
         </div>
         <div class="parcel-entry__hint">
-          ${esc(customer?.name || "Без заказчика")}${customer?.isSelf ? " (я)" : ""} · ${item.quantity} ${item.unitLabel}${trackCountNote} · <span class="item-entry__price ${itemPaid ? "is-paid" : ""}">${money(item.totalPriceBYN + deliveryShare)}</span>${deliveryShare > 0 ? ` <span class="item-entry__without-delivery">без доставки ${money(item.totalPriceBYN)}</span>` : ""}
+          ${esc(label)} · ${item.quantity} ${unitLabel(item.unit)}${trackCountNote} · <span class="item-entry__price ${itemPaid ? "is-paid" : ""}">${money(item.totalPriceBYN + deliveryShare)}</span>${deliveryShare > 0 ? ` <span class="item-entry__without-delivery">без доставки ${money(item.totalPriceBYN)}</span>` : ""}
         </div>
         <div class="item-row__tracks">${trackLines}</div>
         ${trackControls}
@@ -260,6 +269,6 @@ export function applyItemGroupsSearch(
 export function itemSearchCountText(result: ItemGroupsSearchResult): string {
   const { visible, total, queryLength, missingOnly } = result;
   if (queryLength === 0 && !missingOnly) return "";
-  if (queryLength === 0) return `${t(ITEMS_FORMS, visible)} без треков из ${total}`;
-  return visible === 1 ? `Найден 1 из ${total}` : `Найдено ${visible} из ${total}`;
+  if (queryLength === 0) return `${t(ITEM_BARE_FORMS, visible)} без треков из ${total}`;
+  return `${t(FOUND_FORMS, visible)} ${visible} из ${total}`;
 }

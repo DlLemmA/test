@@ -16,6 +16,8 @@ import { modalStateAPI } from "@/core/state";
 import { scannerStateAPI } from "@/core/state";
 import { on } from "@/core/listeners";
 import { I, esc, t } from "@/core/utils";
+import { CUSTOMER_FORMS } from "@/features/customers/ui/CustomerPresentation";
+import { ITEM_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
 
 // ---- Toast Rendering ----
 function setupToastRendering(): void {
@@ -185,7 +187,7 @@ async function openBackupModal(): Promise<void> {
           const result = await importBackup(await file.text());
           router.navigate("parcels");
           toastState.add({
-            message: `База загружена: ${t("нет заказчиков | {count} заказчик | {count} заказчика | {count} заказчиков", result.customers)}, ${t("нет посылок | {count} посылка | {count} посылки | {count} посылок", result.parcels)}, ${t("нет товаров | {count} товар | {count} товара | {count} товаров", result.items)}`,
+            message: `База загружена: ${t(CUSTOMER_FORMS, result.customers)}, ${t(PARCEL_FORMS, result.parcels)}, ${t(ITEM_FORMS, result.items)}`,
             type: "success",
           });
         } catch (err) {

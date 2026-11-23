@@ -3,12 +3,13 @@ import { on } from "@/core/listeners";
 import { toastState } from "@/core/state";
 import { customerService } from "@/features/shared/wiring";
 import type { Customer } from "@/features/customers/domain";
-import { customerKey, findCustomerByName, rankCustomers } from "./CustomerComboMatch";
+import {
+  customerKey,
+  customerLabel,
+  findCustomerByName,
+  rankCustomers,
+} from "@/features/customers/ui/CustomerPresentation";
 import { pickerCaretHtml } from "../ui/Select";
-
-function customerLabel(customer: Customer): string {
-  return customer.isSelf ? `${customer.name} (я)` : customer.name;
-}
 
 export type CustomerComboState = {
   customers: Customer[];
