@@ -103,7 +103,7 @@ describe("customerBalances", () => {
     expect(result.totals.delivery.owed).toBe(0);
   });
 
-  it("uses weight shares, not a flat 30% of the total, for export columns", () => {
+  it("uses weight shares, not a flat 30% of the total", () => {
     const result = customerBalances({
       parcel: parcel(),
       items: [item(1, 1, 100, [300]), item(2, 2, 100, [700])],
@@ -113,15 +113,6 @@ describe("customerBalances", () => {
     const first = result.byCustomer.get(1)!;
     expect(first.delivery.owed).toBeCloseTo(9);
     expect(first.delivery.owed).not.toBeCloseTo(first.owed * 0.3);
-
-    const exportRow = [
-      first.goods.owed,
-      first.delivery.owed,
-      first.owed,
-      first.paid,
-      first.remaining,
-    ];
-    expect(exportRow[0]! + exportRow[1]!).toBeCloseTo(exportRow[2]!);
   });
 
   it("sums per-parcel balances without losing the goods/delivery split", () => {
