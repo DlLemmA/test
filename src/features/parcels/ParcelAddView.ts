@@ -6,7 +6,7 @@ import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { selectHtml } from "./ui/Select";
 import { unitsSelectHtml } from "./ui/UnitsSelect";
-import { createCustomerCombo, customerComboHtml } from "./customerCombo/CustomerCombo";
+import { mountCustomerCombo, type CustomerComboHandle } from "./customerCombo/CustomerCombo";
 import { on } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
 import { I, esc, money, t } from "@/core/utils";
@@ -311,8 +311,6 @@ function batchAddHtml(state: BatchState): string {
 
   return `
     <div class="batch-add">
-      ${customerComboHtml(state.customers.find((c) => c.id === state.selectedCustomerId))}
-
       <div class="batch-add__modes" role="group" aria-label="Режим добавления товаров">
         <button type="button" class="batch-add__mode" data-batch-mode="plain"
           aria-pressed="${state.csvMode === "plain"}">Строки</button>
@@ -329,8 +327,8 @@ function bindBatchAdd(
   root: HTMLElement,
   state: BatchState,
   rate: number,
-  customerMap: Map<number, Customer>,
   render: (focus?: string) => void,
+  combo: CustomerComboHandle,
 ): void {
   root.querySelectorAll<HTMLButtonElement>("[data-batch-mode]").forEach((button) => {
     on(button, "click", () => {
@@ -341,16 +339,26 @@ function bindBatchAdd(
     });
   });
 
-  const { commit: commitCustomer } = createCustomerCombo(root, state, customerMap);
-
-  const currentCustomerId = (): number => state.selectedCustomerId ?? 0;
+  // The combobox owns its customers and current selection; the batch only reads the result.
+  const syncCustomer = (): Customer | null => {
+    const snapshot = combo.snapshot();
+    state.customers = snapshot.customers;
+    state.selectedCustomerId = snapshot.selectedCustomerId;
+    return combo.selectedCustomer();
+  };
+  const currentCustomerId = (): number =>
+    combo.selectedCustomer()?.id ?? state.selectedCustomerId ?? 0;
   const checkCustomer = async (): Promise<boolean> => {
-    if (customerMap.has(currentCustomerId())) return true;
-    const committed = await commitCustomer();
-    if (committed) return true;
-    toastState.add({ message: "Укажите заказчика для партии", type: "error" });
-    root.querySelector<HTMLInputElement>("#customerComboInput")?.focus();
-    return false;
+    let selected = syncCustomer();
+    if (!selected) {
+      if (!(await combo.commit())) {
+        toastState.add({ message: "Укажите заказчика для партии", type: "error" });
+        combo.focus();
+        return false;
+      }
+      selected = syncCustomer();
+    }
+    return selected !== null;
   };
 
   if (state.csvMode === "plain") {
@@ -528,7 +536,13 @@ function renderStep2(root: HTMLElement, state: BatchState, render: (focus?: stri
     </div>
   `;
 
-  bindBatchAdd(root, state, rate, customerMap, render);
+  const comboHost = root.querySelector<HTMLElement>(".batch-add");
+  if (!comboHost) return;
+  const combo = mountCustomerCombo(comboHost, {
+    customers: state.customers,
+    selectedCustomerId: state.selectedCustomerId,
+  });
+  bindBatchAdd(root, state, rate, render, combo);
 
   root.querySelectorAll<HTMLButtonElement>("[data-remove]").forEach((button) => {
     on(button, "click", () => {

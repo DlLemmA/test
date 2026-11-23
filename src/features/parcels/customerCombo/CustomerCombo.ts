@@ -1,3 +1,8 @@
+// ============================================
+// Customer combobox: one mount seam owns its markup, ids and DOM behaviour.
+// The caller supplies only a host and receives results through the handle.
+// ============================================
+
 import { I, esc } from "@/core/utils";
 import { on } from "@/core/listeners";
 import { toastState } from "@/core/state";
@@ -9,57 +14,82 @@ import {
   findCustomerByName,
   rankCustomers,
 } from "@/features/customers/ui/CustomerPresentation";
-import { pickerCaretHtml } from "../ui/Select";
+import { pickerCaretHtml } from "../ui/Picker";
 
-export type CustomerComboState = {
+const IDS = {
+  wrapper: "customerCombo",
+  input: "customerComboInput",
+  list: "customerComboList",
+  error: "customerComboError",
+} as const;
+const OPTION_PREFIX = "customerComboOption";
+const OPTION_SELECTOR = ".customer-combo__option";
+const optionId = (index: number): string => `${OPTION_PREFIX}${index}`;
+
+export type CustomerComboSnapshot = {
   customers: Customer[];
   selectedCustomerId: number | null;
 };
 
-export type CustomerCombo = {
-  // Caller decides when a typed value must be committed (e.g. before batch save).
+export type CustomerComboHandle = {
+  /** Commit a typed value: select an existing customer or create a new one. */
   commit: () => Promise<boolean>;
+  focus: () => void;
+  selectedCustomer: () => Customer | null;
+  snapshot: () => CustomerComboSnapshot;
 };
 
-export function customerComboHtml(selected: Customer | undefined): string {
+function markup(initial: CustomerComboSnapshot): string {
+  const selected = initial.customers.find((c) => c.id === initial.selectedCustomerId);
   return `
-    <div class="field customer-combo" id="customerCombo">
-      <label for="customerComboInput">Заказчик</label>
+    <div class="field customer-combo" id="${IDS.wrapper}">
+      <label for="${IDS.input}">Заказчик</label>
       <div class="picker">
-        <input class="picker__control" id="customerComboInput" type="text" role="combobox" aria-expanded="false"
-          aria-controls="customerComboList" aria-autocomplete="list" autocomplete="off"
+        <input class="picker__control" id="${IDS.input}" type="text" role="combobox" aria-expanded="false"
+          aria-controls="${IDS.list}" aria-autocomplete="list" autocomplete="off"
           placeholder="Выберите или создайте" value="${esc(selected ? customerLabel(selected) : "")}">
         ${pickerCaretHtml}
       </div>
-      <div class="customer-combo__list" id="customerComboList" role="listbox" hidden></div>
-      <span class="customer-combo__error" id="customerComboError" hidden></span>
+      <div class="customer-combo__list" id="${IDS.list}" role="listbox" hidden></div>
+      <span class="customer-combo__error" id="${IDS.error}" hidden></span>
     </div>
   `;
 }
 
-export function createCustomerCombo(
-  root: HTMLElement,
-  state: CustomerComboState,
-  customerMap: Map<number, Customer>,
-): CustomerCombo {
-  const wrapper = root.querySelector<HTMLElement>("#customerCombo");
-  const input = root.querySelector<HTMLInputElement>("#customerComboInput");
-  const list = root.querySelector<HTMLElement>("#customerComboList");
-  const errorEl = root.querySelector<HTMLElement>("#customerComboError");
-  if (!wrapper || !input || !list || !errorEl) {
-    return { commit: async () => false };
-  }
+export function mountCustomerCombo(
+  host: HTMLElement,
+  initial: CustomerComboSnapshot,
+): CustomerComboHandle {
+  let customers = [...initial.customers];
+  let selectedCustomerId = initial.selectedCustomerId;
+
+  const read = {
+    selectedCustomer: () => customers.find((c) => c.id === selectedCustomerId) ?? null,
+    snapshot: () => ({ customers: [...customers], selectedCustomerId }),
+  };
+  const unavailable: CustomerComboHandle = {
+    ...read,
+    commit: async () => false,
+    focus: () => {},
+  };
+
+  host.insertAdjacentHTML("afterbegin", markup({ customers, selectedCustomerId }));
+
+  const wrapper = host.querySelector<HTMLElement>(`#${IDS.wrapper}`);
+  const input = host.querySelector<HTMLInputElement>(`#${IDS.input}`);
+  const list = host.querySelector<HTMLElement>(`#${IDS.list}`);
+  const errorEl = host.querySelector<HTMLElement>(`#${IDS.error}`);
+  if (!wrapper || !input || !list || !errorEl) return unavailable;
   const control = wrapper.querySelector<HTMLElement>(".picker");
-  if (!control) return { commit: async () => false };
+  if (!control) return unavailable;
 
   // Focus stays in the input; the highlighted option is tracked via aria-activedescendant.
   // `filter` is only set by typing, so opening on a preselected value shows the whole list.
   let activeIndex = -1;
   let filter = "";
   let closeTimer: number | undefined;
-  const optionId = (index: number): string => `customerComboOption${index}`;
   const optionButtons = (): HTMLButtonElement[] => [
-    ...list.querySelectorAll<HTMLButtonElement>(".customer-combo__option"),
+    ...list.querySelectorAll<HTMLButtonElement>(OPTION_SELECTOR),
   ];
   const clearActive = (): void => {
     activeIndex = -1;
@@ -91,19 +121,19 @@ export function createCustomerCombo(
 
   const renderOptions = (): void => {
     const name = filter.trim();
-    const matches = rankCustomers(state.customers, name);
+    const matches = rankCustomers(customers, name);
     const options = matches
       .map(
         (c, index) => `
           <button type="button" class="customer-combo__option" role="option" id="${optionId(index)}"
-            data-customer-id="${c.id}" aria-selected="${c.id === state.selectedCustomerId}">
+            data-customer-id="${c.id}" aria-selected="${c.id === selectedCustomerId}">
             ${esc(customerLabel(c))}
           </button>
         `,
       )
       .join("");
     const create =
-      !name || findCustomerByName(state.customers, name)
+      !name || findCustomerByName(customers, name)
         ? ""
         : `<button type="button" class="customer-combo__option customer-combo__option--create" role="option" data-create="true" id="${optionId(matches.length)}">
            ${I.plus} Создать «${esc(name)}»
@@ -127,8 +157,8 @@ export function createCustomerCombo(
     input.setAttribute("aria-expanded", "true");
   };
   const select = (customer: Customer): void => {
-    state.selectedCustomerId = customer.id;
-    customerMap.set(customer.id, customer);
+    if (!customers.some((c) => c.id === customer.id)) customers.push(customer);
+    selectedCustomerId = customer.id;
     input.value = customerLabel(customer);
     filter = "";
     clearError();
@@ -143,7 +173,7 @@ export function createCustomerCombo(
       input.focus();
       return false;
     }
-    const existing = findCustomerByName(state.customers, name);
+    const existing = findCustomerByName(customers, name);
     if (existing) {
       select(existing);
       return true;
@@ -155,7 +185,6 @@ export function createCustomerCombo(
     }
     try {
       const customer = await customerService.createCustomer(name);
-      state.customers.push(customer);
       select(customer);
       toastState.add({ message: `Заказчик «${customer.name}» добавлен`, type: "success" });
       return true;
@@ -176,9 +205,9 @@ export function createCustomerCombo(
   on(input, "input", () => {
     clearError();
     filter = input.value;
-    const selected = state.customers.find((c) => c.id === state.selectedCustomerId);
+    const selected = customers.find((c) => c.id === selectedCustomerId);
     if (selected && customerKey(input.value) !== customerKey(customerLabel(selected))) {
-      state.selectedCustomerId = null;
+      selectedCustomerId = null;
     }
     renderOptions();
     if (list.hidden) open();
@@ -216,13 +245,12 @@ export function createCustomerCombo(
   on(list, "pointerdown", cancelClose);
   on(list, "click", (e) => {
     cancelClose();
-    const button = (e.target as HTMLElement).closest<HTMLButtonElement>(".customer-combo__option");
+    const button = (e.target as HTMLElement).closest<HTMLButtonElement>(OPTION_SELECTOR);
     if (!button) return;
 
     const id = button.dataset.customerId;
     if (id) {
-      const customer =
-        state.customers.find((c) => c.id === Number(id)) ?? customerMap.get(Number(id));
+      const customer = customers.find((c) => c.id === Number(id));
       if (customer) select(customer);
       return;
     }
@@ -238,5 +266,5 @@ export function createCustomerCombo(
     }, 150);
   });
 
-  return { commit };
+  return { ...read, commit, focus: () => input.focus() };
 }

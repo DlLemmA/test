@@ -108,6 +108,36 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   expect(selfPayment?.paid).toBe(true);
 });
 
+test("combobox creates a customer and the batch keeps the selection", async ({ page }) => {
+  await page.goto("/#add");
+  await page.locator("#sumCNY").fill("20");
+  await page.locator("#sumBYN").fill("2.6");
+  await page.locator('#stage1Form button[type="submit"]').click();
+
+  await page.locator("#customerComboInput").fill("Новый заказчик");
+  await page.locator("#csvText").fill("Товар нового 1 шт 20");
+  await page.locator("#addBatchBtn").click();
+  await expect(
+    page.locator("#toastContainer").getByText("Заказчик «Новый заказчик» добавлен"),
+  ).toBeVisible();
+
+  await page.locator("#checkStepBtn").click();
+  await page.locator("#saveBatchBtn").click();
+  await expect(page.getByText("Партия сохранена (1 товар)")).toBeVisible();
+
+  const ids = await page.evaluate(async () => {
+    const db = (window as unknown as { appDb: AppDb }).appDb;
+    const customers = await db.customers.toArray();
+    const items = await db.parcelItems.toArray();
+    return {
+      created: customers.find((c) => c.name === "Новый заказчик")?.id,
+      assigned: items.find((i) => i.name === "Товар нового")?.customerId,
+    };
+  });
+  expect(ids.created).toBeDefined();
+  expect(ids.assigned).toBe(ids.created);
+});
+
 test("ship button explains why a draft is not ready", async ({ page }) => {
   await page.evaluate(async () => {
     const db = (window as unknown as { appDb: AppDb }).appDb;

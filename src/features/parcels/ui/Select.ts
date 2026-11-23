@@ -1,4 +1,5 @@
 import { esc } from "@/core/utils";
+import { pickerCaretHtml } from "./Picker";
 
 export type SelectOption = {
   value: string | number;
@@ -13,9 +14,6 @@ export type SelectProps = {
   required?: boolean;
   attrs?: Record<string, string>;
 };
-
-// Shared caret: native selects and the customer combobox must look identical.
-export const pickerCaretHtml = '<span class="picker__caret" aria-hidden="true"></span>';
 
 export function selectHtml({ options, id, name, required, attrs }: SelectProps): string {
   const attributes = [
