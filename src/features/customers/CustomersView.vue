@@ -120,3 +120,5 @@ function balanceAmount(statement: CustomerStatement): string {
     />
   </div>
 </template>
+
+<style src="./customers.css"></style>

@@ -2,6 +2,7 @@
 // AppShell — the single owner of routing and view lifetime.
 // ============================================
 
+import "./appShell.css";
 import type { ListenerScope } from "@/core/listeners";
 import { router, initRouterFromHash, toastState } from "@/core/state";
 import type { Route, RouteParams } from "@/core/state";

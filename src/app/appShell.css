@@ -1,0 +1,196 @@
+/* === App header — quiet register masthead === */
+.app-shell {
+  max-width: 42rem;
+  margin-inline: auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-canvas);
+}
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 11px;
+  background: rgb(247 244 237 / 0.88);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid var(--color-line-strong);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.brand-mark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 7px;
+  background: var(--color-paper);
+  color: var(--color-accent);
+}
+.brand-mark svg {
+  width: 15px;
+  height: 15px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+.brand-text strong {
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.brand-text small {
+  color: var(--color-muted);
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+.header-actions {
+  display: flex;
+  gap: 2px;
+}
+.header-btn {
+  min-height: 32px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+.header-btn:active {
+  background: var(--color-slate-100);
+  color: var(--color-accent-strong);
+}
+
+/* === Bottom bar — floating glass dock ===
+   Safari clips an outer box-shadow on an element with backdrop-filter, and a
+   shadow on an ancestor can break the blur, so it lives on a sibling layer. */
+.bottombar-wrap {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  max-width: 42rem;
+  margin-inline: auto;
+}
+.bottombar-shadow {
+  position: absolute;
+  inset: 0;
+  border-radius: 26px;
+  box-shadow:
+    0 10px 30px rgb(42 29 39 / 0.12),
+    0 2px 6px rgb(42 29 39 / 0.06);
+  pointer-events: none;
+}
+.bottombar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid rgb(253 251 246 / 0.78);
+  border-radius: 26px;
+  background: rgb(253 251 246 / 0.86);
+  background: linear-gradient(to bottom in oklab, rgb(253 251 246 / 0.92), rgb(247 244 237 / 0.86));
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 0 rgb(216 27 96 / 0.08);
+}
+/* Opaque fallback where translucency is unavailable */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bottombar {
+    background: var(--color-paper);
+  }
+}
+/* Focused controls must not disappear under the floating dock */
+#main-content {
+  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.bottombar-item {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding: 6px 2px 5px;
+  background: none;
+  border: 0;
+  border-radius: 18px;
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Shape + surface, not color alone, marks the current tab */
+.bottombar-item.active {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-soft);
+  box-shadow:
+    inset 0 0 0 1px rgb(216 27 96 / 0.18),
+    0 1px 2px rgb(42 29 39 / 0.05);
+}
+.bottombar-item.active .icon {
+  color: var(--color-accent);
+}
+.bottombar-item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.bottombar-item .icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bottombar-item {
+    transition:
+      background-color 150ms ease-out,
+      color 150ms ease-out,
+      scale 150ms ease-out;
+  }
+  .bottombar-item:active {
+    scale: 0.97;
+  }
+}
+
+@media (forced-colors: active) {
+  .bottombar-shadow {
+    box-shadow: none;
+  }
+  .bottombar {
+    background: Canvas;
+    border-color: CanvasText;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .bottombar-item.active {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+    background: Canvas;
+    box-shadow: none;
+  }
+}

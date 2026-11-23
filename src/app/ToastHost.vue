@@ -21,7 +21,7 @@ function onAction(toast: Toast): void {
       <ToastRoot
         v-for="toast in view.toasts"
         :key="toast.id"
-        class="toast toast-enter"
+        class="toast"
         :data-toast-type="toast.type"
         :duration="0"
         @update:open="(open: boolean) => !open && toastState.remove(toast.id)"

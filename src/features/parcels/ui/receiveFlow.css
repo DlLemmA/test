@@ -1,0 +1,521 @@
+/* === Receive flow — full-screen scanner with per-track ticket === */
+.rf-dialog[open] {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: var(--color-night);
+  color: #fff8fa;
+  overscroll-behavior: contain;
+}
+.rf-dialog::backdrop {
+  background: rgb(27 15 25 / 0.68);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.rf {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+}
+.rf-topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+  background: rgb(27 15 25 / 0.8);
+}
+.rf-icon-btn {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--color-paper);
+}
+.rf-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.rf-heading b {
+  font-size: 15px;
+}
+#rfProgress {
+  font-size: 12px;
+  color: #e9c6d6;
+  font-variant-numeric: tabular-nums;
+}
+.rf-top-action {
+  flex: none;
+  min-height: 40px;
+  padding: 8px 4px;
+  background: transparent;
+  color: var(--color-accent-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+.rf-progress-track {
+  flex: none;
+  height: 3px;
+  background: rgb(255 255 255 / 0.14);
+}
+#rfProgressBar {
+  height: 100%;
+  width: 0;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px rgb(216 27 96 / 0.7);
+}
+.rf-camera {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #000;
+}
+#rfVideo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rf-reticle {
+  position: absolute;
+  width: min(72vw, 300px);
+  aspect-ratio: 1;
+  border: 2px solid rgb(255 228 239 / 0.92);
+  border-radius: 24px;
+  box-shadow:
+    0 0 0 9999px rgb(27 15 25 / 0.42),
+    inset 0 0 24px rgb(216 27 96 / 0.18);
+  pointer-events: none;
+}
+.rf-hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(27 15 25 / 0.74);
+  color: #fff8fa;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.rf-last {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #f3ccdc;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.rf-sheet {
+  flex: 0 1 auto;
+  max-height: min(64dvh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 22px 22px 0 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 0 -12px 32px rgb(27 15 25 / 0.42);
+}
+.rf-grab {
+  flex: none;
+  width: 40px;
+  height: 5px;
+  margin: 0 auto 2px;
+  border-radius: 3px;
+  background: var(--color-line-strong);
+}
+.rf-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+.rf-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+.rf-shipping {
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+.rf-note,
+.rf-keyhint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.rf-keyhint {
+  text-align: center;
+}
+.rf-ticket-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rf-pill {
+  flex: none;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+}
+.rf-ticket-customer {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+.rf-ticket-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.rf-track {
+  padding: 8px 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: var(--color-accent-wash);
+  color: var(--color-ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.rf-siblings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-ink-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.rf-chip.is-done {
+  background: #e6f5ed;
+  color: var(--color-positive);
+}
+.rf-chip.is-current {
+  background: var(--color-accent);
+  color: #fff;
+}
+.rf-weight-form,
+.rf-manual-form,
+.rf-finish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+.rf-weight-label,
+.rf-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+.rf-weight-input {
+  width: 100%;
+  min-height: 64px;
+  padding: 6px 12px;
+  border: 2px solid var(--color-line-strong);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--color-ink);
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.rf-primary,
+.rf-secondary {
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.rf-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+.rf-primary:active {
+  background: var(--color-accent-strong);
+}
+.rf-primary:disabled {
+  background: var(--color-line-strong);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+.rf-secondary {
+  min-height: 48px;
+  border: 1px solid var(--color-accent-line);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.rf-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.rf-link {
+  min-height: 44px;
+  padding: 8px;
+  background: transparent;
+  color: var(--color-accent-strong);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rf-error {
+  margin: 0;
+  color: var(--color-negative);
+  font-size: 13px;
+  font-weight: 600;
+}
+.rf-warn {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7e8;
+  color: var(--color-warning);
+  font-size: 13px;
+}
+.rf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rf-field input,
+.rf-search,
+.rf-scanbar input {
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--color-ink);
+  font-size: 16px;
+}
+.rf-scanbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rf-scanbar input {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 12px;
+}
+.rf-send {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--color-accent);
+  color: #fff;
+}
+.rf-scan-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rf-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rf-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 12px;
+  background: var(--color-accent-wash);
+  color: var(--color-ink);
+  text-align: left;
+}
+.rf-choice span {
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+.rf-manual-item {
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-paper);
+}
+.rf-manual-name {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.rf-manual-name span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-ink-soft);
+}
+.rf-manual-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.rf-manual-track {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--color-ink-soft);
+}
+.rf-manual-weight {
+  width: 88px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--color-ink);
+  font-size: 16px;
+  text-align: right;
+}
+:is(
+  .rf-weight-input,
+  .rf-field input,
+  .rf-search,
+  .rf-scanbar input,
+  .rf-manual-weight
+)[aria-invalid="true"] {
+  border-color: var(--color-negative);
+  background: #fff0f0;
+}
+:is(
+  .rf-primary,
+  .rf-secondary,
+  .rf-icon-btn,
+  .rf-link,
+  .rf-send,
+  .rf-chip,
+  .rf-choice
+):focus-visible,
+:is(
+  .rf-weight-input,
+  .rf-field input,
+  .rf-search,
+  .rf-scanbar input,
+  .rf-manual-weight
+):focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.visually-hidden,
+.sr-only {
+  position: absolute;
+  clip-path: inset(50%);
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rf-primary,
+  .rf-secondary,
+  .rf-icon-btn,
+  .rf-send,
+  .rf-chip,
+  .rf-choice {
+    transition:
+      transform 120ms ease,
+      background-color 120ms ease;
+  }
+  .rf-primary:active,
+  .rf-secondary:active,
+  .rf-icon-btn:active,
+  .rf-send:active,
+  .rf-chip:active,
+  .rf-choice:active {
+    transform: scale(0.98);
+  }
+}
+@media (forced-colors: active) {
+  .rf-dialog[open] {
+    background: Canvas;
+    color: CanvasText;
+  }
+  .rf-primary {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
+  .rf-reticle {
+    border-color: CanvasText;
+    box-shadow: none;
+  }
+}

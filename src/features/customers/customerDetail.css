@@ -1,0 +1,109 @@
+/* --- Screen 5: customer account statement — quiet lines, no cards --- */
+.page-customer-detail {
+  gap: 4px;
+  padding-top: 4px;
+}
+.customer-mark--avatar {
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 13px;
+  background: var(--color-slate-100);
+  color: var(--color-ink-soft);
+  font-size: 14px;
+}
+.page-customer-detail .detail-hero .customer-mark--avatar {
+  inline-size: 48px;
+  block-size: 48px;
+  border-radius: 14px;
+  font-size: 17px;
+}
+.page-customer-detail .detail-hero.is-self .customer-mark--avatar {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.customer-summary {
+  margin-top: 10px;
+}
+.customer-note {
+  margin: 6px 2px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.check-row--total.is-debt b {
+  color: var(--color-negative);
+}
+.check-row--total.is-paid b {
+  color: var(--color-positive);
+}
+.customer-statement + .customer-statement {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+.parcel-line {
+  padding-top: 12px;
+  padding-bottom: 6px;
+}
+.parcel-line .btn-icon {
+  align-self: center;
+}
+.customer-items {
+  padding-top: 0;
+}
+.parcel-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px 4px 0;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.parcel-check input,
+.item-check input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--color-positive);
+}
+.parcel-check:has(input:checked),
+.item-check:has(input:checked) {
+  color: var(--color-positive);
+}
+.item-check {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 13px;
+}
+.customer-statement > .item-check:last-child {
+  border-bottom: 0;
+}
+.item-check__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-check__prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  line-height: 1.25;
+}
+.item-check__price {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
