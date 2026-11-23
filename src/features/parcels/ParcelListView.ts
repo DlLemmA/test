@@ -7,8 +7,9 @@ declare global {
 }
 import { parcelService } from "@/features/shared/wiring";
 import { confirmDrawer } from "@/core/drawer";
-import { on } from "@/core/listeners";
+import { createListenerScope } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
+import type { ViewHandle } from "@/app/ViewHandle";
 import { I, esc, kg, money } from "@/core/utils";
 import { Parcel } from "./domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
@@ -19,24 +20,27 @@ import { formatDateNumeric, parcelDate, unitLabel } from "./ui/ParcelPresentatio
 // Parcel List View (Parcels Tab)
 // ============================================
 
-export async function renderParcelListView(): Promise<void> {
-  const root = document.getElementById("parcelListView");
-  if (!root) return;
+export function mountParcelListView(host: HTMLElement): ViewHandle {
+  const scope = createListenerScope();
 
-  const parcels = await parcelRepository.findAll();
+  async function render(): Promise<void> {
+    if (scope.signal.aborted) return;
+    const parcels = await parcelRepository.findAll();
 
-  // Item counts, keyed by id so sorting the list never desynchronizes them.
-  const itemsCounts = new Map<number, number>();
-  await Promise.all(parcels.map(async (p) => itemsCounts.set(p.id, await getParcelItemsCount(p))));
+    // Item counts, keyed by id so sorting the list never desynchronizes them.
+    const itemsCounts = new Map<number, number>();
+    await Promise.all(
+      parcels.map(async (p) => itemsCounts.set(p.id, await getParcelItemsCount(p))),
+    );
 
-  // The shipping date is the anchor of this screen — newest shipments first, drafts last.
-  const ordered = [...parcels].sort((a, b) => {
-    const ad = a.shippedAt ? Date.parse(a.shippedAt) : 0;
-    const bd = b.shippedAt ? Date.parse(b.shippedAt) : 0;
-    return bd - ad;
-  });
+    // The shipping date is the anchor of this screen — newest shipments first, drafts last.
+    const ordered = [...parcels].sort((a, b) => {
+      const ad = a.shippedAt ? Date.parse(a.shippedAt) : 0;
+      const bd = b.shippedAt ? Date.parse(b.shippedAt) : 0;
+      return bd - ad;
+    });
 
-  root.innerHTML = `
+    host.innerHTML = `
     <div class="page page-parcels">
       <header class="page-head">
         <h1>Посылки</h1>
@@ -89,7 +93,10 @@ export async function renderParcelListView(): Promise<void> {
     </div>
   `;
 
-  bindParcelListActions(parcels);
+    bindParcelListActions(host, parcels, scope, () => void render());
+  }
+
+  return { render, dispose: () => scope.dispose() };
 }
 
 async function getParcelItemsCount(parcel: Parcel): Promise<number> {
@@ -98,37 +105,37 @@ async function getParcelItemsCount(parcel: Parcel): Promise<number> {
   return items.length;
 }
 
-function bindParcelListActions(parcels: Parcel[]): void {
-  const addBtn = document.getElementById("addParcel");
-  on(addBtn, "click", async () => {
+function bindParcelListActions(
+  host: HTMLElement,
+  parcels: Parcel[],
+  scope: ReturnType<typeof createListenerScope>,
+  refresh: () => void,
+): void {
+  scope.on(host.querySelector<HTMLElement>("#addParcel"), "click", async () => {
     const draft = parcels.find((p) => p.status === "draft");
     const parcel = draft || (await parcelService.createParcel());
     router.navigate("parcel", { parcelId: String(parcel.id) });
   });
 
-  document.querySelectorAll("[data-open]").forEach((btn) => {
-    const b = btn as HTMLElement;
-    on(b, "click", () => {
-      const id = parseInt(b.dataset.open!);
-      router.navigate("parcel", { parcelId: String(id) });
+  host.querySelectorAll<HTMLElement>("[data-open]").forEach((button) => {
+    scope.on(button, "click", () => {
+      router.navigate("parcel", { parcelId: String(parseInt(button.dataset.open!)) });
     });
   });
 
-  document.querySelectorAll("[data-export]").forEach((btn) => {
-    const b = btn as HTMLElement;
-    on(b, "click", async () => {
-      b.closest("details")?.removeAttribute("open");
-      const parcelId = parseInt(b.dataset.export!);
-      const parcel = await parcelRepository.findById(parcelId);
+  host.querySelectorAll<HTMLElement>("[data-export]").forEach((button) => {
+    scope.on(button, "click", async () => {
+      button.closest("details")?.removeAttribute("open");
+      const parcel = await parcelRepository.findById(parseInt(button.dataset.export!));
       if (parcel) exportParcel(parcel);
     });
   });
 
-  document.querySelectorAll("[data-del]").forEach((btn) => {
-    const b = btn as HTMLElement;
-    on(b, "click", async () => {
-      b.closest("details")?.removeAttribute("open");
-      await deleteParcel(parseInt(b.dataset.del!));
+  host.querySelectorAll<HTMLElement>("[data-del]").forEach((button) => {
+    scope.on(button, "click", async () => {
+      button.closest("details")?.removeAttribute("open");
+      await deleteParcel(parseInt(button.dataset.del!));
+      refresh();
     });
   });
 }
@@ -257,13 +264,7 @@ async function deleteParcel(parcelId: number): Promise<void> {
       if (uiState.currentParcelId === parcelId) {
         uiState.setCurrentParcelId(null);
       }
-      renderParcelListView();
       toastState.add({ message: "Посылка удалена", type: "success" });
     },
   );
 }
-
-// Auto-render when route becomes active
-router.subscribe((route) => {
-  if (route === "parcels") renderParcelListView();
-});

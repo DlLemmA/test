@@ -4,7 +4,7 @@
 // ============================================
 
 import { I, esc } from "@/core/utils";
-import { on } from "@/core/listeners";
+import { createListenerScope } from "@/core/listeners";
 import { toastState } from "@/core/state";
 import { customerService } from "@/features/shared/wiring";
 import type { Customer } from "@/features/customers/domain";
@@ -37,6 +37,7 @@ export type CustomerComboHandle = {
   focus: () => void;
   selectedCustomer: () => Customer | null;
   snapshot: () => CustomerComboSnapshot;
+  dispose(): void;
 };
 
 function markup(initial: CustomerComboSnapshot): string {
@@ -62,6 +63,7 @@ export function mountCustomerCombo(
 ): CustomerComboHandle {
   let customers = [...initial.customers];
   let selectedCustomerId = initial.selectedCustomerId;
+  const scope = createListenerScope();
 
   const read = {
     selectedCustomer: () => customers.find((c) => c.id === selectedCustomerId) ?? null,
@@ -71,6 +73,7 @@ export function mountCustomerCombo(
     ...read,
     commit: async () => false,
     focus: () => {},
+    dispose: () => scope.dispose(),
   };
 
   host.insertAdjacentHTML("afterbegin", markup({ customers, selectedCustomerId }));
@@ -195,14 +198,14 @@ export function mountCustomerCombo(
   };
 
   // The whole control opens the list; no separate focusable toggle is needed.
-  on(control, "click", (e) => {
+  scope.on(control, "click", (e) => {
     if ((e.target as HTMLElement).closest("input")) return;
     if (list.hidden) open();
     input.focus();
   });
-  on(input, "focus", open);
-  on(input, "click", open);
-  on(input, "input", () => {
+  scope.on(input, "focus", open);
+  scope.on(input, "click", open);
+  scope.on(input, "input", () => {
     clearError();
     filter = input.value;
     const selected = customers.find((c) => c.id === selectedCustomerId);
@@ -212,7 +215,7 @@ export function mountCustomerCombo(
     renderOptions();
     if (list.hidden) open();
   });
-  on(input, "keydown", (e) => {
+  scope.on(input, "keydown", (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (list.hidden) {
@@ -242,8 +245,8 @@ export function mountCustomerCombo(
     }
   };
   // On touch screens tapping an option blurs the input before `click` fires.
-  on(list, "pointerdown", cancelClose);
-  on(list, "click", (e) => {
+  scope.on(list, "pointerdown", cancelClose);
+  scope.on(list, "click", (e) => {
     cancelClose();
     const button = (e.target as HTMLElement).closest<HTMLButtonElement>(OPTION_SELECTOR);
     if (!button) return;
@@ -257,7 +260,7 @@ export function mountCustomerCombo(
 
     if (button.dataset.create) void commit();
   });
-  on(wrapper, "focusout", (e) => {
+  scope.on(wrapper, "focusout", (e) => {
     if (wrapper.contains(e.relatedTarget as Node | null)) return;
     cancelClose();
     closeTimer = window.setTimeout(() => {
@@ -266,5 +269,13 @@ export function mountCustomerCombo(
     }, 150);
   });
 
-  return { ...read, commit, focus: () => input.focus() };
+  return {
+    ...read,
+    commit,
+    focus: () => input.focus(),
+    dispose: () => {
+      scope.dispose();
+      if (closeTimer !== undefined) clearTimeout(closeTimer);
+    },
+  };
 }

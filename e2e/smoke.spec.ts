@@ -198,3 +198,34 @@ test("customer card toggles one item and the whole parcel", async ({ page }) => 
   expect(state.paidItems).toBe(1);
   expect(state.paidShipping).toBe(1);
 });
+
+test("a route change mounts its view exactly once", async ({ page }) => {
+  await page.goto("/#parcels");
+  await expect(page.locator(".page-parcels")).toBeVisible();
+
+  // Count innerHTML writes per host: duplicate route owners show up as 2+.
+  await page.evaluate(() => {
+    const target = window as unknown as { viewRenders: Record<string, number> };
+    target.viewRenders = {};
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+    if (!descriptor?.get || !descriptor.set) throw new Error("innerHTML is not writable");
+    Object.defineProperty(Element.prototype, "innerHTML", {
+      configurable: true,
+      get: descriptor.get,
+      set(this: Element, value: string) {
+        if (this.id) target.viewRenders[this.id] = (target.viewRenders[this.id] ?? 0) + 1;
+        descriptor.set!.call(this, value);
+      },
+    });
+  });
+
+  await page.locator('[data-open="2"]').click();
+  await expect(page).toHaveURL(/#parcel\/2$/);
+  await expect(page.locator(".page-parcel-detail")).toBeVisible();
+
+  const renders = await page.evaluate(
+    () => (window as unknown as { viewRenders: Record<string, number> }).viewRenders,
+  );
+  expect(renders.parcelView).toBe(1);
+  expect(renders.bottombar).toBe(1);
+});

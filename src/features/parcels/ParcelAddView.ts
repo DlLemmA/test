@@ -7,8 +7,11 @@ import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { selectHtml } from "./ui/Select";
 import { unitsSelectHtml } from "./ui/UnitsSelect";
 import { mountCustomerCombo, type CustomerComboHandle } from "./customerCombo/CustomerCombo";
-import { on } from "@/core/listeners";
+import { createListenerScope } from "@/core/listeners";
+import type { ListenerScope } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
+import type { RouteParams } from "@/core/state";
+import type { ViewHandle } from "@/app/ViewHandle";
 import { I, esc, money, t } from "@/core/utils";
 import { formatDateNumeric, ITEM_BARE_FORMS, UNIT_HINT, unitLabel } from "./ui/ParcelPresentation";
 
@@ -131,13 +134,13 @@ function setFieldError(field: Field, invalid: boolean, message: string): boolean
   return !invalid;
 }
 
-function clearErrorsOnInput(form: HTMLFormElement): void {
+function clearErrorsOnInput(form: HTMLFormElement, scope: ListenerScope): void {
   form.querySelectorAll<Field>("input, select").forEach((field) => {
-    on(field, "input", () => {
+    scope.on(field, "input", () => {
       field.setCustomValidity("");
       field.removeAttribute("aria-invalid");
     });
-    on(field, "change", () => {
+    scope.on(field, "change", () => {
       field.setCustomValidity("");
       field.removeAttribute("aria-invalid");
     });
@@ -162,7 +165,12 @@ function stepNav(active: 1 | 2 | 3): string {
   `;
 }
 
-function renderStep1(root: HTMLElement, state: BatchState, render: (focus?: string) => void): void {
+function renderStep1(
+  root: HTMLElement,
+  state: BatchState,
+  render: (focus?: string) => void,
+  scope: ListenerScope,
+): void {
   const parcelOptions = state.parcels.map((p) => ({
     value: p.id,
     label: `Посылка №${p.id} · ${parcelStatusInfo(p.status).label} · ${formatDateNumeric(p.createdAt)}`,
@@ -213,12 +221,12 @@ function renderStep1(root: HTMLElement, state: BatchState, render: (focus?: stri
   const cny = document.getElementById("sumCNY") as HTMLInputElement;
   const byn = document.getElementById("sumBYN") as HTMLInputElement;
 
-  on(parcelSelect, "change", () => {
+  scope.on(parcelSelect, "change", () => {
     state.selectedParcelId = Number(parcelSelect.value) || 0;
   });
-  clearErrorsOnInput(form);
+  clearErrorsOnInput(form, scope);
 
-  on(form, "submit", (e) => {
+  scope.on(form, "submit", (e) => {
     e.preventDefault();
     const expectedValue = expected.value.trim() === "" ? null : Number(expected.value);
     const cnyValue = Number(cny.value);
@@ -329,9 +337,10 @@ function bindBatchAdd(
   rate: number,
   render: (focus?: string) => void,
   combo: CustomerComboHandle,
+  scope: ListenerScope,
 ): void {
   root.querySelectorAll<HTMLButtonElement>("[data-batch-mode]").forEach((button) => {
-    on(button, "click", () => {
+    scope.on(button, "click", () => {
       const mode = button.dataset.batchMode === "ui" ? "ui" : "plain";
       if (state.csvMode === mode) return;
       state.csvMode = mode;
@@ -366,17 +375,17 @@ function bindBatchAdd(
     const csvFile = document.getElementById("csvFile") as HTMLInputElement;
     const fileName = document.getElementById("csvFileName") as HTMLElement;
 
-    on(csvText, "input", () => {
+    scope.on(csvText, "input", () => {
       state.csvText = csvText.value;
       csvText.setCustomValidity("");
       csvText.removeAttribute("aria-invalid");
     });
 
-    on(document.getElementById("chooseCsvFile"), "click", () => {
+    scope.on(document.getElementById("chooseCsvFile"), "click", () => {
       csvFile.click();
     });
 
-    on(csvFile, "change", async () => {
+    scope.on(csvFile, "change", async () => {
       const file = csvFile.files?.[0];
       if (!file) return;
       try {
@@ -392,7 +401,7 @@ function bindBatchAdd(
       }
     });
 
-    on(document.getElementById("addBatchBtn"), "click", async () => {
+    scope.on(document.getElementById("addBatchBtn"), "click", async () => {
       if (!(await checkCustomer())) return;
       if (!state.csvText.trim()) {
         toastState.add({ message: "Вставьте строки или выберите файл", type: "error" });
@@ -421,21 +430,21 @@ function bindBatchAdd(
     const uiQty = document.getElementById("csvUiQty") as HTMLInputElement;
     const uiUnit = document.getElementById("csvUiUnit") as HTMLSelectElement;
 
-    clearErrorsOnInput(uiForm);
-    on(uiName, "input", () => {
+    clearErrorsOnInput(uiForm, scope);
+    scope.on(uiName, "input", () => {
       state.csvUiDraft.name = uiName.value;
     });
-    on(uiPrice, "input", () => {
+    scope.on(uiPrice, "input", () => {
       state.csvUiDraft.priceCNY = uiPrice.value;
     });
-    on(uiQty, "input", () => {
+    scope.on(uiQty, "input", () => {
       state.csvUiDraft.quantity = uiQty.value;
     });
-    on(uiUnit, "change", () => {
+    scope.on(uiUnit, "change", () => {
       state.csvUiDraft.unit = fromSelect(uiUnit.value);
     });
 
-    on(uiForm, "submit", async (e) => {
+    scope.on(uiForm, "submit", async (e) => {
       e.preventDefault();
       if (!(await checkCustomer())) return;
       const price = Number(uiPrice.value);
@@ -476,7 +485,13 @@ function bindBatchAdd(
   }
 }
 
-function renderStep2(root: HTMLElement, state: BatchState, render: (focus?: string) => void): void {
+function renderStep2(
+  root: HTMLElement,
+  state: BatchState,
+  render: (focus?: string) => void,
+  scope: ListenerScope,
+  registerCombo: (combo: CustomerComboHandle) => void,
+): void {
   const rate = state.totalBYN / state.totalCNY;
   const customerMap = new Map(state.customers.map((c) => [c.id, c]));
   const currentCNY = state.items.reduce((sum, item) => sum + item.priceCNY, 0);
@@ -542,16 +557,17 @@ function renderStep2(root: HTMLElement, state: BatchState, render: (focus?: stri
     customers: state.customers,
     selectedCustomerId: state.selectedCustomerId,
   });
-  bindBatchAdd(root, state, rate, render, combo);
+  registerCombo(combo);
+  bindBatchAdd(root, state, rate, render, combo, scope);
 
   root.querySelectorAll<HTMLButtonElement>("[data-remove]").forEach((button) => {
-    on(button, "click", () => {
+    scope.on(button, "click", () => {
       state.items.splice(Number(button.dataset.remove), 1);
       render("[data-autofocus]");
     });
   });
 
-  on(document.getElementById("checkStepBtn"), "click", () => {
+  scope.on(document.getElementById("checkStepBtn"), "click", () => {
     if (state.items.length === 0) {
       toastState.add({ message: "Добавьте хотя бы один товар в партию", type: "error" });
       root
@@ -564,7 +580,7 @@ function renderStep2(root: HTMLElement, state: BatchState, render: (focus?: stri
   });
 }
 
-function renderStep3(root: HTMLElement, state: BatchState): void {
+function renderStep3(root: HTMLElement, state: BatchState, scope: ListenerScope): void {
   const rate = state.totalCNY > 0 ? state.totalBYN / state.totalCNY : 0;
   const expectedCount = state.expectedItemsCount;
   const actualCount = state.items.length;
@@ -625,7 +641,7 @@ function renderStep3(root: HTMLElement, state: BatchState): void {
     </div>
   `;
 
-  on(document.getElementById("saveBatchBtn"), "click", async () => {
+  scope.on(document.getElementById("saveBatchBtn"), "click", async () => {
     const button = document.getElementById("saveBatchBtn") as HTMLButtonElement;
     button.disabled = true;
     try {
@@ -647,67 +663,80 @@ function renderStep3(root: HTMLElement, state: BatchState): void {
   });
 }
 
-export async function renderParcelAddView(): Promise<void> {
-  const root = document.getElementById("parcelAddView");
-  if (!root) return;
+export function mountParcelAddView(host: HTMLElement): ViewHandle {
+  const scope = createListenerScope();
+  let activeCombo: CustomerComboHandle | null = null;
 
-  const [parcels, customers] = await Promise.all([
-    parcelRepository.findAll(),
-    customerRepository.findAll(),
-  ]);
-
-  const drafts = parcels.filter((p) => p.status === "draft");
-  if (drafts.length === 0) {
-    root.innerHTML = `
-      <div class="page page-batch">
-        <header class="page-head"><h1>Новая партия</h1></header>
-        <div class="empty">Нет черновиков. Создайте посылку — если нужно что-то изменить в уже отправленной, используйте редактирование посылки.</div>
-      </div>
-    `;
-    return;
+  function registerCombo(combo: CustomerComboHandle): void {
+    activeCombo?.dispose();
+    activeCombo = combo;
   }
 
-  const presetParcelId = Number(router.currentParams.parcelId);
-  const defaultParcel = drafts.find((p) => p.id === presetParcelId) ?? drafts[0];
-  if (!defaultParcel) return;
-  const state: BatchState = {
-    step: 1,
-    parcels: drafts,
-    customers,
-    selectedParcelId: defaultParcel.id,
-    expectedItemsCount: null,
-    totalCNY: 0,
-    totalBYN: 0,
-    items: [],
-    selectedCustomerId: customers[0]?.id ?? null,
-    csvMode: "plain",
-    csvText: "",
-    csvFileName: "",
-    csvUiDraft: { name: "", priceCNY: "", quantity: "1", unit: "pcs" },
-  };
+  async function render(params: RouteParams): Promise<void> {
+    if (scope.signal.aborted) return;
+    const [parcels, customers] = await Promise.all([
+      parcelRepository.findAll(),
+      customerRepository.findAll(),
+    ]);
+    if (scope.signal.aborted) return;
 
-  const render = (focus?: string): void => {
-    if (state.step === 1) renderStep1(root, state, render);
-    else if (state.step === 2) renderStep2(root, state, render);
-    else renderStep3(root, state);
-
-    root.querySelectorAll<HTMLButtonElement>("[data-step-back]").forEach((button) => {
-      on(button, "click", () => {
-        state.step = Number(button.dataset.stepBack) as 1 | 2;
-        render("[data-autofocus]");
-      });
-    });
-
-    if (focus) {
-      requestAnimationFrame(() => {
-        root.querySelector<HTMLElement>(focus)?.focus();
-      });
+    const drafts = parcels.filter((p) => p.status === "draft");
+    if (drafts.length === 0) {
+      host.innerHTML = `
+        <div class="page page-batch">
+          <header class="page-head"><h1>Новая партия</h1></header>
+          <div class="empty">Нет черновиков. Создайте посылку — если нужно что-то изменить в уже отправленной, используйте редактирование посылки.</div>
+        </div>
+      `;
+      return;
     }
+
+    const presetParcelId = Number(params.parcelId);
+    const defaultParcel = drafts.find((p) => p.id === presetParcelId) ?? drafts[0];
+    if (!defaultParcel) return;
+    const state: BatchState = {
+      step: 1,
+      parcels: drafts,
+      customers,
+      selectedParcelId: defaultParcel.id,
+      expectedItemsCount: null,
+      totalCNY: 0,
+      totalBYN: 0,
+      items: [],
+      selectedCustomerId: customers[0]?.id ?? null,
+      csvMode: "plain",
+      csvText: "",
+      csvFileName: "",
+      csvUiDraft: { name: "", priceCNY: "", quantity: "1", unit: "pcs" },
+    };
+
+    const renderStep = (focus?: string): void => {
+      if (state.step === 1) renderStep1(host, state, renderStep, scope);
+      else if (state.step === 2) renderStep2(host, state, renderStep, scope, registerCombo);
+      else renderStep3(host, state, scope);
+
+      host.querySelectorAll<HTMLButtonElement>("[data-step-back]").forEach((button) => {
+        scope.on(button, "click", () => {
+          state.step = Number(button.dataset.stepBack) as 1 | 2;
+          renderStep("[data-autofocus]");
+        });
+      });
+
+      if (focus) {
+        requestAnimationFrame(() => {
+          host.querySelector<HTMLElement>(focus)?.focus();
+        });
+      }
+    };
+
+    renderStep();
+  }
+
+  return {
+    render,
+    dispose: () => {
+      activeCombo?.dispose();
+      scope.dispose();
+    },
   };
-
-  render();
 }
-
-router.subscribe((route) => {
-  if (route === "add") renderParcelAddView();
-});

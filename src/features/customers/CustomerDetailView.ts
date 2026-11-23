@@ -18,110 +18,120 @@ import {
 import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
 import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
 import { Customer } from "@/features/customers/domain";
-import { on } from "@/core/listeners";
+import { createListenerScope } from "@/core/listeners";
+import type { ListenerScope } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
+import type { RouteParams } from "@/core/state";
+import type { ViewHandle } from "@/app/ViewHandle";
 import { I, esc, money, t } from "@/core/utils";
 import { ITEM_FORMS, PARCEL_IN_FORMS, parcelDate } from "@/features/parcels/ui/ParcelPresentation";
 import { customerService, paymentService } from "@/features/shared/wiring";
 import { customerLabel } from "./ui/CustomerPresentation";
 import { customerMark } from "./ui/CustomerMark";
 
-export async function renderCustomerDetailView(customerId: number): Promise<void> {
-  const root = document.getElementById("customerDetailView");
-  if (!root) return;
+export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
+  const scope = createListenerScope();
 
-  // Fetch all data
-  const [customer, parcels, allItems, allPayments, selfCustomer] = await Promise.all([
-    customerRepository.findById(customerId),
-    parcelRepository.findAll(),
-    parcelItemRepository.findAll(),
-    paymentRepository.findAll(),
-    customerService.getSelfCustomer(),
-  ]);
-
-  if (!customer) {
-    root.innerHTML = `<div class="empty">Заказчик не найден</div>`;
-    return;
-  }
-
-  // Filter items for this customer
-  const customerItems = allItems.filter((item) => item.customerId === customerId);
-
-  // Group items by parcel
-  const itemsByParcel = new Map<number, ParcelItem[]>();
-  for (const item of customerItems) {
-    if (!itemsByParcel.has(item.parcelId)) {
-      itemsByParcel.set(item.parcelId, []);
+  async function render(params: RouteParams): Promise<void> {
+    if (scope.signal.aborted) return;
+    const customerId = Number(params.customerId);
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      router.navigate("people");
+      return;
     }
-    itemsByParcel.get(item.parcelId)!.push(item);
-  }
 
-  // Filter payments for this customer
-  const customerPayments = allPayments.filter((p) => p.customerId === customerId);
+    // Fetch all data
+    const [customer, parcels, allItems, allPayments, selfCustomer] = await Promise.all([
+      customerRepository.findById(customerId),
+      parcelRepository.findAll(),
+      parcelItemRepository.findAll(),
+      paymentRepository.findAll(),
+      customerService.getSelfCustomer(),
+    ]);
 
-  // Balances must be calculated with ALL items of a parcel: the shipping share
-  // is proportional to the customer's weight within the whole parcel.
-  // Payments are scoped to a parcel too, otherwise shipping flags from
-  // different parcels overwrite each other in the payment state.
-  const parcelContext = (parcelId: number) => {
-    const parcel = parcels.find((p) => p.id === parcelId);
-    const parcelItems = allItems.filter((i) => i.parcelId === parcelId);
-    const parcelPayments = customerPayments.filter((p) => p.parcelId === parcelId);
-    return {
-      parcel,
-      parcelItems,
-      paymentState: paymentStateFromPayments(parcelPayments),
+    if (!customer) {
+      host.innerHTML = `<div class="empty">Заказчик не найден</div>`;
+      return;
+    }
+
+    // Filter items for this customer
+    const customerItems = allItems.filter((item) => item.customerId === customerId);
+
+    // Group items by parcel
+    const itemsByParcel = new Map<number, ParcelItem[]>();
+    for (const item of customerItems) {
+      if (!itemsByParcel.has(item.parcelId)) {
+        itemsByParcel.set(item.parcelId, []);
+      }
+      itemsByParcel.get(item.parcelId)!.push(item);
+    }
+
+    // Filter payments for this customer
+    const customerPayments = allPayments.filter((p) => p.customerId === customerId);
+
+    // Balances must be calculated with ALL items of a parcel: the shipping share
+    // is proportional to the customer's weight within the whole parcel.
+    // Payments are scoped to a parcel too, otherwise shipping flags from
+    // different parcels overwrite each other in the payment state.
+    const parcelContext = (parcelId: number) => {
+      const parcel = parcels.find((p) => p.id === parcelId);
+      const parcelItems = allItems.filter((i) => i.parcelId === parcelId);
+      const parcelPayments = customerPayments.filter((p) => p.parcelId === parcelId);
+      return {
+        parcel,
+        parcelItems,
+        paymentState: paymentStateFromPayments(parcelPayments),
+      };
     };
-  };
 
-  // Calculate overall balance across all parcels
-  let totalOwed = 0;
-  let totalPaid = 0;
-  const selfCustomerId = selfCustomer?.id;
+    // Calculate overall balance across all parcels
+    let totalOwed = 0;
+    let totalPaid = 0;
+    const selfCustomerId = selfCustomer?.id;
 
-  for (const parcelId of itemsByParcel.keys()) {
-    const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
-    if (!parcel) continue;
-    const balance = customerBalances({
-      parcel,
-      items: parcelItems,
-      paymentState,
-      selfCustomerId,
-    }).byCustomer.get(customerId);
-    if (balance) {
-      totalOwed += balance.owed;
-      totalPaid += balance.paid;
-    }
-  }
-
-  const remaining = totalOwed - totalPaid;
-  const isSelf = customer.isSelf;
-  const balanceLabel = remaining > 0 ? (isSelf ? "Остаток" : "Долг") : "Всё оплачено";
-
-  // Build items HTML grouped by parcel
-  const itemsHtml = Array.from(itemsByParcel.entries())
-    .map(([parcelId, items]) => {
+    for (const parcelId of itemsByParcel.keys()) {
       const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
-      if (!parcel) return "";
-
-      const calculation = customerBalances({
+      if (!parcel) continue;
+      const balance = customerBalances({
         parcel,
         items: parcelItems,
         paymentState,
         selfCustomerId,
-      });
-      const balance = calculation.byCustomer.get(customerId) || emptyCustomerBalance();
+      }).byCustomer.get(customerId);
+      if (balance) {
+        totalOwed += balance.owed;
+        totalPaid += balance.paid;
+      }
+    }
 
-      const itemsList = items
-        .map((item) => {
-          const itemPayment = customerPayments.find(
-            (p) => p.type === "item" && p.itemId === item.id,
-          );
-          const isItemPaid = isSelf || !!itemPayment?.paid;
-          const deliveryShare = calculation.deliveryByItem.get(item.id) || 0;
-          const priceWithDelivery = item.totalPriceBYN + deliveryShare;
+    const remaining = totalOwed - totalPaid;
+    const isSelf = customer.isSelf;
+    const balanceLabel = remaining > 0 ? (isSelf ? "Остаток" : "Долг") : "Всё оплачено";
 
-          return `
+    // Build items HTML grouped by parcel
+    const itemsHtml = Array.from(itemsByParcel.entries())
+      .map(([parcelId, items]) => {
+        const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
+        if (!parcel) return "";
+
+        const calculation = customerBalances({
+          parcel,
+          items: parcelItems,
+          paymentState,
+          selfCustomerId,
+        });
+        const balance = calculation.byCustomer.get(customerId) || emptyCustomerBalance();
+
+        const itemsList = items
+          .map((item) => {
+            const itemPayment = customerPayments.find(
+              (p) => p.type === "item" && p.itemId === item.id,
+            );
+            const isItemPaid = isSelf || !!itemPayment?.paid;
+            const deliveryShare = calculation.deliveryByItem.get(item.id) || 0;
+            const priceWithDelivery = item.totalPriceBYN + deliveryShare;
+
+            return `
           <label class="item-check">
             <input type="checkbox" data-toggle-payment="${item.id}" data-parcel="${parcel.id}"
               ${isItemPaid ? "checked" : ""} ${isSelf ? "disabled" : ""}>
@@ -132,30 +142,30 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
             </span>
           </label>
         `;
-        })
-        .join("");
+          })
+          .join("");
 
-      const paidItems = items.filter((item) =>
-        isSelf
-          ? true
-          : customerPayments.some((p) => p.type === "item" && p.itemId === item.id && p.paid),
-      );
-      const allItemsPaid = items.length > 0 && paidItems.length === items.length;
+        const paidItems = items.filter((item) =>
+          isSelf
+            ? true
+            : customerPayments.some((p) => p.type === "item" && p.itemId === item.id && p.paid),
+        );
+        const allItemsPaid = items.length > 0 && paidItems.length === items.length;
 
-      // Shipping payment for this parcel
-      const shippingPayment = customerPayments.find(
-        (p) => p.type === "shipping" && p.parcelId === parcelId,
-      );
-      const isShippingPaid = isSelf || !!shippingPayment?.paid;
+        // Shipping payment for this parcel
+        const shippingPayment = customerPayments.find(
+          (p) => p.type === "shipping" && p.parcelId === parcelId,
+        );
+        const isShippingPaid = isSelf || !!shippingPayment?.paid;
 
-      const showShipping = deliveryEnabled(parcel);
-      const shippingShare = balance.delivery.owed;
-      const parcelPaid = allItemsPaid && (!showShipping || isShippingPaid);
-      const parcelLabel = parcel.name || `Посылка #${parcel.id}`;
-      const date = parcelDate(parcel);
-      const status = parcelStatusInfo(parcel.status);
+        const showShipping = deliveryEnabled(parcel);
+        const shippingShare = balance.delivery.owed;
+        const parcelPaid = allItemsPaid && (!showShipping || isShippingPaid);
+        const parcelLabel = parcel.name || `Посылка #${parcel.id}`;
+        const date = parcelDate(parcel);
+        const status = parcelStatusInfo(parcel.status);
 
-      return `
+        return `
         <section class="section customer-statement">
           <div class="parcel-entry parcel-line" data-status="${parcel.status}">
             <div class="parcel-entry__date" title="${date.title}">
@@ -195,10 +205,10 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
           }
         </section>
       `;
-    })
-    .join("");
+      })
+      .join("");
 
-  root.innerHTML = `
+    host.innerHTML = `
     <div class="page page-customer-detail">
       <div class="detail-topbar">
         <button type="button" class="text-btn" id="backToCustomers">${I.chevronLeft} Все заказчики</button>
@@ -225,24 +235,37 @@ export async function renderCustomerDetailView(customerId: number): Promise<void
     </div>
   `;
 
-  bindActions(root, customer, customerItems, parcels, customerPayments);
+    bindActions(
+      host,
+      scope,
+      customer,
+      customerItems,
+      parcels,
+      customerPayments,
+      () => void render(params),
+    );
+  }
+
+  return { render, dispose: () => scope.dispose() };
 }
 
 function bindActions(
   root: HTMLElement,
+  scope: ListenerScope,
   customer: Customer,
   customerItems: ParcelItem[],
   parcels: Parcel[],
   customerPayments: Payment[],
+  refresh: () => void,
 ): void {
   // Back button
-  on(root.querySelector("#backToCustomers"), "click", () => {
+  scope.on(root.querySelector("#backToCustomers"), "click", () => {
     router.navigate("people");
   });
 
   // Toggle one item payment
   root.querySelectorAll<HTMLInputElement>("[data-toggle-payment]").forEach((input) => {
-    on(input, "change", async () => {
+    scope.on(input, "change", async () => {
       const itemId = parseInt(input.dataset.togglePayment!);
       const parcelId = parseInt(input.dataset.parcel!);
 
@@ -252,7 +275,7 @@ function bindActions(
           message: input.checked ? "Товар отмечен как оплаченный" : "Оплата товара снята",
           type: "success",
         });
-        renderCustomerDetailView(customer.id);
+        refresh();
       } catch (err) {
         input.checked = !input.checked;
         toastState.add({ message: err instanceof Error ? err.message : "Ошибка", type: "error" });
@@ -262,7 +285,7 @@ function bindActions(
 
   // Toggle shipping payment
   root.querySelectorAll<HTMLInputElement>("[data-toggle-shipping]").forEach((input) => {
-    on(input, "change", async () => {
+    scope.on(input, "change", async () => {
       const parcelId = parseInt(input.dataset.toggleShipping!);
 
       try {
@@ -271,7 +294,7 @@ function bindActions(
           message: input.checked ? "Доставка оплачена" : "Оплата доставки снята",
           type: "success",
         });
-        renderCustomerDetailView(customer.id);
+        refresh();
       } catch (err) {
         input.checked = !input.checked;
         toastState.add({ message: err instanceof Error ? err.message : "Ошибка", type: "error" });
@@ -301,7 +324,7 @@ function bindActions(
     input.indeterminate =
       !allPaid && (paidFlags.some(Boolean) || (shippingInvoiced && shippingPaid));
 
-    on(input, "change", async () => {
+    scope.on(input, "change", async () => {
       try {
         await paymentService.setParcelPayment(
           parcelId,
@@ -314,7 +337,7 @@ function bindActions(
           message: input.checked ? "Посылка оплачена" : "Оплата посылки снята",
           type: "success",
         });
-        renderCustomerDetailView(customer.id);
+        refresh();
       } catch (err) {
         input.checked = !input.checked;
         toastState.add({ message: err instanceof Error ? err.message : "Ошибка", type: "error" });
@@ -324,13 +347,8 @@ function bindActions(
 
   // Open the parcel itself
   root.querySelectorAll<HTMLElement>("[data-open-parcel]").forEach((btn) => {
-    on(btn, "click", () => {
+    scope.on(btn, "click", () => {
       router.navigate("parcel", { parcelId: btn.dataset.openParcel! });
     });
   });
 }
-
-// Named export for static access
-export const CustomerDetailView = {
-  render: renderCustomerDetailView,
-};

@@ -3,8 +3,11 @@ import { getParcelWithCalculation } from "@/features/shared/services";
 import { parcelItemService, parcelService, paymentService } from "@/features/shared/wiring";
 import { customerRepository } from "@/features/customers/infrastructure";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
-import { on } from "@/core/listeners";
+import { createListenerScope } from "@/core/listeners";
+import type { ListenerScope } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
+import type { RouteParams } from "@/core/state";
+import type { ViewHandle } from "@/app/ViewHandle";
 import { I, esc, kg, money } from "@/core/utils";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { formatDateNumeric, parcelDate } from "./ui/ParcelPresentation";
@@ -26,13 +29,16 @@ import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/Readiness
 import { openReceiveFlow } from "./ReceiveFlow";
 import { exportParcel } from "./ParcelListView";
 
-// Search stays applied while the parcel is re-rendered after item actions.
-const itemSearchState = { parcelId: 0, query: "", missingTracksOnly: false };
-const openCustomerGroups = new Set<number>();
-let itemSearchAnnounceTimer: ReturnType<typeof setTimeout> | null = null;
-// The inline note stays expanded while the user is editing it.
-let commentFocused = false;
-let commentDraft: string | null = null;
+interface DetailContext {
+  host: HTMLElement;
+  scope: ListenerScope;
+  itemSearch: { parcelId: number; query: string; missingTracksOnly: boolean };
+  openCustomerGroups: Set<number>;
+  announceTimer: ReturnType<typeof setTimeout> | null;
+  commentFocused: boolean;
+  commentDraft: string | null;
+  refresh: () => void;
+}
 
 // Copy button: native Invoker Commands where supported, click fallback otherwise.
 async function copyParcelTracks(button: HTMLElement, source: HTMLElement): Promise<void> {
@@ -49,72 +55,87 @@ async function copyParcelTracks(button: HTMLElement, source: HTMLElement): Promi
   }
 }
 
-document.addEventListener(
-  "command",
-  (event) => {
-    const commandEvent = event as Event & { command?: string; source?: HTMLElement };
-    if (commandEvent.command !== "--copy-tracks") return;
-    const source = commandEvent.target as HTMLElement | null;
-    if (source) copyParcelTracks(commandEvent.source as HTMLElement, source);
-  },
-  true,
-);
+export function mountParcelDetailView(host: HTMLElement): ViewHandle {
+  const scope = createListenerScope();
+  const ctx: DetailContext = {
+    host,
+    scope,
+    itemSearch: { parcelId: 0, query: "", missingTracksOnly: false },
+    openCustomerGroups: new Set(),
+    announceTimer: null,
+    commentFocused: false,
+    commentDraft: null,
+    refresh: () => {},
+  };
 
-if (!("CommandEvent" in window)) {
-  document.addEventListener("click", (event) => {
-    const button = (event.target as Element | null)?.closest<HTMLButtonElement>(
-      'button[command="--copy-tracks"]',
-    );
-    if (!button) return;
-    const source = document.getElementById(button.getAttribute("commandfor") || "");
-    if (source) copyParcelTracks(button, source);
-  });
-}
-
-export async function renderParcelDetailView(): Promise<void> {
-  const root = document.getElementById("parcelView");
-  if (!root) return;
-
-  const parcelId = uiState.currentParcelId;
-  if (!parcelId) {
-    root.innerHTML = `<section class="section"><h2>Нет выбранной посылки</h2></section>`;
-    return;
-  }
-
-  const result = await getParcelWithCalculation(parcelId);
-  if (!result) {
-    uiState.setCurrentParcelId(null);
-    renderParcelDetailView();
-    return;
-  }
-
-  const { parcel, items, customers, balance, paymentState } = result;
-
-  if (itemSearchAnnounceTimer) {
-    clearTimeout(itemSearchAnnounceTimer);
-    itemSearchAnnounceTimer = null;
-  }
-  if (itemSearchState.parcelId !== parcel.id) {
-    itemSearchState.parcelId = parcel.id;
-    itemSearchState.query = "";
-    itemSearchState.missingTracksOnly = false;
-    openCustomerGroups.clear();
-  }
-
-  const trackNumbers = items.flatMap((item) =>
-    item.trackNumbers.map((track) => track.trim()).filter(Boolean),
+  // Copy button: native Invoker Commands where supported, click fallback otherwise.
+  scope.on(
+    document,
+    "command",
+    (event) => {
+      const commandEvent = event as Event & { command?: string; source?: HTMLElement };
+      if (commandEvent.command !== "--copy-tracks") return;
+      const source = commandEvent.target as HTMLElement | null;
+      if (source) copyParcelTracks(commandEvent.source as HTMLElement, source);
+    },
+    { capture: true },
   );
 
-  const date = parcelDate(parcel);
-  const status = parcelStatusInfo(parcel.status);
-  const missingTracks = parcel.status === "draft" ? itemsWithoutTracks(items) : 0;
-  const boxWeight = parcel.boxWeightG || 0;
-  const tariffPerKg =
-    parcel.shippingCostBYN && parcel.boxWeightG
-      ? parcel.shippingCostBYN / (parcel.boxWeightG / 1000)
-      : 0;
+  if (!("CommandEvent" in window)) {
+    scope.on(document, "click", (event) => {
+      const button = (event.target as Element | null)?.closest<HTMLButtonElement>(
+        'button[command="--copy-tracks"]',
+      );
+      if (!button) return;
+      const source = document.getElementById(button.getAttribute("commandfor") || "");
+      if (source) copyParcelTracks(button, source);
+    });
+  }
 
-  root.innerHTML = `
+  async function render(params: RouteParams): Promise<void> {
+    if (scope.signal.aborted) return;
+    const parcelId = Number(params.parcelId);
+    if (!Number.isInteger(parcelId) || parcelId <= 0) {
+      router.navigate("parcels");
+      return;
+    }
+    uiState.setCurrentParcelId(parcelId);
+
+    const result = await getParcelWithCalculation(parcelId);
+    if (scope.signal.aborted) return;
+    if (!result) {
+      uiState.setCurrentParcelId(null);
+      router.navigate("parcels");
+      return;
+    }
+
+    const { parcel, items, customers, balance, paymentState } = result;
+
+    if (ctx.announceTimer) {
+      clearTimeout(ctx.announceTimer);
+      ctx.announceTimer = null;
+    }
+    if (ctx.itemSearch.parcelId !== parcel.id) {
+      ctx.itemSearch.parcelId = parcel.id;
+      ctx.itemSearch.query = "";
+      ctx.itemSearch.missingTracksOnly = false;
+      ctx.openCustomerGroups.clear();
+    }
+
+    const trackNumbers = items.flatMap((item) =>
+      item.trackNumbers.map((track) => track.trim()).filter(Boolean),
+    );
+
+    const date = parcelDate(parcel);
+    const status = parcelStatusInfo(parcel.status);
+    const missingTracks = parcel.status === "draft" ? itemsWithoutTracks(items) : 0;
+    const boxWeight = parcel.boxWeightG || 0;
+    const tariffPerKg =
+      parcel.shippingCostBYN && parcel.boxWeightG
+        ? parcel.shippingCostBYN / (parcel.boxWeightG / 1000)
+        : 0;
+
+    ctx.host.innerHTML = `
     <div class="page page-parcel-detail">
       <div class="detail-topbar">
         <button type="button" class="text-btn" id="backToParcels">${I.chevronLeft} Все посылки</button>
@@ -143,20 +164,19 @@ export async function renderParcelDetailView(): Promise<void> {
 
       <div class="detail-action">${primaryAction(parcel, items)}</div>
 
-      ${renderComment(parcel)}
+      ${renderComment(parcel, ctx)}
 
       ${
         items.length > 0
           ? `<search class="item-search" aria-label="Поиск товаров в посылке">
               <label class="sr-only" for="parcelItemSearch">Поиск товаров</label>
               <input type="search" id="parcelItemSearch" class="item-search__input" name="itemSearch"
-                placeholder="Название, заказчик или трек" value="${esc(itemSearchState.query)}"
+                placeholder="Название, заказчик или трек" value="${esc(ctx.itemSearch.query)}"
                 autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" enterkeyhint="search">
               ${
-                parcel.status === "draft" &&
-                (missingTracks > 0 || itemSearchState.missingTracksOnly)
-                  ? `<button type="button" id="missingTracksFilter" class="item-search__filter${itemSearchState.missingTracksOnly ? " is-active" : ""}"
-                      aria-pressed="${itemSearchState.missingTracksOnly}" title="${itemSearchState.missingTracksOnly ? "Снять фильтр «Без треков»" : "Показать товары без треков"}">Без треков <b>${missingTracks}</b><span class="item-search__filter-x" aria-hidden="true">×</span></button>`
+                parcel.status === "draft" && (missingTracks > 0 || ctx.itemSearch.missingTracksOnly)
+                  ? `<button type="button" id="missingTracksFilter" class="item-search__filter${ctx.itemSearch.missingTracksOnly ? " is-active" : ""}"
+                      aria-pressed="${ctx.itemSearch.missingTracksOnly}" title="${ctx.itemSearch.missingTracksOnly ? "Снять фильтр «Без треков»" : "Показать товары без треков"}">Без треков <b>${missingTracks}</b><span class="item-search__filter-x" aria-hidden="true">×</span></button>`
                   : ""
               }
               <span id="parcelItemSearchCount" class="item-search__count" role="status" aria-live="polite" hidden></span>
@@ -177,7 +197,7 @@ export async function renderParcelDetailView(): Promise<void> {
             balance.byCustomer,
             balance.deliveryByItem,
             paymentState,
-            openCustomerGroups,
+            ctx.openCustomerGroups,
           )}
           ${items.length > 0 ? '<p class="empty item-search__empty" id="parcelItemNoResults" hidden>Ничего не найдено. Измените запрос.</p>' : ""}
         </div>
@@ -185,7 +205,20 @@ export async function renderParcelDetailView(): Promise<void> {
     </div>
   `;
 
-  bindParcelDetailActions(parcel, items, paymentState);
+    bindParcelDetailActions(parcel, items, paymentState, ctx);
+  }
+
+  ctx.refresh = () => {
+    void render(router.currentParams);
+  };
+
+  return {
+    render,
+    dispose: () => {
+      if (ctx.announceTimer) clearTimeout(ctx.announceTimer);
+      scope.dispose();
+    },
+  };
 }
 
 function renderCalculation(
@@ -209,56 +242,56 @@ function renderCalculation(
   ];
 
   return `
-    <div class="parcel-calc" aria-label="Расчёт по посылке">
-      ${bullets
-        .map(
-          (b) => `
-        <span class="parcel-calc__item${b.strong ? " is-total" : ""}${b.warn ? " is-warn" : ""}">
-          <span class="parcel-calc__label">${b.label}</span>
-          <b>${b.value}</b>
-        </span>`,
-        )
-        .join("")}
-    </div>
-  `;
+  <div class="parcel-calc" aria-label="Расчёт по посылке">
+    ${bullets
+      .map(
+        (b) => `
+      <span class="parcel-calc__item${b.strong ? " is-total" : ""}${b.warn ? " is-warn" : ""}">
+        <span class="parcel-calc__label">${b.label}</span>
+        <b>${b.value}</b>
+      </span>`,
+      )
+      .join("")}
+  </div>
+`;
 }
 
-function renderComment(parcel: Parcel): string {
-  const value = commentDraft ?? parcel.comment ?? "";
-  const rows = commentFocused ? Math.min(16, Math.max(2, value.split("\n").length)) : 1;
+function renderComment(parcel: Parcel, ctx: DetailContext): string {
+  const value = ctx.commentDraft ?? parcel.comment ?? "";
+  const rows = ctx.commentFocused ? Math.min(16, Math.max(2, value.split("\n").length)) : 1;
   return `
-    <div class="parcel-comment${commentFocused ? " is-expanded" : ""}" id="parcelCommentBlock">
-      <textarea id="parcelCommentText" class="parcel-comment__text" rows="${rows}"
-        placeholder="Заметка о посылке…" aria-label="Заметка о посылке">${esc(value)}</textarea>
-    </div>
-  `;
+  <div class="parcel-comment${ctx.commentFocused ? " is-expanded" : ""}" id="parcelCommentBlock">
+    <textarea id="parcelCommentText" class="parcel-comment__text" rows="${rows}"
+      placeholder="Заметка о посылке…" aria-label="Заметка о посылке">${esc(value)}</textarea>
+  </div>
+`;
 }
 
 function primaryAction(parcel: Parcel, items: ParcelItem[]): string {
   switch (parcel.status) {
     case "draft":
       return `<button type="button" class="btn-primary btn-action" id="shipParcel">${I.package} Отправить</button>
-        <button type="button" class="text-btn" id="openBatchForm">${I.plus} Партия товаров</button>`;
+      <button type="button" class="text-btn" id="openBatchForm">${I.plus} Партия товаров</button>`;
     case "shipped":
       return `<button type="button" class="btn-primary btn-action" id="receiveParcel">${I.scan} Получить посылку</button>`;
     case "received": {
       const hint = finishHint(parcelReadiness(parcel, items).finish);
       return `<button type="button" class="btn-primary btn-action" id="markAsDone">${I.checkCircle} Завершить</button>
-        <button type="button" class="text-btn" id="rescanParcel">${I.scan} Сканировать ещё</button>
-        ${hint ? `<p class="detail-action__hint">${esc(hint)}</p>` : ""}`;
+      <button type="button" class="text-btn" id="rescanParcel">${I.scan} Сканировать ещё</button>
+      ${hint ? `<p class="detail-action__hint">${esc(hint)}</p>` : ""}`;
     }
     case "done":
       return `<button type="button" class="text-btn" id="exportParcel">${I.sheet} Экспорт в Excel</button>`;
   }
 }
 
-function applyItemSearch(): void {
+function applyItemSearch(ctx: DetailContext): void {
   const input = document.getElementById("parcelItemSearch") as HTMLInputElement | null;
   const list = document.getElementById("parcelItemsList");
   if (!input || !list) return;
 
   const missingOnly =
-    itemSearchState.missingTracksOnly && !!document.getElementById("missingTracksFilter");
+    ctx.itemSearch.missingTracksOnly && !!document.getElementById("missingTracksFilter");
   const result = applyItemGroupsSearch(list, input.value, missingOnly);
   const countText = itemSearchCountText(result);
 
@@ -268,8 +301,8 @@ function applyItemSearch(): void {
   }
 
   const count = document.getElementById("parcelItemSearchCount");
-  if (itemSearchAnnounceTimer) clearTimeout(itemSearchAnnounceTimer);
-  itemSearchAnnounceTimer = setTimeout(() => {
+  if (ctx.announceTimer) clearTimeout(ctx.announceTimer);
+  ctx.announceTimer = setTimeout(() => {
     if (!count) return;
     count.textContent = countText;
     count.hidden = countText.length === 0;
@@ -280,6 +313,7 @@ function bindParcelDetailActions(
   parcel: Parcel,
   items: ParcelItem[],
   paymentState: PaymentState,
+  ctx: DetailContext,
 ): void {
   document.getElementById("backToParcels")?.addEventListener("click", () => {
     router.navigate("parcels");
@@ -293,30 +327,30 @@ function bindParcelDetailActions(
       commentText.style.height = `${commentText.scrollHeight}px`;
     };
     const expand = () => {
-      if (commentFocused) return;
-      commentFocused = true;
+      if (ctx.commentFocused) return;
+      ctx.commentFocused = true;
       commentBlock.classList.add("is-expanded");
       resize();
     };
     const collapse = () => {
-      commentFocused = false;
+      ctx.commentFocused = false;
       commentBlock.classList.remove("is-expanded");
       commentText.style.height = "";
     };
 
-    on(commentText, "focus", expand);
-    on(commentText, "click", expand);
-    on(commentText, "input", () => {
-      commentDraft = commentText.value;
-      if (commentFocused) resize();
+    ctx.scope.on(commentText, "focus", expand);
+    ctx.scope.on(commentText, "click", expand);
+    ctx.scope.on(commentText, "input", () => {
+      ctx.commentDraft = commentText.value;
+      if (ctx.commentFocused) resize();
     });
-    on(commentText, "keydown", (e) => {
+    ctx.scope.on(commentText, "keydown", (e) => {
       if (e.key === "Escape") commentText.blur();
     });
-    on(commentText, "blur", () => {
+    ctx.scope.on(commentText, "blur", () => {
       collapse();
-      const next = (commentDraft ?? commentText.value).trim();
-      commentDraft = null;
+      const next = (ctx.commentDraft ?? commentText.value).trim();
+      ctx.commentDraft = null;
       if (next === (parcel.comment || "")) return;
       void parcelService
         .updateParcel(parcel.id, { comment: next || null })
@@ -331,47 +365,45 @@ function bindParcelDetailActions(
   const itemSearch = document.getElementById("parcelItemSearch") as HTMLInputElement | null;
   const missingFilter = document.getElementById("missingTracksFilter");
   const syncMissingFilter = (): void => {
-    missingFilter?.classList.toggle("is-active", itemSearchState.missingTracksOnly);
-    missingFilter?.setAttribute("aria-pressed", String(itemSearchState.missingTracksOnly));
+    missingFilter?.classList.toggle("is-active", ctx.itemSearch.missingTracksOnly);
+    missingFilter?.setAttribute("aria-pressed", String(ctx.itemSearch.missingTracksOnly));
     missingFilter?.setAttribute(
       "title",
-      itemSearchState.missingTracksOnly
-        ? "Снять фильтр «Без треков»"
-        : "Показать товары без треков",
+      ctx.itemSearch.missingTracksOnly ? "Снять фильтр «Без треков»" : "Показать товары без треков",
     );
   };
   const clearItemSearch = (): void => {
     if (!itemSearch) return;
     itemSearch.value = "";
-    itemSearchState.query = "";
-    itemSearchState.missingTracksOnly = false;
+    ctx.itemSearch.query = "";
+    ctx.itemSearch.missingTracksOnly = false;
     syncMissingFilter();
-    applyItemSearch();
+    applyItemSearch(ctx);
   };
-  on(missingFilter, "click", () => {
-    itemSearchState.missingTracksOnly = !itemSearchState.missingTracksOnly;
+  ctx.scope.on(missingFilter, "click", () => {
+    ctx.itemSearch.missingTracksOnly = !ctx.itemSearch.missingTracksOnly;
     syncMissingFilter();
-    applyItemSearch();
+    applyItemSearch(ctx);
   });
 
   if (itemSearch) {
-    on(itemSearch, "input", () => {
-      itemSearchState.query = itemSearch.value;
-      applyItemSearch();
+    ctx.scope.on(itemSearch, "input", () => {
+      ctx.itemSearch.query = itemSearch.value;
+      applyItemSearch(ctx);
     });
     // The native cancel button of type="search" fires `search` as well.
-    on(itemSearch, "search", () => {
-      itemSearchState.query = itemSearch.value;
-      applyItemSearch();
+    ctx.scope.on(itemSearch, "search", () => {
+      ctx.itemSearch.query = itemSearch.value;
+      applyItemSearch(ctx);
     });
-    on(itemSearch, "keydown", (e) => {
+    ctx.scope.on(itemSearch, "keydown", (e) => {
       if (e.key === "Escape" && itemSearch.value) {
         e.preventDefault();
         clearItemSearch();
       }
     });
   }
-  applyItemSearch();
+  applyItemSearch(ctx);
 
   document.getElementById("exportParcel")?.addEventListener("click", async () => {
     await exportParcel(parcel);
@@ -384,12 +416,11 @@ function bindParcelDetailActions(
       toastState.add({ message, type: "error" });
       return;
     }
-    openShipForm(parcel);
+    openShipForm(parcel, ctx);
   });
 
   // Receiving starts immediately: mark the parcel received (date + status), then scan weights.
-  const openScan = (target: Parcel = parcel) =>
-    void openReceiveFlow(target, () => renderParcelDetailView());
+  const openScan = (target: Parcel = parcel) => void openReceiveFlow(target, () => ctx.refresh());
   document.getElementById("receiveParcel")?.addEventListener("click", async () => {
     try {
       const received = await parcelService.receiveParcel(
@@ -398,7 +429,7 @@ function bindParcelDetailActions(
         parcel.shippingCostBYN || 0,
       );
       openScan(received);
-      void renderParcelDetailView();
+      void ctx.refresh();
     } catch (err) {
       toastState.add({ message: "Не удалось отметить получение", type: "error" });
       console.error(err);
@@ -415,7 +446,7 @@ function bindParcelDetailActions(
     }
     try {
       await parcelService.markAsDoneParcel(parcel.id);
-      renderParcelDetailView();
+      ctx.refresh();
       toastState.add({ message: "Посылка завершена", type: "success" });
     } catch (err) {
       toastState.add({ message: "Не удалось завершить посылку", type: "error" });
@@ -425,12 +456,12 @@ function bindParcelDetailActions(
 
   // Edit parcel
   document.getElementById("editParcel")?.addEventListener("click", () => {
-    openParcelEditForm(parcel);
+    openParcelEditForm(parcel, ctx);
   });
 
   // Add item (for draft without batch form)
   document.getElementById("addItem")?.addEventListener("click", () => {
-    openItemForm(null, parcel.id, parcel.status);
+    openItemForm(null, parcel.id, parcel.status, "main", ctx);
   });
 
   // Item actions
@@ -438,59 +469,60 @@ function bindParcelDetailActions(
   if (listRoot) {
     // Payment checkboxes live inside the group's <summary>; their clicks must not toggle it.
     listRoot.querySelectorAll<HTMLElement>("summary label").forEach((label) => {
-      on(label, "click", (event) => event.stopPropagation());
+      ctx.scope.on(label, "click", (event) => event.stopPropagation());
     });
     listRoot.querySelectorAll<HTMLDetailsElement>("details[data-item-group]").forEach((group) => {
       const customerId = Number(group.dataset.customer);
-      on(group, "toggle", () => {
-        if (group.open) openCustomerGroups.add(customerId);
-        else openCustomerGroups.delete(customerId);
+      ctx.scope.on(group, "toggle", () => {
+        if (group.open) ctx.openCustomerGroups.add(customerId);
+        else ctx.openCustomerGroups.delete(customerId);
       });
     });
     listRoot.querySelectorAll("[data-edit]").forEach((b) => {
       const el = b as HTMLElement;
-      on(el, "click", () => {
+      ctx.scope.on(el, "click", () => {
         el.closest("details")?.removeAttribute("open");
         openItemForm(
           parseInt(el.dataset.edit!),
           parcel.id,
           parcel.status,
           defaultItemStep(parcel.status),
+          ctx,
         );
       });
     });
     listRoot.querySelectorAll("[data-move]").forEach((b) => {
       const el = b as HTMLElement;
-      on(el, "click", () => {
+      ctx.scope.on(el, "click", () => {
         el.closest("details")?.removeAttribute("open");
-        moveItem(parseInt(el.dataset.move!));
+        moveItem(parseInt(el.dataset.move!), ctx);
       });
     });
     listRoot.querySelectorAll("[data-delete]").forEach((b) => {
       const el = b as HTMLElement;
-      on(el, "click", () => {
+      ctx.scope.on(el, "click", () => {
         el.closest("details")?.removeAttribute("open");
-        deleteItem(parseInt(el.dataset.delete!));
+        deleteItem(parseInt(el.dataset.delete!), ctx);
       });
     });
 
     // Add track button — open the item wizard straight on the tracks step.
     listRoot.querySelectorAll("[data-add-track]").forEach((b) => {
       const el = b as HTMLElement;
-      on(el, "click", () => {
-        openItemForm(parseInt(el.dataset.addTrack!), parcel.id, parcel.status, "tracks");
+      ctx.scope.on(el, "click", () => {
+        openItemForm(parseInt(el.dataset.addTrack!), parcel.id, parcel.status, "tracks", ctx);
       });
     });
 
     // Toggle item payment (shipped/received)
     listRoot.querySelectorAll("[data-toggle-payment]").forEach((btn) => {
       const el = btn as HTMLElement;
-      on(el, "click", async () => {
+      ctx.scope.on(el, "click", async () => {
         const itemId = parseInt(el.dataset.togglePayment!);
         const item = items.find((i) => i.id === itemId);
         if (!item) return;
         await paymentService.toggleItemPayment(parcel.id, itemId, item.customerId);
-        renderParcelDetailView();
+        ctx.refresh();
       });
     });
   }
@@ -508,7 +540,7 @@ function bindParcelDetailActions(
     const allPaid = customerItems.every((i) => paymentState.itemPaid.get(i.id));
     el.indeterminate = !allPaid && customerItems.some((i) => paymentState.itemPaid.get(i.id));
 
-    on(el, "change", async () => {
+    ctx.scope.on(el, "change", async () => {
       await paymentService.setParcelPayment(
         parcel.id,
         customerId,
@@ -516,7 +548,7 @@ function bindParcelDetailActions(
         el.checked,
         false,
       );
-      renderParcelDetailView();
+      ctx.refresh();
     });
   });
 
@@ -524,10 +556,10 @@ function bindParcelDetailActions(
     const el = checkbox as HTMLInputElement;
     const customerId = parseInt(el.dataset.customer!);
 
-    on(el, "change", async () => {
+    ctx.scope.on(el, "change", async () => {
       if (parcel.status !== "done") return;
       await paymentService.toggleShippingPayment(parcel.id, customerId);
-      renderParcelDetailView();
+      ctx.refresh();
     });
   });
 }
@@ -536,34 +568,34 @@ function bindParcelDetailActions(
 // Helper Functions
 // ============================================
 
-function openShipForm(parcel: Parcel): void {
+function openShipForm(parcel: Parcel, ctx: DetailContext): void {
   drawer(
     "Отправить посылку",
     `
-    <form id="shipForm" novalidate>
-      <p class="small muted">Вес и сумма доставки относятся ко всей посылке. Их можно уточнить при получении.</p>
-      <div class="field">
-        <label for="shipBoxWeight">Вес посылки, г *</label>
-        <input id="shipBoxWeight" name="boxWeightG" type="number" inputmode="numeric" min="1" step="1" required autofocus value="${parcel.boxWeightG ?? ""}" placeholder="Например, 600">
-      </div>
-      <div class="field">
-        <label for="shipAmount">Сумма доставки, BYN *</label>
-        <input id="shipAmount" name="shippingCostBYN" type="number" inputmode="decimal" min="0.01" step="0.01" required value="${parcel.shippingCostBYN ?? ""}" placeholder="Например, 12.50">
-      </div>
-      <div class="actions"><button type="submit" class="btn-primary w-full">${I.package} Отправить</button></div>
-    </form>
-  `,
+  <form id="shipForm" novalidate>
+    <p class="small muted">Вес и сумма доставки относятся ко всей посылке. Их можно уточнить при получении.</p>
+    <div class="field">
+      <label for="shipBoxWeight">Вес посылки, г *</label>
+      <input id="shipBoxWeight" name="boxWeightG" type="number" inputmode="numeric" min="1" step="1" required autofocus value="${parcel.boxWeightG ?? ""}" placeholder="Например, 600">
+    </div>
+    <div class="field">
+      <label for="shipAmount">Сумма доставки, BYN *</label>
+      <input id="shipAmount" name="shippingCostBYN" type="number" inputmode="decimal" min="0.01" step="0.01" required value="${parcel.shippingCostBYN ?? ""}" placeholder="Например, 12.50">
+    </div>
+    <div class="actions"><button type="submit" class="btn-primary w-full">${I.package} Отправить</button></div>
+  </form>
+`,
   );
 
   const form = document.getElementById("shipForm") as HTMLFormElement | null;
   if (!form) return;
   form.querySelectorAll<HTMLInputElement>("input").forEach((input) => {
-    on(input, "input", () => {
+    ctx.scope.on(input, "input", () => {
       input.setCustomValidity("");
       input.removeAttribute("aria-invalid");
     });
   });
-  on(form, "submit", async (e) => {
+  ctx.scope.on(form, "submit", async (e) => {
     e.preventDefault();
     const weightInput = form.querySelector<HTMLInputElement>('[name="boxWeightG"]');
     const amountInput = form.querySelector<HTMLInputElement>('[name="shippingCostBYN"]');
@@ -586,31 +618,31 @@ function openShipForm(parcel: Parcel): void {
     amountInput?.setAttribute("aria-invalid", "false");
     await parcelService.shipParcel(parcel.id, boxWeightG, shippingCostBYN);
     closeDrawer();
-    renderParcelDetailView();
+    ctx.refresh();
     toastState.add({ message: "Посылка отправлена", type: "success" });
   });
 }
 
-async function openParcelEditForm(parcel: Parcel): Promise<void> {
+async function openParcelEditForm(parcel: Parcel, ctx: DetailContext): Promise<void> {
   drawer(
     "Редактировать посылку",
     `
-    <form id="parcelForm">
-      <div class="field"><label for="parcelName">Название посылки</label><input id="parcelName" name="name" value="${esc(parcel.name || "")}" placeholder="Например: Посылка из PDD #5"></div>
-      <div class="field">
-        <label for="parcelCommentInput">Комментарий</label>
-        <textarea id="parcelCommentInput" name="comment" rows="8" placeholder="Заметки, долги, пожелания — что угодно, кроме самих товаров">${esc(parcel.comment || "")}</textarea>
-      </div>
-      <div class="field"><label for="parcelBoxWeight">Вес посылки, г</label><input id="parcelBoxWeight" name="boxWeightG" type="number" min="0" step="1" value="${parcel.boxWeightG ?? ""}" placeholder="Например, 600"></div>
-      <div class="field"><label>Стоимость доставки (BYN)</label><input name="shippingCostBYN" type="number" step="0.01" value="${parcel.shippingCostBYN || ""}" placeholder="Стоимость доставки карго"></div>
-      <div class="actions"><button type="submit">Сохранить</button></div>
-    </form>
-  `,
+  <form id="parcelForm">
+    <div class="field"><label for="parcelName">Название посылки</label><input id="parcelName" name="name" value="${esc(parcel.name || "")}" placeholder="Например: Посылка из PDD #5"></div>
+    <div class="field">
+      <label for="parcelCommentInput">Комментарий</label>
+      <textarea id="parcelCommentInput" name="comment" rows="8" placeholder="Заметки, долги, пожелания — что угодно, кроме самих товаров">${esc(parcel.comment || "")}</textarea>
+    </div>
+    <div class="field"><label for="parcelBoxWeight">Вес посылки, г</label><input id="parcelBoxWeight" name="boxWeightG" type="number" min="0" step="1" value="${parcel.boxWeightG ?? ""}" placeholder="Например, 600"></div>
+    <div class="field"><label>Стоимость доставки (BYN)</label><input name="shippingCostBYN" type="number" step="0.01" value="${parcel.shippingCostBYN || ""}" placeholder="Стоимость доставки карго"></div>
+    <div class="actions"><button type="submit">Сохранить</button></div>
+  </form>
+`,
   );
 
   const form = document.getElementById("parcelForm") as HTMLFormElement;
   if (form) {
-    on(form, "submit", async (e) => {
+    ctx.scope.on(form, "submit", async (e) => {
       e.preventDefault();
       const formData = new FormData(form);
       const name = formData.get("name")?.toString().trim() || null;
@@ -628,7 +660,7 @@ async function openParcelEditForm(parcel: Parcel): Promise<void> {
         }),
       );
       closeDrawer();
-      renderParcelDetailView();
+      ctx.refresh();
       toastState.add({ message: "Посылка сохранена", type: "success" });
     });
   }
@@ -647,13 +679,14 @@ function openItemForm(
   parcelId: number,
   parcelStatus: Parcel["status"],
   initialStep: ItemFormStep = "main",
+  ctx: DetailContext,
 ): void {
   if (itemId) {
     parcelItemRepository.findById(itemId).then((item) => {
-      if (item) renderItemForm(item, parcelId, false, parcelStatus, initialStep);
+      if (item) renderItemForm(item, parcelId, false, parcelStatus, initialStep, ctx);
     });
   } else {
-    renderItemForm(null, parcelId, true, parcelStatus, "main");
+    renderItemForm(null, parcelId, true, parcelStatus, "main", ctx);
   }
 }
 
@@ -663,6 +696,7 @@ function renderItemForm(
   isNew: boolean,
   parcelStatus: Parcel["status"],
   initialStep: ItemFormStep,
+  ctx: DetailContext,
 ): void {
   customerRepository.findAll().then((customers) => {
     const customerOptions = customers.map((c) => ({
@@ -679,29 +713,29 @@ function renderItemForm(
         ? "tracks"
         : initialStep;
     const trackRowHtml = (idx: number, track = ""): string => `
-      <div class="item-track-row" data-track-row>
-        <div class="field">
-          <label for="itemTrack${idx}" data-track-label>Трек ${idx + 1}</label>
-          <input id="itemTrack${idx}" name="track" value="${esc(track)}" placeholder="Трек ${idx + 1}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
-        </div>
-        <button type="button" class="track-remove" data-remove-track>
-          <span class="sr-only" data-remove-label>Удалить трек ${idx + 1}</span>${I.x}
-        </button>
+    <div class="item-track-row" data-track-row>
+      <div class="field">
+        <label for="itemTrack${idx}" data-track-label>Трек ${idx + 1}</label>
+        <input id="itemTrack${idx}" name="track" value="${esc(track)}" placeholder="Трек ${idx + 1}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
       </div>
-    `;
+      <button type="button" class="track-remove" data-remove-track>
+        <span class="sr-only" data-remove-label>Удалить трек ${idx + 1}</span>${I.x}
+      </button>
+    </div>
+  `;
     const initialTracks = item?.trackNumbers.length ? item.trackNumbers : [""];
     const trackRows = canEditTracks
       ? initialTracks.map((track, idx) => trackRowHtml(idx, track)).join("")
       : "";
     const weightRowHtml = (idx: number, track: string, weight: number | string = ""): string => `
-      <div class="weight-row" data-weight-row data-track="${esc(track)}">
-        <span class="weight-row__code">${idx + 1}. ${esc(track)}</span>
-        <div class="field">
-          <label for="itemWeight${idx}">Вес ${idx + 1}, г</label>
-          <input id="itemWeight${idx}" name="weight" type="number" min="0" step="1" inputmode="numeric" placeholder="г" value="${weight}">
-        </div>
+    <div class="weight-row" data-weight-row data-track="${esc(track)}">
+      <span class="weight-row__code">${idx + 1}. ${esc(track)}</span>
+      <div class="field">
+        <label for="itemWeight${idx}">Вес ${idx + 1}, г</label>
+        <input id="itemWeight${idx}" name="weight" type="number" min="0" step="1" inputmode="numeric" placeholder="г" value="${weight}">
       </div>
-    `;
+    </div>
+  `;
     const weightRows = canEditWeights
       ? (item?.trackNumbers || [])
           .map((track, idx) => weightRowHtml(idx, track, item?.weightsG[idx] ?? ""))
@@ -711,87 +745,87 @@ function renderItemForm(
     drawer(
       isNew ? "Новый товар" : "Редактировать товар",
       `
-      <form id="itemForm" class="item-wizard" novalidate>
-        ${
-          canEditTracks
-            ? `<nav class="wizard-steps" aria-label="Шаги редактирования товара">
-                <ol class="item-wizard__steps">
-                  <li>
-                    <button type="button" class="wizard-step" data-step="main">
-                      <span class="wizard-step__dot" aria-hidden="true">1</span>
-                      <span class="wizard-step__label">Товар</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button type="button" class="wizard-step" data-step="tracks">
-                      <span class="wizard-step__dot" aria-hidden="true">2</span>
-                      <span class="wizard-step__label">Треки</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button type="button" class="wizard-step ${canEditWeights ? "" : "is-locked"}" data-step="weights" ${canEditWeights ? "" : 'disabled aria-disabled="true"'} title="${canEditWeights ? "Веса" : "Веса доступны после получения"}">
-                      <span class="wizard-step__dot" aria-hidden="true">3</span>
-                      <span class="wizard-step__label">Веса</span>
-                    </button>
-                  </li>
-                </ol>
-              </nav>`
-            : ""
-        }
-        <div class="item-wizard__panel grid grid-cols-2 gap-3" data-panel="main" ${step === "main" ? "" : "hidden"}>
-          <div class="field col-span-2"><label for="itemName">Название *</label><input id="itemName" name="name" required autocomplete="off" value="${esc(item?.name || "")}" ${step === "main" ? "autofocus" : ""}></div>
-          <div class="field col-span-2"><label for="itemCustomer">Заказчик *</label>${selectHtml({ id: "itemCustomer", name: "customer_id", required: true, options: customerOptions })}</div>
-          <div class="field"><label for="itemPriceCNY">Цена за всю позицию (CNY) *</label><input id="itemPriceCNY" name="priceCNY" type="number" step="0.01" required value="${item?.priceCNY || ""}"></div>
-          <div class="field"><label for="itemPriceBYN">Цена за всю позицию (BYN) *</label><input id="itemPriceBYN" name="priceBYN" type="number" step="0.01" required value="${item?.priceBYN || ""}"></div>
-          <div class="field"><label for="itemQuantity">Количество *</label><input id="itemQuantity" name="quantity" type="number" step="1" min="1" required value="${item?.quantity || 1}"></div>
-          <div class="field"><label for="itemUnit">Единица</label>${unitsSelectHtml({ id: "itemUnit", name: "unit", current: item?.unit })}</div>
-          <div class="item-wizard__actions col-span-2">
-            ${
-              canEditTracks
-                ? '<button type="button" class="btn-secondary" data-goto="tracks" enterkeyhint="next">Далее: треки</button>'
-                : ""
-            }
-            <button type="submit" class="btn-primary" enterkeyhint="done">${isNew ? "Добавить" : "Сохранить"}</button>
-          </div>
+    <form id="itemForm" class="item-wizard" novalidate>
+      ${
+        canEditTracks
+          ? `<nav class="wizard-steps" aria-label="Шаги редактирования товара">
+              <ol class="item-wizard__steps">
+                <li>
+                  <button type="button" class="wizard-step" data-step="main">
+                    <span class="wizard-step__dot" aria-hidden="true">1</span>
+                    <span class="wizard-step__label">Товар</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="wizard-step" data-step="tracks">
+                    <span class="wizard-step__dot" aria-hidden="true">2</span>
+                    <span class="wizard-step__label">Треки</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" class="wizard-step ${canEditWeights ? "" : "is-locked"}" data-step="weights" ${canEditWeights ? "" : 'disabled aria-disabled="true"'} title="${canEditWeights ? "Веса" : "Веса доступны после получения"}">
+                    <span class="wizard-step__dot" aria-hidden="true">3</span>
+                    <span class="wizard-step__label">Веса</span>
+                  </button>
+                </li>
+              </ol>
+            </nav>`
+          : ""
+      }
+      <div class="item-wizard__panel grid grid-cols-2 gap-3" data-panel="main" ${step === "main" ? "" : "hidden"}>
+        <div class="field col-span-2"><label for="itemName">Название *</label><input id="itemName" name="name" required autocomplete="off" value="${esc(item?.name || "")}" ${step === "main" ? "autofocus" : ""}></div>
+        <div class="field col-span-2"><label for="itemCustomer">Заказчик *</label>${selectHtml({ id: "itemCustomer", name: "customer_id", required: true, options: customerOptions })}</div>
+        <div class="field"><label for="itemPriceCNY">Цена за всю позицию (CNY) *</label><input id="itemPriceCNY" name="priceCNY" type="number" step="0.01" required value="${item?.priceCNY || ""}"></div>
+        <div class="field"><label for="itemPriceBYN">Цена за всю позицию (BYN) *</label><input id="itemPriceBYN" name="priceBYN" type="number" step="0.01" required value="${item?.priceBYN || ""}"></div>
+        <div class="field"><label for="itemQuantity">Количество *</label><input id="itemQuantity" name="quantity" type="number" step="1" min="1" required value="${item?.quantity || 1}"></div>
+        <div class="field"><label for="itemUnit">Единица</label>${unitsSelectHtml({ id: "itemUnit", name: "unit", current: item?.unit })}</div>
+        <div class="item-wizard__actions col-span-2">
+          ${
+            canEditTracks
+              ? '<button type="button" class="btn-secondary" data-goto="tracks" enterkeyhint="next">Далее: треки</button>'
+              : ""
+          }
+          <button type="submit" class="btn-primary" enterkeyhint="done">${isNew ? "Добавить" : "Сохранить"}</button>
         </div>
-        ${
-          canEditTracks
-            ? `<div class="item-wizard__panel" data-panel="tracks" ${step === "tracks" ? "" : "hidden"}>
-                <p class="item-wizard__context"><span>Товар</span> <b>${esc(item?.name || "")}</b></p>
-                <fieldset class="item-wizard__tracks">
-                  <legend>Трек-номера</legend>
-                  <div class="grid gap-2" data-track-rows>${trackRows}</div>
-                  <button type="button" class="text-btn" data-add-track-row>${I.plus} Добавить трек</button>
-                </fieldset>
-                <label class="checkline item-wizard__complete">
-                  <input type="checkbox" name="tracksCompleted" ${item?.tracksCompleted ? "checked" : ""}>
-                  <span>Треки заполнены</span>
-                </label>
-                <div class="item-wizard__actions">
-                  <button type="button" class="text-btn" data-goto="main">Назад</button>
-                  ${canEditWeights ? '<button type="button" class="btn-secondary" data-goto="weights" enterkeyhint="next">Далее: веса</button>' : ""}
-                  <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
-                </div>
-              </div>`
-            : ""
-        }
-        ${
-          canEditWeights
-            ? `<div class="item-wizard__panel" data-panel="weights" ${step === "weights" ? "" : "hidden"}>
-                <p class="item-wizard__context"><span>Товар</span> <b>${esc(item?.name || "")}</b></p>
-                <fieldset class="item-wizard__weights">
-                  <legend>Веса треков</legend>
-                  <div class="grid gap-2" data-weight-rows>${weightRows}</div>
-                </fieldset>
-                <div class="item-wizard__actions">
-                  <button type="button" class="text-btn" data-goto="tracks">Назад</button>
-                  <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
-                </div>
-              </div>`
-            : ""
-        }
-      </form>
-    `,
+      </div>
+      ${
+        canEditTracks
+          ? `<div class="item-wizard__panel" data-panel="tracks" ${step === "tracks" ? "" : "hidden"}>
+              <p class="item-wizard__context"><span>Товар</span> <b>${esc(item?.name || "")}</b></p>
+              <fieldset class="item-wizard__tracks">
+                <legend>Трек-номера</legend>
+                <div class="grid gap-2" data-track-rows>${trackRows}</div>
+                <button type="button" class="text-btn" data-add-track-row>${I.plus} Добавить трек</button>
+              </fieldset>
+              <label class="checkline item-wizard__complete">
+                <input type="checkbox" name="tracksCompleted" ${item?.tracksCompleted ? "checked" : ""}>
+                <span>Треки заполнены</span>
+              </label>
+              <div class="item-wizard__actions">
+                <button type="button" class="text-btn" data-goto="main">Назад</button>
+                ${canEditWeights ? '<button type="button" class="btn-secondary" data-goto="weights" enterkeyhint="next">Далее: веса</button>' : ""}
+                <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
+              </div>
+            </div>`
+          : ""
+      }
+      ${
+        canEditWeights
+          ? `<div class="item-wizard__panel" data-panel="weights" ${step === "weights" ? "" : "hidden"}>
+              <p class="item-wizard__context"><span>Товар</span> <b>${esc(item?.name || "")}</b></p>
+              <fieldset class="item-wizard__weights">
+                <legend>Веса треков</legend>
+                <div class="grid gap-2" data-weight-rows>${weightRows}</div>
+              </fieldset>
+              <div class="item-wizard__actions">
+                <button type="button" class="text-btn" data-goto="tracks">Назад</button>
+                <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
+              </div>
+            </div>`
+          : ""
+      }
+    </form>
+  `,
     );
 
     const form = document.getElementById("itemForm") as HTMLFormElement;
@@ -846,10 +880,10 @@ function renderItemForm(
       activate(next);
     };
     stepButtons.forEach((button) => {
-      on(button, "click", () => goTo(button.dataset.step as ItemFormStep));
+      ctx.scope.on(button, "click", () => goTo(button.dataset.step as ItemFormStep));
     });
     form.querySelectorAll<HTMLButtonElement>("[data-goto]").forEach((button) => {
-      on(button, "click", () => goTo(button.dataset.goto as ItemFormStep));
+      ctx.scope.on(button, "click", () => goTo(button.dataset.goto as ItemFormStep));
     });
 
     const reindexTrackRows = () => {
@@ -874,7 +908,7 @@ function renderItemForm(
     };
     reindexTrackRows();
 
-    on(form, "click", (e) => {
+    ctx.scope.on(form, "click", (e) => {
       const target = e.target as Element;
       if (target.closest("[data-add-track-row]") && rowsHost) {
         rowsHost.insertAdjacentHTML("beforeend", trackRowHtml(trackRowsNow().length));
@@ -892,11 +926,11 @@ function renderItemForm(
       reindexTrackRows();
     });
 
-    on(rowsHost, "input", () => {
+    ctx.scope.on(rowsHost, "input", () => {
       completeCheckbox?.setCustomValidity("");
       completeCheckbox?.removeAttribute("aria-invalid");
     });
-    on(completeCheckbox, "change", () => {
+    ctx.scope.on(completeCheckbox, "change", () => {
       if (!completeCheckbox?.checked) {
         completeCheckbox?.setCustomValidity("");
         completeCheckbox?.removeAttribute("aria-invalid");
@@ -914,7 +948,7 @@ function renderItemForm(
       }
     });
 
-    on(form, "submit", async (e) => {
+    ctx.scope.on(form, "submit", async (e) => {
       e.preventDefault();
       if (!form.reportValidity()) return;
       const formData = new FormData(form);
@@ -975,13 +1009,13 @@ function renderItemForm(
         }
       }
       closeDrawer();
-      renderParcelDetailView();
+      ctx.refresh();
       toastState.add({ message: "Товар сохранён", type: "success" });
     });
   });
 }
 
-async function moveItem(itemId: number): Promise<void> {
+async function moveItem(itemId: number, ctx: DetailContext): Promise<void> {
   const item = await parcelItemRepository.findById(itemId);
   if (!item) return;
 
@@ -1001,49 +1035,38 @@ async function moveItem(itemId: number): Promise<void> {
   drawer(
     "Переместить товар",
     `
-    <form id="moveForm">
-      <div class="field"><label>Выберите посылку</label>${selectHtml({ name: "targetParcel", options })}</div>
-      <div class="actions"><button type="submit">Переместить</button></div>
-    </form>
-  `,
+  <form id="moveForm">
+    <div class="field"><label>Выберите посылку</label>${selectHtml({ name: "targetParcel", options })}</div>
+    <div class="actions"><button type="submit">Переместить</button></div>
+  </form>
+`,
   );
 
   const form = document.getElementById("moveForm") as HTMLFormElement;
   if (form) {
-    on(form, "submit", async (e) => {
+    ctx.scope.on(form, "submit", async (e) => {
       e.preventDefault();
       const formData = new FormData(form);
       const targetId = parseInt(formData.get("targetParcel")?.toString() || "0");
       if (targetId) {
         await parcelItemRepository.save(item.update({ parcelId: targetId }));
         closeDrawer();
-        renderParcelDetailView();
+        ctx.refresh();
         toastState.add({ message: "Товар перемещён", type: "success" });
       }
     });
   }
 }
 
-async function deleteItem(itemId: number): Promise<void> {
+async function deleteItem(itemId: number, ctx: DetailContext): Promise<void> {
   confirmDrawer(
     "Удалить товар",
     "Товар будет удалён. Это действие нельзя отменить.",
     "Удалить",
     async () => {
       await parcelItemRepository.delete(itemId);
-      renderParcelDetailView();
+      ctx.refresh();
       toastState.add({ message: "Товар удалён", type: "success" });
     },
   );
 }
-
-// Auto-render when route becomes active
-router.subscribe((route, params) => {
-  if (route === "parcel") {
-    const parcelId = parseInt(params.parcelId || "0");
-    if (parcelId) {
-      uiState.setCurrentParcelId(parcelId);
-    }
-    renderParcelDetailView();
-  }
-});

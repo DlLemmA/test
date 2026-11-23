@@ -6,8 +6,10 @@
 import { customerRepository } from "./infrastructure";
 import { customerService } from "@/features/shared/wiring";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
-import { on } from "@/core/listeners";
+import { createListenerScope } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
+import type { ListenerScope } from "@/core/listeners";
+import type { ViewHandle } from "@/app/ViewHandle";
 import { I, esc, money, t } from "@/core/utils";
 import { SELF_SUFFIX } from "./ui/CustomerPresentation";
 import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
@@ -20,22 +22,23 @@ import { Parcel, ParcelItem, Payment, paymentStateFromPayments } from "@/feature
 import { customerBalances } from "@/features/balances/domain";
 import { customerMark } from "./ui/CustomerMark";
 
-export async function renderCustomersView(): Promise<void> {
-  const root = document.getElementById("peopleView");
-  if (!root) return;
+export function mountCustomersView(host: HTMLElement): ViewHandle {
+  const scope = createListenerScope();
 
-  const customers = await customerRepository.findAll();
-  const parcels = await parcelRepository.findAll();
-  const allItems = await parcelItemRepository.findAll();
-  const allPayments = await paymentRepository.findAll();
+  async function render(): Promise<void> {
+    if (scope.signal.aborted) return;
+    const customers = await customerRepository.findAll();
+    const parcels = await parcelRepository.findAll();
+    const allItems = await parcelItemRepository.findAll();
+    const allPayments = await paymentRepository.findAll();
 
-  // Pre-calculate balances for all customers
-  const selfCustomerId = customers.find((c) => c.isSelf)?.id;
-  const balances = customers.map((c) =>
-    calculateCustomerTotalBalance(c.id, parcels, allItems, allPayments, selfCustomerId),
-  );
+    // Pre-calculate balances for all customers
+    const selfCustomerId = customers.find((c) => c.isSelf)?.id;
+    const balances = customers.map((c) =>
+      calculateCustomerTotalBalance(c.id, parcels, allItems, allPayments, selfCustomerId),
+    );
 
-  root.innerHTML = `
+    host.innerHTML = `
     <div class="page page-customers">
       <header class="page-head">
         <div class="page-head__row">
@@ -86,7 +89,10 @@ export async function renderCustomersView(): Promise<void> {
     </div>
   `;
 
-  bindActions(root);
+    bindActions(host, scope, () => void render());
+  }
+
+  return { render, dispose: () => scope.dispose() };
 }
 
 function calculateCustomerTotalBalance(
@@ -133,11 +139,13 @@ function calculateCustomerTotalBalance(
   };
 }
 
-function bindActions(root: HTMLElement): void {
-  on(root.querySelector("#addCustomer"), "click", () => openCustomerForm());
+function bindActions(root: HTMLElement, scope: ListenerScope, refresh: () => void): void {
+  scope.on(root.querySelector("#addCustomer"), "click", () =>
+    openCustomerForm(undefined, scope, refresh),
+  );
 
   root.querySelectorAll<HTMLElement>("[data-open-customer]").forEach((btn) => {
-    on(btn, "click", () => {
+    scope.on(btn, "click", () => {
       const id = parseInt(btn.dataset.openCustomer!);
       router.navigate("customer", { customerId: String(id) });
     });
@@ -145,31 +153,33 @@ function bindActions(root: HTMLElement): void {
 
   root.querySelectorAll("[data-edit-customer]").forEach((btn) => {
     const b = btn as HTMLElement;
-    on(b, "click", () => openCustomerForm(parseInt(b.dataset.editCustomer!)));
+    scope.on(b, "click", () => openCustomerForm(parseInt(b.dataset.editCustomer!), scope, refresh));
   });
 
   root.querySelectorAll("[data-del-customer]").forEach((btn) => {
     const b = btn as HTMLElement;
-    on(b, "click", async () => {
+    scope.on(b, "click", async () => {
       const id = parseInt(b.dataset.delCustomer!);
-      await deleteCustomer(id);
+      await deleteCustomer(id, refresh);
     });
   });
 }
 
-function openCustomerForm(id?: number): void {
+function openCustomerForm(id: number | undefined, scope: ListenerScope, refresh: () => void): void {
   if (id) {
     customerRepository.findById(id).then((c) => {
-      if (c) renderCustomerForm(c, false);
+      if (c) renderCustomerForm(c, false, scope, refresh);
     });
   } else {
-    renderCustomerForm(null, true);
+    renderCustomerForm(null, true, scope, refresh);
   }
 }
 
 function renderCustomerForm(
   customer: { id: number; name: string; isSelf: boolean } | null,
   isNew: boolean,
+  scope: ListenerScope,
+  refresh: () => void,
 ): void {
   drawer(
     isNew ? "Новый заказчик" : "Редактировать заказчика",
@@ -211,10 +221,10 @@ function renderCustomerForm(
     nameError.hidden = true;
   };
 
-  on(nameInput, "input", clearNameError);
-  on(nameInput, "change", clearNameError);
+  scope.on(nameInput, "input", clearNameError);
+  scope.on(nameInput, "change", clearNameError);
 
-  on(form, "submit", async (e) => {
+  scope.on(form, "submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(form);
     const name = formData.get("name")?.toString().trim() || "";
@@ -241,7 +251,7 @@ function renderCustomerForm(
         await customerRepository.save(updated);
       }
       closeDrawer();
-      renderCustomersView();
+      refresh();
       toastState.add({ message: "Заказчик сохранён", type: "success" });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось сохранить заказчика";
@@ -250,15 +260,10 @@ function renderCustomerForm(
   });
 }
 
-async function deleteCustomer(id: number): Promise<void> {
+async function deleteCustomer(id: number, refresh: () => void): Promise<void> {
   confirmDrawer("Удалить заказчика", "Заказчик будет удалён.", "Удалить", async () => {
     await customerRepository.delete(id);
-    renderCustomersView();
+    refresh();
     toastState.add({ message: "Заказчик удалён", type: "success" });
   });
 }
-
-// Auto-render when route becomes active
-router.subscribe((route) => {
-  if (route === "people") renderCustomersView();
-});
