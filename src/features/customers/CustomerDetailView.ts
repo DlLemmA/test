@@ -18,11 +18,13 @@ import {
 import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
 import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
 import { Customer } from "@/features/customers/domain";
-import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
 import { on } from "@/core/listeners";
-import { router, uiState, toastState } from "@/core/state";
+import { router, toastState } from "@/core/state";
 import { I, esc, money } from "@/core/utils";
-import { customerService } from "@/features/shared/services";
+import {
+  customerService,
+  paymentServiceInstance as paymentService,
+} from "@/features/shared/services";
 import { customerMark } from "./ui/CustomerMark";
 
 export async function renderCustomerDetailView(customerId: number): Promise<void> {
@@ -247,8 +249,7 @@ function bindActions(
       const parcelId = parseInt(input.dataset.parcel!);
 
       try {
-        const { paymentServiceInstance } = await import("@/features/shared/services");
-        await paymentServiceInstance.setItemPaid(parcelId, itemId, customer.id, input.checked);
+        await paymentService.setItemPaid(parcelId, itemId, customer.id, input.checked);
         toastState.add({
           message: input.checked ? "Товар отмечен как оплаченный" : "Оплата товара снята",
           type: "success",
@@ -267,8 +268,7 @@ function bindActions(
       const parcelId = parseInt(input.dataset.toggleShipping!);
 
       try {
-        const { paymentServiceInstance } = await import("@/features/shared/services");
-        await paymentServiceInstance.setShippingPaid(parcelId, customer.id, input.checked);
+        await paymentService.setShippingPaid(parcelId, customer.id, input.checked);
         toastState.add({
           message: input.checked ? "Доставка оплачена" : "Оплата доставки снята",
           type: "success",
@@ -305,18 +305,13 @@ function bindActions(
 
     on(input, "change", async () => {
       try {
-        const { paymentServiceInstance } = await import("@/features/shared/services");
-        for (const item of parcelItems) {
-          const paid = customerPayments.some(
-            (p) => p.type === "item" && p.itemId === item.id && p.paid,
-          );
-          if (paid !== input.checked) {
-            await paymentServiceInstance.setItemPaid(parcelId, item.id, customer.id, input.checked);
-          }
-        }
-        if (shippingInvoiced && shippingPaid !== input.checked) {
-          await paymentServiceInstance.setShippingPaid(parcelId, customer.id, input.checked);
-        }
+        await paymentService.setParcelPayment(
+          parcelId,
+          customer.id,
+          parcelItems.map((item) => item.id),
+          input.checked,
+          shippingInvoiced,
+        );
         toastState.add({
           message: input.checked ? "Посылка оплачена" : "Оплата посылки снята",
           type: "success",
