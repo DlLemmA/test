@@ -6,6 +6,7 @@ declare global {
   }
 }
 import { parcelService } from "@/features/shared/wiring";
+import { getParcelStatement } from "@/features/statements/service";
 import { confirmDrawer } from "@/core/drawer";
 import { createListenerScope } from "@/core/listeners";
 import { router, uiState, toastState } from "@/core/state";
@@ -144,7 +145,7 @@ function bindParcelListActions(
 // Excel Export
 // ============================================
 
-export async function exportParcel(parcel: Parcel): Promise<void> {
+export async function exportParcel(parcelRef: Parcel): Promise<void> {
   if (!window.XLSX) {
     toastState.add({ message: "Загрузка Excel...", type: "info", duration: 0 });
     try {
@@ -158,22 +159,9 @@ export async function exportParcel(parcel: Parcel): Promise<void> {
 
   if (!window.XLSX) return;
 
-  // Import here to avoid circular deps
-  const { parcelItemRepository, paymentRepository } = await import("./infrastructure");
-  const { paymentStateFromPayments } = await import("./domain");
-  const { customerBalances } = await import("@/features/balances/domain");
-  const { customerRepository } = await import("@/features/customers/infrastructure");
-
-  const items = await parcelItemRepository.findByParcelId(parcel.id);
-  const customers = await customerRepository.findAll();
-  const payments = (await paymentRepository.findAll()).filter((p) => p.parcelId === parcel.id);
-  const selfCustomerId = customers.find((customer) => customer.isSelf)?.id;
-  const balance = customerBalances({
-    parcel,
-    items,
-    paymentState: paymentStateFromPayments(payments),
-    selfCustomerId,
-  });
+  const statement = await getParcelStatement(parcelRef.id);
+  if (!statement) return;
+  const { parcel, items, customers, balance } = statement;
 
   const wb = window.XLSX.utils.book_new();
   const rows: (string | number)[][] = [];

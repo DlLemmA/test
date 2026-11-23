@@ -13,13 +13,7 @@ import type { ViewHandle } from "@/app/ViewHandle";
 import { I, esc, money, t } from "@/core/utils";
 import { SELF_SUFFIX } from "./ui/CustomerPresentation";
 import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
-import {
-  parcelRepository,
-  parcelItemRepository,
-  paymentRepository,
-} from "@/features/parcels/infrastructure";
-import { Parcel, ParcelItem, Payment, paymentStateFromPayments } from "@/features/parcels/domain";
-import { customerBalances } from "@/features/balances/domain";
+import { getCustomerStatements } from "@/features/statements/service";
 import { customerMark } from "./ui/CustomerMark";
 
 export function mountCustomersView(host: HTMLElement): ViewHandle {
@@ -27,16 +21,7 @@ export function mountCustomersView(host: HTMLElement): ViewHandle {
 
   async function render(): Promise<void> {
     if (scope.signal.aborted) return;
-    const customers = await customerRepository.findAll();
-    const parcels = await parcelRepository.findAll();
-    const allItems = await parcelItemRepository.findAll();
-    const allPayments = await paymentRepository.findAll();
-
-    // Pre-calculate balances for all customers
-    const selfCustomerId = customers.find((c) => c.isSelf)?.id;
-    const balances = customers.map((c) =>
-      calculateCustomerTotalBalance(c.id, parcels, allItems, allPayments, selfCustomerId),
-    );
+    const statements = await getCustomerStatements();
 
     host.innerHTML = `
     <div class="page page-customers">
@@ -49,11 +34,10 @@ export function mountCustomersView(host: HTMLElement): ViewHandle {
 
 
       ${
-        customers.length
-          ? `<ul class="customer-index">${customers
-              .map((c, idx) => {
-                const balance = balances[idx]!;
-                const itemCount = allItems.filter((i) => i.customerId === c.id).length;
+        statements.length
+          ? `<ul class="customer-index">${statements
+              .map(({ customer: c, items, balance, parcelCount }) => {
+                const itemCount = items.length;
                 const hasDebt = balance.remaining > 0;
                 const amount = hasDebt
                   ? `долг ${money(balance.remaining)}`
@@ -65,7 +49,7 @@ export function mountCustomersView(host: HTMLElement): ViewHandle {
                 ${customerMark(c, "list")}
                 <div class="customer-row__body">
                   <span class="customer-row__name">${esc(c.name)}${c.isSelf ? ` <span class="customer-row__self">${esc(SELF_SUFFIX)}</span>` : ""}</span>
-                  <span class="customer-row__meta">${t(ITEM_BARE_FORMS, itemCount)} · ${t(PARCEL_FORMS, balance.parcelCount)}</span>
+                  <span class="customer-row__meta">${t(ITEM_BARE_FORMS, itemCount)} · ${t(PARCEL_FORMS, parcelCount)}</span>
                   <span class="customer-row__balance ${hasDebt ? "is-debt" : "is-paid"}">${amount}</span>
                 </div>
               </div>
@@ -93,50 +77,6 @@ export function mountCustomersView(host: HTMLElement): ViewHandle {
   }
 
   return { render, dispose: () => scope.dispose() };
-}
-
-function calculateCustomerTotalBalance(
-  customerId: number,
-  parcels: Parcel[],
-  items: ParcelItem[],
-  payments: Payment[],
-  selfCustomerId?: number,
-): { owed: number; paid: number; remaining: number; parcelCount: number } {
-  const customerItems = items.filter((i) => i.customerId === customerId);
-  const customerPayments = payments.filter((p) => p.customerId === customerId);
-  const parcelsWithItems = new Set<number>();
-  let totalOwed = 0;
-  let totalPaid = 0;
-
-  for (const parcel of parcels) {
-    const customerParcelItems = customerItems.filter((i) => i.parcelId === parcel.id);
-    if (customerParcelItems.length === 0) continue;
-    parcelsWithItems.add(parcel.id);
-
-    // Shipping share is a fraction of the whole parcel's weight, so pass all
-    // its items — not only this customer's. Payment state is per parcel too,
-    // otherwise shipping flags from other parcels overwrite each other.
-    const parcelItems = items.filter((i) => i.parcelId === parcel.id);
-    const parcelPayments = customerPayments.filter((p) => p.parcelId === parcel.id);
-    const paymentState = paymentStateFromPayments(parcelPayments);
-    const balance = customerBalances({
-      parcel,
-      items: parcelItems,
-      paymentState,
-      selfCustomerId,
-    }).byCustomer.get(customerId);
-    if (balance) {
-      totalOwed += balance.owed;
-      totalPaid += balance.paid;
-    }
-  }
-
-  return {
-    owed: totalOwed,
-    paid: totalPaid,
-    remaining: totalOwed - totalPaid,
-    parcelCount: parcelsWithItems.size,
-  };
 }
 
 function bindActions(root: HTMLElement, scope: ListenerScope, refresh: () => void): void {

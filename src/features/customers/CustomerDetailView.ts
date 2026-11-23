@@ -3,21 +3,10 @@
 // Shows all items + payments for a specific customer across all parcels
 // ============================================
 
-import { customerRepository } from "./infrastructure";
-import {
-  parcelRepository,
-  parcelItemRepository,
-  paymentRepository,
-} from "@/features/parcels/infrastructure";
-import { ParcelItem, Parcel, Payment, paymentStateFromPayments } from "@/features/parcels/domain";
-import {
-  customerBalances,
-  deliveryEnabled,
-  emptyCustomerBalance,
-} from "@/features/balances/domain";
+import { deliveryEnabled, emptyCustomerBalance } from "@/features/balances/domain";
+import { getCustomerStatement, type CustomerStatement } from "@/features/statements/service";
 import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
 import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
-import { Customer } from "@/features/customers/domain";
 import { createListenerScope } from "@/core/listeners";
 import type { ListenerScope } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
@@ -25,7 +14,7 @@ import type { RouteParams } from "@/core/state";
 import type { ViewHandle } from "@/app/ViewHandle";
 import { I, esc, money, t } from "@/core/utils";
 import { ITEM_FORMS, PARCEL_IN_FORMS, parcelDate } from "@/features/parcels/ui/ParcelPresentation";
-import { customerService, paymentService } from "@/features/shared/wiring";
+import { paymentService } from "@/features/shared/wiring";
 import { customerLabel } from "./ui/CustomerPresentation";
 import { customerMark } from "./ui/CustomerMark";
 
@@ -40,94 +29,26 @@ export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
       return;
     }
 
-    // Fetch all data
-    const [customer, parcels, allItems, allPayments, selfCustomer] = await Promise.all([
-      customerRepository.findById(customerId),
-      parcelRepository.findAll(),
-      parcelItemRepository.findAll(),
-      paymentRepository.findAll(),
-      customerService.getSelfCustomer(),
-    ]);
-
-    if (!customer) {
+    const statement = await getCustomerStatement(customerId);
+    if (!statement) {
       host.innerHTML = `<div class="empty">Заказчик не найден</div>`;
       return;
     }
 
-    // Filter items for this customer
-    const customerItems = allItems.filter((item) => item.customerId === customerId);
-
-    // Group items by parcel
-    const itemsByParcel = new Map<number, ParcelItem[]>();
-    for (const item of customerItems) {
-      if (!itemsByParcel.has(item.parcelId)) {
-        itemsByParcel.set(item.parcelId, []);
-      }
-      itemsByParcel.get(item.parcelId)!.push(item);
-    }
-
-    // Filter payments for this customer
-    const customerPayments = allPayments.filter((p) => p.customerId === customerId);
-
-    // Balances must be calculated with ALL items of a parcel: the shipping share
-    // is proportional to the customer's weight within the whole parcel.
-    // Payments are scoped to a parcel too, otherwise shipping flags from
-    // different parcels overwrite each other in the payment state.
-    const parcelContext = (parcelId: number) => {
-      const parcel = parcels.find((p) => p.id === parcelId);
-      const parcelItems = allItems.filter((i) => i.parcelId === parcelId);
-      const parcelPayments = customerPayments.filter((p) => p.parcelId === parcelId);
-      return {
-        parcel,
-        parcelItems,
-        paymentState: paymentStateFromPayments(parcelPayments),
-      };
-    };
-
-    // Calculate overall balance across all parcels
-    let totalOwed = 0;
-    let totalPaid = 0;
-    const selfCustomerId = selfCustomer?.id;
-
-    for (const parcelId of itemsByParcel.keys()) {
-      const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
-      if (!parcel) continue;
-      const balance = customerBalances({
-        parcel,
-        items: parcelItems,
-        paymentState,
-        selfCustomerId,
-      }).byCustomer.get(customerId);
-      if (balance) {
-        totalOwed += balance.owed;
-        totalPaid += balance.paid;
-      }
-    }
-
-    const remaining = totalOwed - totalPaid;
+    const { customer, items: customerItems, parcels: parcelStatements, balance } = statement;
+    const totalPaid = balance.paid;
+    const remaining = balance.remaining;
     const isSelf = customer.isSelf;
     const balanceLabel = remaining > 0 ? (isSelf ? "Остаток" : "Долг") : "Всё оплачено";
 
     // Build items HTML grouped by parcel
-    const itemsHtml = Array.from(itemsByParcel.entries())
-      .map(([parcelId, items]) => {
-        const { parcel, parcelItems, paymentState } = parcelContext(parcelId);
-        if (!parcel) return "";
-
-        const calculation = customerBalances({
-          parcel,
-          items: parcelItems,
-          paymentState,
-          selfCustomerId,
-        });
-        const balance = calculation.byCustomer.get(customerId) || emptyCustomerBalance();
+    const itemsHtml = parcelStatements
+      .map(({ parcel, items, balance: calculation, paymentState }) => {
+        const customerBalance = calculation.byCustomer.get(customerId) || emptyCustomerBalance();
 
         const itemsList = items
           .map((item) => {
-            const itemPayment = customerPayments.find(
-              (p) => p.type === "item" && p.itemId === item.id,
-            );
-            const isItemPaid = isSelf || !!itemPayment?.paid;
+            const isItemPaid = isSelf || !!paymentState.itemPaid.get(item.id);
             const deliveryShare = calculation.deliveryByItem.get(item.id) || 0;
             const priceWithDelivery = item.totalPriceBYN + deliveryShare;
 
@@ -145,21 +66,13 @@ export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
           })
           .join("");
 
-        const paidItems = items.filter((item) =>
-          isSelf
-            ? true
-            : customerPayments.some((p) => p.type === "item" && p.itemId === item.id && p.paid),
-        );
+        const paidItems = items.filter((item) => isSelf || !!paymentState.itemPaid.get(item.id));
         const allItemsPaid = items.length > 0 && paidItems.length === items.length;
 
-        // Shipping payment for this parcel
-        const shippingPayment = customerPayments.find(
-          (p) => p.type === "shipping" && p.parcelId === parcelId,
-        );
-        const isShippingPaid = isSelf || !!shippingPayment?.paid;
+        const isShippingPaid = isSelf || !!paymentState.shippingPaid.get(customerId);
 
         const showShipping = deliveryEnabled(parcel);
-        const shippingShare = balance.delivery.owed;
+        const shippingShare = customerBalance.delivery.owed;
         const parcelPaid = allItemsPaid && (!showShipping || isShippingPaid);
         const parcelLabel = parcel.name || `Посылка #${parcel.id}`;
         const date = parcelDate(parcel);
@@ -219,7 +132,7 @@ export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
         <div class="detail-hero__body min-w-0">
           <div class="detail-hero__title-row"><h1>${esc(customerLabel(customer))}</h1></div>
           <p class="detail-hero__next">${isSelf ? "Мой профиль" : "Заказчик"}</p>
-          <p class="detail-hero__facts">${t(ITEM_FORMS, customerItems.length)} в ${t(PARCEL_IN_FORMS, itemsByParcel.size)}</p>
+          <p class="detail-hero__facts">${t(ITEM_FORMS, customerItems.length)} в ${t(PARCEL_IN_FORMS, parcelStatements.length)}</p>
         </div>
       </section>
 
@@ -231,19 +144,11 @@ export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
       </div>
       ${isSelf ? '<p class="customer-note">«Я» — считаем потрачено по всем посылкам</p>' : ""}
 
-      ${itemsByParcel.size > 0 ? itemsHtml : '<div class="empty">Товаров пока нет</div>'}
+      ${parcelStatements.length > 0 ? itemsHtml : '<div class="empty">Товаров пока нет</div>'}
     </div>
   `;
 
-    bindActions(
-      host,
-      scope,
-      customer,
-      customerItems,
-      parcels,
-      customerPayments,
-      () => void render(params),
-    );
+    bindActions(host, scope, statement, () => void render(params));
   }
 
   return { render, dispose: () => scope.dispose() };
@@ -252,12 +157,10 @@ export function mountCustomerDetailView(host: HTMLElement): ViewHandle {
 function bindActions(
   root: HTMLElement,
   scope: ListenerScope,
-  customer: Customer,
-  customerItems: ParcelItem[],
-  parcels: Parcel[],
-  customerPayments: Payment[],
+  statement: CustomerStatement,
   refresh: () => void,
 ): void {
+  const { customer, items: customerItems, parcels } = statement;
   // Back button
   scope.on(root.querySelector("#backToCustomers"), "click", () => {
     router.navigate("people");
@@ -305,20 +208,17 @@ function bindActions(
   // Toggle all payments for a parcel at once
   root.querySelectorAll<HTMLInputElement>("[data-toggle-parcel]").forEach((input) => {
     const parcelId = parseInt(input.dataset.toggleParcel!);
-    const parcel = parcels.find((p) => p.id === parcelId);
-    if (!parcel) return;
+    const entry = parcels.find((candidate) => candidate.parcel.id === parcelId);
+    if (!entry) return;
+    const parcel = entry.parcel;
 
     const parcelItems = customerItems.filter((i) => i.parcelId === parcelId);
     const paidFlags = parcelItems.map(
-      (i) =>
-        customer.isSelf ||
-        customerPayments.some((p) => p.type === "item" && p.itemId === i.id && p.paid),
+      (i) => customer.isSelf || !!entry.paymentState.itemPaid.get(i.id),
     );
     const shippingInvoiced =
       (parcel.status === "received" || parcel.status === "done") && !!parcel.shippingCostBYN;
-    const shippingPaid =
-      customer.isSelf ||
-      customerPayments.some((p) => p.type === "shipping" && p.parcelId === parcelId && p.paid);
+    const shippingPaid = customer.isSelf || !!entry.paymentState.shippingPaid.get(customer.id);
     const allPaid =
       parcelItems.length > 0 && paidFlags.every(Boolean) && (!shippingInvoiced || shippingPaid);
     input.indeterminate =

@@ -1,5 +1,5 @@
 import { parcelRepository, parcelItemRepository } from "./infrastructure";
-import { getParcelWithCalculation } from "@/features/shared/services";
+import { getParcelStatement } from "@/features/statements/service";
 import { parcelItemService, parcelService, paymentService } from "@/features/shared/wiring";
 import { customerRepository } from "@/features/customers/infrastructure";
 import { drawer, confirmDrawer, closeDrawer } from "@/core/drawer";
@@ -101,7 +101,7 @@ export function mountParcelDetailView(host: HTMLElement): ViewHandle {
     }
     uiState.setCurrentParcelId(parcelId);
 
-    const result = await getParcelWithCalculation(parcelId);
+    const result = await getParcelStatement(parcelId);
     if (scope.signal.aborted) return;
     if (!result) {
       uiState.setCurrentParcelId(null);

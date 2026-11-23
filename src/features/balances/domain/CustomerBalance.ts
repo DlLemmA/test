@@ -34,6 +34,20 @@ export function emptyCustomerBalance(): CustomerBalance {
   return { ...emptyAmounts(), goods: emptyAmounts(), delivery: emptyAmounts() };
 }
 
+/** Aggregate per-parcel customer balances into one statement total. */
+export function sumCustomerBalances(balances: CustomerBalance[]): CustomerBalance {
+  const total = emptyCustomerBalance();
+  for (const balance of balances) {
+    addAmounts(total, balance);
+    addAmounts(total.goods, balance.goods);
+    addAmounts(total.delivery, balance.delivery);
+  }
+  total.remaining = total.owed - total.paid;
+  total.goods.remaining = total.goods.owed - total.goods.paid;
+  total.delivery.remaining = total.delivery.owed - total.delivery.paid;
+  return total;
+}
+
 /** Delivery is allocated only once a received/done parcel has weight and an invoice. */
 export function deliveryEnabled(parcel: Parcel): boolean {
   return (

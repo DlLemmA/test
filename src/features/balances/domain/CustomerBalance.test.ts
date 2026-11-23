@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Parcel } from "@/features/parcels/domain/Parcel";
 import { ParcelItem } from "@/features/parcels/domain/ParcelItem";
 import { createEmptyPaymentState } from "@/features/parcels/domain/Payment";
-import { customerBalances } from "./CustomerBalance";
+import { customerBalances, emptyCustomerBalance, sumCustomerBalances } from "./CustomerBalance";
 
 function parcel(status: "draft" | "received" = "received") {
   return Parcel.fromPersistence({
@@ -122,5 +122,31 @@ describe("customerBalances", () => {
       first.remaining,
     ];
     expect(exportRow[0]! + exportRow[1]!).toBeCloseTo(exportRow[2]!);
+  });
+
+  it("sums per-parcel balances without losing the goods/delivery split", () => {
+    const first = customerBalances({
+      parcel: parcel(),
+      items: [item(1, 1, 100, [300]), item(2, 2, 100, [700])],
+      paymentState: createEmptyPaymentState(),
+    }).byCustomer.get(2)!;
+    const second = customerBalances({
+      parcel: Parcel.fromPersistence({
+        id: 2,
+        status: "received",
+        boxWeightG: 100,
+        shippingCostBYN: 10,
+        createdAt: "2026-11-23T00:00:00.000Z",
+      }),
+      items: [item(3, 2, 50, [100])],
+      paymentState: createEmptyPaymentState(),
+    }).byCustomer.get(2)!;
+
+    const total = sumCustomerBalances([first, second]);
+    expect(total).not.toEqual(emptyCustomerBalance());
+    expect(total.goods.owed).toBeCloseTo(first.goods.owed + second.goods.owed);
+    expect(total.delivery.owed).toBeCloseTo(first.delivery.owed + second.delivery.owed);
+    expect(total.owed).toBeCloseTo(total.goods.owed + total.delivery.owed);
+    expect(total.remaining).toBeCloseTo(total.owed - total.paid);
   });
 });

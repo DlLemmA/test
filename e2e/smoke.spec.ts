@@ -40,6 +40,20 @@ test("presentation vocabulary stays consistent across screens", async ({ page })
   ).toContainText("1 шт");
 });
 
+test("amounts agree between the parcel and customer screens", async ({ page }) => {
+  await page.goto("/#parcel/2");
+  const parcelRemaining = await page
+    .locator(".parcel-calc__item")
+    .filter({ hasText: "Остаток" })
+    .locator("b")
+    .innerText();
+
+  await page.goto("/#customer/2");
+  const customerDebt = await page.locator(".check-row--total b").innerText();
+
+  expect(customerDebt).toBe(parcelRemaining);
+});
+
 test("payment toggle persists and self stays paid", async ({ page }) => {
   await page.goto("/#parcel/2");
   await openKatyaItemMenu(page);
