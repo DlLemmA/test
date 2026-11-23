@@ -27,7 +27,7 @@ import { unitsSelectHtml } from "./ui/UnitsSelect";
 import { applyItemGroupsSearch, itemSearchCountText, renderItemGroups } from "./ui/ItemGroups";
 import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/ReadinessCopy";
 import { openReceiveFlow } from "./ReceiveFlow";
-import { exportParcel } from "./ParcelListView";
+import { exportParcel } from "./ui/exportParcel";
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Ошибка";

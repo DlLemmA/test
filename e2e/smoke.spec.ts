@@ -266,6 +266,30 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   expect(renders.bottombar).toBe(1);
 });
 
+test("parcel deletion drawer cancels and confirms", async ({ page }) => {
+  await page.goto("/#parcels");
+  await expect(page.locator(".page-parcels")).toBeVisible();
+
+  async function openDeleteDrawer(): Promise<void> {
+    const entry = page.locator(".parcel-entry").filter({ hasText: "Посылка №1" });
+    await entry.locator("details.entry-menu > summary").click();
+    await entry.locator("[data-del]").click();
+  }
+
+  await openDeleteDrawer();
+  await expect(page.locator(".drawer-content .notice")).toHaveText(
+    "Посылка, товары и платежи по ней будут удалены. Это действие нельзя отменить.",
+  );
+  await page.locator(".drawer-actions button").filter({ hasText: "Отмена" }).click();
+  await expect(page.locator(".drawer-actions")).toHaveCount(0);
+  await expect(page.locator(".parcel-entry").filter({ hasText: "Посылка №1" })).toBeVisible();
+
+  await openDeleteDrawer();
+  await page.locator(".drawer-actions button").filter({ hasText: "Удалить" }).click();
+  await expect(page.locator(".parcel-entry").filter({ hasText: "Посылка №1" })).toHaveCount(0);
+  await expect(page.locator("#toastContainer")).toContainText("Посылка удалена");
+});
+
 test("customer drawer creates, validates and edits a customer", async ({ page }) => {
   await page.goto("/#people");
   await expect(page.locator(".page-customers")).toBeVisible();
