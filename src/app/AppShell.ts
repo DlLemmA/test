@@ -3,9 +3,10 @@
 // ============================================
 
 import "./appShell.css";
+import { watch } from "vue";
+import type { RouteLocationNormalized } from "vue-router";
 import type { ListenerScope } from "@/core/listeners";
-import { router, initRouterFromHash, toastState } from "@/core/state";
-import type { Route, RouteParams } from "@/core/state";
+import { toastState } from "@/core/state";
 import { I, t } from "@/core/utils";
 import { seedDemo } from "@/core/demo-seed";
 import { mountParcelListView } from "@/features/parcels/ParcelListView";
@@ -15,6 +16,7 @@ import { mountCustomersView } from "@/features/customers/CustomersView";
 import { mountCustomerDetailView } from "@/features/customers/CustomerDetailView";
 import { CUSTOMER_FORMS } from "@/features/customers/ui/CustomerPresentation";
 import { ITEM_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
+import { appRouter, screenFromLocation, type AppRoute } from "./router";
 import type { ViewHandle, ViewMount } from "./ViewHandle";
 
 interface Screen {
@@ -23,7 +25,7 @@ interface Screen {
   mount: ViewMount;
 }
 
-const SCREENS: Record<Route, Screen> = {
+const SCREENS: Record<AppRoute, Screen> = {
   parcels: { panelId: "panel-parcels", viewId: "parcelListView", mount: mountParcelListView },
   parcel: { panelId: "panel-parcel", viewId: "parcelView", mount: mountParcelDetailView },
   people: { panelId: "panel-people", viewId: "peopleView", mount: mountCustomersView },
@@ -35,13 +37,15 @@ const SCREENS: Record<Route, Screen> = {
   add: { panelId: "panel-parcel-add", viewId: "parcelAddView", mount: mountParcelAddView },
 };
 
+type Go = (route: AppRoute) => void;
+
 function element(id: string): HTMLElement {
   const el = document.getElementById(id);
   if (!el) throw new Error(`AppShell: missing #${id}`);
   return el;
 }
 
-function mountBottomBar(scope: ListenerScope): { update(route: Route): void } {
+function mountBottomBar(scope: ListenerScope, go: Go): { update(route: AppRoute): void } {
   const root = document.getElementById("bottombar");
   if (!root) return { update: () => {} };
 
@@ -51,12 +55,13 @@ function mountBottomBar(scope: ListenerScope): { update(route: Route): void } {
     if (!button) return;
     navigator.vibrate?.(10);
     const tab = button.dataset.tab;
-    if (tab === "create") router.navigate("add");
-    else if (tab === "parcels" || tab === "people") router.navigate(tab);
+    if (tab === "create") go("add");
+    else if (tab === "parcels") go("parcels");
+    else if (tab === "people") go("people");
   });
 
   return {
-    update(route: Route): void {
+    update(route: AppRoute): void {
       root.innerHTML = `
         <button class="bottombar-item ${route === "parcels" ? "active" : ""}" data-tab="parcels" aria-current="${route === "parcels" ? "page" : "false"}">
           ${I.history}<span>Посылки</span>
@@ -76,7 +81,7 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-async function openBackupModal(scope: ListenerScope): Promise<void> {
+async function openBackupModal(scope: ListenerScope, go: Go): Promise<void> {
   const { drawer, confirmDrawer } = await import("@/core/drawer");
   const { downloadBackup, importBackup } = await import("@/core/backup");
 
@@ -120,7 +125,7 @@ async function openBackupModal(scope: ListenerScope): Promise<void> {
       async () => {
         try {
           const result = await importBackup(await file.text());
-          router.navigate("parcels");
+          go("parcels");
           toastState.add({
             message: `База загружена: ${t(CUSTOMER_FORMS, result.customers)}, ${t(PARCEL_FORMS, result.parcels)}, ${t(ITEM_FORMS, result.items)}`,
             type: "success",
@@ -133,7 +138,7 @@ async function openBackupModal(scope: ListenerScope): Promise<void> {
   });
 }
 
-function bindHeader(scope: ListenerScope): void {
+function bindHeader(scope: ListenerScope, go: Go, refresh: () => void): void {
   const demoBtn = document.getElementById("demoBtn");
   if (demoBtn) {
     scope.on(demoBtn, "click", async () => {
@@ -145,7 +150,7 @@ function bindHeader(scope: ListenerScope): void {
         async () => {
           await seedDemo(true);
           toastState.add({ message: "Демо-данные загружены", type: "success" });
-          router.navigate(router.currentRoute, router.currentParams);
+          refresh();
         },
       );
     });
@@ -153,14 +158,14 @@ function bindHeader(scope: ListenerScope): void {
 
   const backupBtn = document.getElementById("backupBtn");
   if (backupBtn) {
-    scope.on(backupBtn, "click", () => void openBackupModal(scope));
+    scope.on(backupBtn, "click", () => void openBackupModal(scope, go));
   }
 }
 
 /** Mount once at startup: from here on, every route change has exactly one owner. */
 export async function mountAppShell(scope: ListenerScope): Promise<void> {
-  const screens = new Map<Route, { panel: HTMLElement; view: HTMLElement; mount: ViewMount }>();
-  for (const route of Object.keys(SCREENS) as Route[]) {
+  const screens = new Map<AppRoute, { panel: HTMLElement; view: HTMLElement; mount: ViewMount }>();
+  for (const route of Object.keys(SCREENS) as AppRoute[]) {
     const screen = SCREENS[route];
     screens.set(route, {
       panel: element(screen.panelId),
@@ -169,14 +174,22 @@ export async function mountAppShell(scope: ListenerScope): Promise<void> {
     });
   }
 
-  const bottomBar = mountBottomBar(scope);
-  bindHeader(scope);
+  let refreshCurrent = (): void => {};
 
-  let activeRoute: Route | null = null;
+  function go(route: AppRoute): void {
+    if (appRouter.currentRoute.value.name === route) refreshCurrent();
+    else void appRouter.push({ name: route });
+  }
+
+  const bottomBar = mountBottomBar(scope, go);
+  bindHeader(scope, go, () => refreshCurrent());
+
+  let activeRoute: AppRoute | null = null;
   let generation = 0;
-  const mounted = new Map<Route, ViewHandle>();
+  const mounted = new Map<AppRoute, ViewHandle>();
 
-  function activate(route: Route, params: RouteParams): void {
+  function activate(location: RouteLocationNormalized): void {
+    const { route, params } = screenFromLocation(location);
     const screen = screens.get(route);
     if (!screen) return;
 
@@ -204,9 +217,13 @@ export async function mountAppShell(scope: ListenerScope): Promise<void> {
     bottomBar.update(route);
   }
 
-  // Adopt the URL first: the initial navigation has no subscriber yet, so the
-  // shell performs exactly one initial render.
-  await initRouterFromHash();
-  router.subscribe((route, params) => activate(route, params));
-  activate(router.currentRoute, router.currentParams);
+  refreshCurrent = () => activate(appRouter.currentRoute.value);
+
+  // vue-router owns the URL; watch is the one notification source for views.
+  await appRouter.isReady();
+  watch(
+    () => appRouter.currentRoute.value,
+    (to) => activate(to),
+    { immediate: true },
+  );
 }

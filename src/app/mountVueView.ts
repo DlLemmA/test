@@ -7,11 +7,12 @@
 
 import { createApp, defineComponent, h, shallowRef } from "vue";
 import type { Component } from "vue";
-import type { RouteParams } from "@/core/state";
+import type { AppRouteParams } from "./router";
+import { appRouter } from "./router";
 import type { ViewHandle } from "./ViewHandle";
 
 export interface VueViewProps {
-  params: RouteParams;
+  params: AppRouteParams;
   renderTick: number;
 }
 
@@ -24,10 +25,11 @@ export function mountVueView(component: Component<VueViewProps>, host: HTMLEleme
   });
 
   const app = createApp(Host);
+  app.use(appRouter);
   let mounted = false;
 
   return {
-    render(params: RouteParams): void {
+    render(params: AppRouteParams): void {
       if (!mounted) {
         current.value = { params, renderTick: 0 };
         app.mount(host);

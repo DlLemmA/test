@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, shallowRef } from "vue";
+import { RouterLink, useRouter } from "vue-router";
 import { useRenderRefresh } from "@/app/useRenderRefresh";
 import type { VueViewProps } from "@/app/mountVueView";
 import { parcelCommands } from "@/features/shared/wiring";
-import { router, toastState, uiState } from "@/core/state";
+import { toastState, uiState } from "@/core/state";
 import { parcelRepository } from "./infrastructure";
 import type { Parcel } from "./domain";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
@@ -15,6 +16,7 @@ import { exportParcel } from "./ui/exportParcel";
 import { confirmDeleteParcel } from "./ui/deleteParcelCopy";
 
 const props = defineProps<VueViewProps>();
+const router = useRouter();
 
 const parcels = shallowRef<Parcel[]>([]);
 const deleteTarget = shallowRef<number | null>(null);
@@ -49,7 +51,7 @@ function closeMenu(event: Event): void {
 async function addParcel(): Promise<void> {
   const draft = parcels.value.find((parcel) => parcel.status === "draft");
   const parcel = draft || (await parcelCommands.createParcel());
-  router.navigate("parcel", { parcelId: String(parcel.id) });
+  void router.push({ name: "parcel", params: { parcelId: String(parcel.id) } });
 }
 
 async function exportFromMenu(id: number, event: Event): Promise<void> {
@@ -107,15 +109,14 @@ async function confirmDelete(): Promise<void> {
             <div class="parcel-entry__hint">{{ nextStepLabel(parcel.status) }}</div>
           </div>
           <div class="parcel-entry__actions">
-            <button
-              type="button"
+            <RouterLink
               class="btn-icon btn-primary"
               :data-open="parcel.id"
               :aria-label="`Открыть посылку ${parcelTitle(parcel)}`"
-              @click="router.navigate('parcel', { parcelId: String(parcel.id) })"
+              :to="{ name: 'parcel', params: { parcelId: String(parcel.id) } }"
             >
               <AppIcon name="arrowRight" />
-            </button>
+            </RouterLink>
             <details class="entry-menu">
               <summary :title="`Действия с посылкой ${parcelTitle(parcel)}`">
                 <span class="sr-only">Действия с посылкой {{ parcelTitle(parcel) }}</span>

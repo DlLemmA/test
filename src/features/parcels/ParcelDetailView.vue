@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { computed, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { useEventListener, useSupported } from "@vueuse/core";
+import { RouterLink, useRouter } from "vue-router";
 import { useRenderRefresh } from "@/app/useRenderRefresh";
 import type { VueViewProps } from "@/app/mountVueView";
-import { router, toastState, uiState } from "@/core/state";
+import { toastState, uiState } from "@/core/state";
 import { kg, money } from "@/core/utils";
 import { getParcelStatement, type ParcelStatement } from "@/features/statements/service";
 import { parcelCommands, paymentService } from "@/features/shared/wiring";
@@ -25,6 +27,7 @@ import ParcelMoveForm from "./ui/ParcelMoveForm.vue";
 type ItemFormStep = "main" | "tracks" | "weights";
 
 const props = defineProps<VueViewProps>();
+const router = useRouter();
 
 const statement = shallowRef<ParcelStatement | null>(null);
 const loadedParcelId = ref(0);
@@ -61,7 +64,7 @@ function defaultItemStep(status: Parcel["status"]): ItemFormStep {
 const refresh = useRenderRefresh(props, async (signal) => {
   const parcelId = Number(props.params.parcelId);
   if (!Number.isInteger(parcelId) || parcelId <= 0) {
-    router.navigate("parcels");
+    void router.push({ name: "parcels" });
     return;
   }
   uiState.setCurrentParcelId(parcelId);
@@ -69,7 +72,7 @@ const refresh = useRenderRefresh(props, async (signal) => {
   if (signal.aborted) return;
   if (!result) {
     uiState.setCurrentParcelId(null);
-    router.navigate("parcels");
+    void router.push({ name: "parcels" });
     return;
   }
   if (loadedParcelId.value !== result.parcel.id) {
@@ -222,14 +225,11 @@ function onCopyFallback(event: MouseEvent): void {
   if (source) void copyTracks(button, source);
 }
 
-onMounted(() => {
-  document.addEventListener("command", onCopyCommand, true);
-  if (!("CommandEvent" in window)) document.addEventListener("click", onCopyFallback);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("command", onCopyCommand, true);
-  document.removeEventListener("click", onCopyFallback);
+const hasCommandEvent = useSupported(() => "CommandEvent" in window);
+const copyFallbackTarget = computed(() => (hasCommandEvent.value ? null : document));
+useEventListener(document, "command", onCopyCommand, { capture: true });
+useEventListener(copyFallbackTarget, "click", onCopyFallback);
+onScopeDispose(() => {
   if (countTimer) clearTimeout(countTimer);
 });
 
@@ -357,9 +357,9 @@ async function confirmDelete(): Promise<void> {
 <template>
   <div v-if="parcel && status && date && settlement" class="page page-parcel-detail">
     <div class="detail-topbar">
-      <button type="button" class="text-btn" id="backToParcels" @click="router.navigate('parcels')">
+      <RouterLink class="text-btn" id="backToParcels" :to="{ name: 'parcels' }">
         <AppIcon name="chevronLeft" /> Все посылки
-      </button>
+      </RouterLink>
       <div class="detail-topbar__actions">
         <button
           type="button"
@@ -416,14 +416,13 @@ async function confirmDelete(): Promise<void> {
         <button type="button" class="btn-primary btn-action" id="shipParcel" @click="openShip">
           <AppIcon name="package" /> Отправить
         </button>
-        <button
-          type="button"
+        <RouterLink
           class="text-btn"
           id="openBatchForm"
-          @click="router.navigate('add', { parcelId: String(parcel.id) })"
+          :to="{ name: 'add', params: { parcelId: String(parcel.id) } }"
         >
           <AppIcon name="plus" /> Партия товаров
-        </button>
+        </RouterLink>
       </template>
       <button
         v-else-if="parcel.status === 'shipped'"

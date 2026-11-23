@@ -1,8 +1,8 @@
-import type { RouteParams } from "@/core/state";
+import type { AppRouteParams } from "./router";
 
 /** The shell owns the lifetime; a view only knows how to draw itself and stop. */
 export interface ViewHandle {
-  render(params: RouteParams): void | Promise<void>;
+  render(params: AppRouteParams): void | Promise<void>;
   dispose(): void;
 }
 

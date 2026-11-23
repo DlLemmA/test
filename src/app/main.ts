@@ -2,6 +2,7 @@
 // Application Entry Point — startup only.
 // ============================================
 
+import { createApp } from "vue";
 import { db } from "@/core/database";
 import {
   ITEM_STATUSES,
@@ -14,12 +15,19 @@ import {
 import { createListenerScope } from "@/core/listeners";
 import { toastState } from "@/core/state";
 import { mountAppShell } from "./AppShell";
+import { appRouter } from "./router";
 import { mountToastHost } from "./toastRendering";
 
 // ---- Initialize ----
 async function init(): Promise<void> {
   try {
     await db.open();
+
+    // vue-router starts on install. This app owns the router for the whole
+    // session, so disposing a view cannot reset navigation state.
+    const routerHost = createApp({ name: "RouterHost", render: () => null });
+    routerHost.use(appRouter);
+    routerHost.mount(document.createElement("div"));
 
     const scope = createListenerScope();
     const toastContainer = document.getElementById("toastContainer");

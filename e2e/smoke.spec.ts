@@ -16,12 +16,12 @@ async function openKatyaItemMenu(page: import("@playwright/test").Page): Promise
 }
 
 test("opens a parcel from the list", async ({ page }) => {
-  await page.goto("/#parcels");
+  await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();
 
   await page.locator('[data-open="2"]').click();
 
-  await expect(page).toHaveURL(/#parcel\/2$/);
+  await expect(page).toHaveURL(/#\/parcel\/2$/);
   await page.locator('details[data-item-group][data-customer="2"] > summary').click();
   await expect(
     page.locator(".page-parcel-detail").getByText("Товар Кати", { exact: true }),
@@ -29,11 +29,11 @@ test("opens a parcel from the list", async ({ page }) => {
 });
 
 test("presentation vocabulary stays consistent across screens", async ({ page }) => {
-  await page.goto("/#people");
+  await page.goto("/#/people");
   await expect(page.locator(".customer-row__name").first()).toHaveText("Я (я)");
   await expect(page.locator(".customer-row__meta").nth(1)).toHaveText("1 товар · 1 посылка");
 
-  await page.goto("/#parcel/2");
+  await page.goto("/#/parcel/2");
   await page.locator('details[data-item-group][data-customer="2"] > summary').click();
   await expect(
     page.locator(".item-entry").filter({ hasText: "Товар Кати" }).locator(".parcel-entry__hint"),
@@ -41,21 +41,21 @@ test("presentation vocabulary stays consistent across screens", async ({ page })
 });
 
 test("amounts agree between the parcel and customer screens", async ({ page }) => {
-  await page.goto("/#parcel/2");
+  await page.goto("/#/parcel/2");
   const parcelRemaining = await page
     .locator(".parcel-calc__item")
     .filter({ hasText: "Остаток" })
     .locator("b")
     .innerText();
 
-  await page.goto("/#customer/2");
+  await page.goto("/#/customer/2");
   const customerDebt = await page.locator(".check-row--total b").innerText();
 
   expect(customerDebt).toBe(parcelRemaining);
 });
 
 test("delivery follows one fact on both screens when weight is missing", async ({ page }) => {
-  await page.goto("/#customer/2");
+  await page.goto("/#/customer/2");
   await expect(page.locator("[data-toggle-shipping]")).toHaveCount(1);
   const withWeight = await page.locator(".check-row--total b").innerText();
 
@@ -65,17 +65,17 @@ test("delivery follows one fact on both screens when weight is missing", async (
   });
   await page.reload();
 
-  await page.goto("/#customer/2");
+  await page.goto("/#/customer/2");
   await expect(page.locator("[data-toggle-shipping]")).toHaveCount(0);
   const withoutWeight = await page.locator(".check-row--total b").innerText();
   expect(withoutWeight).not.toBe(withWeight);
 
-  await page.goto("/#parcel/2");
+  await page.goto("/#/parcel/2");
   await expect(page.locator(".shipping-paid")).toHaveCount(0);
 });
 
 test("payment toggle persists and self stays paid", async ({ page }) => {
-  await page.goto("/#parcel/2");
+  await page.goto("/#/parcel/2");
   await openKatyaItemMenu(page);
   await page.locator('[data-toggle-payment="11"]').click();
 
@@ -95,7 +95,7 @@ test("payment toggle persists and self stays paid", async ({ page }) => {
 });
 
 test("saves a batch with distributed commission and a paid self item", async ({ page }) => {
-  await page.goto("/#add");
+  await page.goto("/#/add");
   await page.locator("#sumCNY").fill("105");
   await page.locator("#sumBYN").fill("13.65");
   await page.locator('#stage1Form button[type="submit"]').click();
@@ -120,7 +120,7 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   expect(batch.customerId).toBe(2);
   expect(batch.payments).toBe(2);
 
-  await page.goto("/#add");
+  await page.goto("/#/add");
   await page.locator("#sumCNY").fill("10");
   await page.locator("#sumBYN").fill("1.3");
   await page.locator('#stage1Form button[type="submit"]').click();
@@ -143,7 +143,7 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
 });
 
 test("combobox creates a customer and the batch keeps the selection", async ({ page }) => {
-  await page.goto("/#add");
+  await page.goto("/#/add");
   await page.locator("#sumCNY").fill("20");
   await page.locator("#sumBYN").fill("2.6");
   await page.locator('#stage1Form button[type="submit"]').click();
@@ -190,7 +190,7 @@ test("ship button explains why a draft is not ready", async ({ page }) => {
     });
   });
 
-  await page.goto("/#parcel/1");
+  await page.goto("/#/parcel/1");
   await page.locator('details[data-item-group][data-customer="2"] > summary').click();
   await expect(page.locator(".page-parcel-detail").getByText("Нет треков")).toBeVisible();
 
@@ -204,7 +204,7 @@ test("finish button explains which items are unweighed", async ({ page }) => {
     await db.parcelItems.update(11, { weightsG: "[]" });
   });
 
-  await page.goto("/#parcel/2");
+  await page.goto("/#/parcel/2");
   await expect(page.locator(".detail-action__hint")).toContainText("Взвесьте все треки");
 
   await page.locator("#markAsDone").click();
@@ -238,7 +238,7 @@ test("receiving saves weights and commits items without reopening the parcel", a
     });
   }, "2026-01-01T00:00:00.000Z");
 
-  await page.goto("/#parcel/3");
+  await page.goto("/#/parcel/3");
   await page.locator("#receiveParcel").click();
   await expect(page.locator("#receiveFlow")).toBeVisible();
   await expect(page.locator("#rfTitle")).toHaveText("Посылка №3");
@@ -264,7 +264,7 @@ test("receiving saves weights and commits items without reopening the parcel", a
 });
 
 test("customer card toggles one item and the whole parcel", async ({ page }) => {
-  await page.goto("/#customer/2");
+  await page.goto("/#/customer/2");
 
   await page.locator('[data-toggle-payment="11"]').check();
   await expect(
@@ -286,7 +286,7 @@ test("customer card toggles one item and the whole parcel", async ({ page }) => 
 });
 
 test("a route change mounts its view exactly once", async ({ page }) => {
-  await page.goto("/#parcels");
+  await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();
 
   // Count root element insertions per host, not innerHTML writes: duplicate
@@ -308,7 +308,7 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   });
 
   await page.locator('[data-open="2"]').click();
-  await expect(page).toHaveURL(/#parcel\/2$/);
+  await expect(page).toHaveURL(/#\/parcel\/2$/);
   await expect(page.locator(".page-parcel-detail")).toBeVisible();
 
   const renders = await page.evaluate(
@@ -319,7 +319,7 @@ test("a route change mounts its view exactly once", async ({ page }) => {
 });
 
 test("parcel deletion drawer cancels and confirms", async ({ page }) => {
-  await page.goto("/#parcels");
+  await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();
 
   async function openDeleteDrawer(): Promise<void> {
@@ -343,7 +343,7 @@ test("parcel deletion drawer cancels and confirms", async ({ page }) => {
 });
 
 test("customer drawer creates, validates and edits a customer", async ({ page }) => {
-  await page.goto("/#people");
+  await page.goto("/#/people");
   await expect(page.locator(".page-customers")).toBeVisible();
 
   await page.locator("#addCustomer").click();
@@ -368,7 +368,7 @@ test("customer drawer creates, validates and edits a customer", async ({ page })
 });
 
 test("item wizard adds a draft item with tracks", async ({ page }) => {
-  await page.goto("/#parcel/1");
+  await page.goto("/#/parcel/1");
   await expect(page.locator(".page-parcel-detail")).toBeVisible();
 
   await page.locator("#addItem").click();

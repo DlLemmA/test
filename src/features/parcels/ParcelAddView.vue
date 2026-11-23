@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef } from "vue";
 import { StepperIndicator, StepperItem, StepperRoot, StepperTitle, StepperTrigger } from "reka-ui";
+import { useRouter } from "vue-router";
 import { useRenderRefresh } from "@/app/useRenderRefresh";
 import type { VueViewProps } from "@/app/mountVueView";
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
-import { router, toastState } from "@/core/state";
+import { toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
 import { parcelRepository } from "./infrastructure";
 import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
@@ -17,6 +18,7 @@ import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { formatDateNumeric, ITEM_BARE_FORMS, unitLabel } from "./ui/ParcelPresentation";
 
 const props = defineProps<VueViewProps>();
+const router = useRouter();
 
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
@@ -310,7 +312,7 @@ async function saveBatch(): Promise<void> {
       message: `Партия сохранена (${t(ITEM_BARE_FORMS, items.value.length)})`,
       type: "success",
     });
-    router.navigate("parcels");
+    void router.push({ name: "parcels" });
   } catch (error) {
     saving.value = false;
     toastState.add({ message: "Не удалось сохранить партию", type: "error" });

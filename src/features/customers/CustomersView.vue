@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, shallowRef } from "vue";
+import { RouterLink } from "vue-router";
 import { useRenderRefresh } from "@/app/useRenderRefresh";
 import type { VueViewProps } from "@/app/mountVueView";
-import { router, toastState } from "@/core/state";
+import { toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
 import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
 import { getCustomerStatements } from "@/features/statements/service";
@@ -30,10 +31,6 @@ const refresh = useRenderRefresh(props, async (signal) => {
   const facts = await getCustomerStatements();
   if (!signal.aborted) statements.value = facts;
 });
-
-function openCustomer(id: number): void {
-  router.navigate("customer", { customerId: String(id) });
-}
 
 function onSaved(): void {
   formTarget.value = null;
@@ -82,15 +79,14 @@ function balanceAmount(statement: CustomerStatement): string {
             </div>
           </div>
           <div class="customer-actions">
-            <button
-              type="button"
+            <RouterLink
               class="btn-icon btn-primary"
               :data-open-customer="statement.customer.id"
               :aria-label="`Открыть карточку ${statement.customer.name}`"
-              @click="openCustomer(statement.customer.id)"
+              :to="{ name: 'customer', params: { customerId: String(statement.customer.id) } }"
             >
               <AppIcon name="arrowRight" />
-            </button>
+            </RouterLink>
             <button
               type="button"
               class="btn-icon btn-secondary customer-edit"

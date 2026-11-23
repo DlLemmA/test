@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { shallowRef } from "vue";
+import { RouterLink, useRouter } from "vue-router";
 import { useRenderRefresh } from "@/app/useRenderRefresh";
 import type { VueViewProps } from "@/app/mountVueView";
 import { emptyCustomerBalance } from "@/features/balances/domain";
-import { router, toastState } from "@/core/state";
+import { toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
 import { getCustomerStatement } from "@/features/statements/service";
 import type { CustomerParcelStatement, CustomerStatement } from "@/features/statements/service";
@@ -17,13 +18,14 @@ import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import CustomerMark from "./ui/CustomerMark.vue";
 
 const props = defineProps<VueViewProps>();
+const router = useRouter();
 const statement = shallowRef<CustomerStatement | null>(null);
 const missing = shallowRef(false);
 
 const refresh = useRenderRefresh(props, async (signal) => {
   const customerId = Number(props.params.customerId);
   if (!Number.isInteger(customerId) || customerId <= 0) {
-    router.navigate("people");
+    void router.push({ name: "people" });
     return;
   }
   const facts = await getCustomerStatement(customerId);
@@ -130,14 +132,9 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
   <div v-if="missing" class="empty">Заказчик не найден</div>
   <div v-else-if="statement" class="page page-customer-detail">
     <div class="detail-topbar">
-      <button
-        type="button"
-        class="text-btn"
-        id="backToCustomers"
-        @click="router.navigate('people')"
-      >
+      <RouterLink class="text-btn" id="backToCustomers" :to="{ name: 'people' }">
         <AppIcon name="chevronLeft" /> Все заказчики
-      </button>
+      </RouterLink>
     </div>
 
     <section class="detail-hero" :class="{ 'is-self': statement.customer.isSelf }">
@@ -198,15 +195,14 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
             </div>
             <div class="parcel-entry__hint">{{ nextStepLabel(entry.parcel.status) }}</div>
           </div>
-          <button
-            type="button"
+          <RouterLink
             class="btn-icon btn-primary"
             :data-open-parcel="entry.parcel.id"
             :aria-label="`Открыть посылку ${entry.parcel.name || `Посылка #${entry.parcel.id}`}`"
-            @click="router.navigate('parcel', { parcelId: String(entry.parcel.id) })"
+            :to="{ name: 'parcel', params: { parcelId: String(entry.parcel.id) } }"
           >
             <AppIcon name="arrowRight" />
-          </button>
+          </RouterLink>
         </div>
 
         <label class="parcel-check">
