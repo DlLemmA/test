@@ -1,16 +1,49 @@
 // ============================================
-// iOS-style Bottom Drawer (slider)
+// Sheet — one deep module for the app-level bottom sheet.
+//
+// The interface is small: `drawer`, `confirmDrawer`, `closeDrawer`. Everything
+// else (element creation, scroll lock, focus, drag-to-dismiss, callbacks and
+// disposal) lives behind it. `alertDrawer` and the fake `_onCancel` / `_onConfirm`
+// properties on the DOM node are gone: the close reason is now explicit.
 // ============================================
 
+import { createListenerScope, type ListenerScope } from "./listeners";
 import { I, esc } from "./utils";
 
-// ---- State ----
-let drawerOpen = false;
+export interface SheetHandle {
+  /** Tear the sheet down immediately, without the close animation. */
+  dispose(): void;
+}
+
+type CloseReason = "cancel" | "confirm";
+
+interface Sheet {
+  close(reason: CloseReason): void;
+  finish(): void;
+  dispose(): void;
+}
+
+interface SheetOptions {
+  title: string;
+  content: string;
+  onConfirm?: () => void | Promise<void>;
+  onCancel?: () => void;
+}
+
+let active: Sheet | null = null;
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
 let savedScroll = 0;
 
-// ---- Elements ----
-function drawerEls(): { backdrop: HTMLElement; drawer: HTMLElement } {
+// The sheet elements and their drag/close listeners live as long as the app.
+const elementScope: ListenerScope = createListenerScope();
+
+function restoreScroll(): void {
+  document.body.classList.remove("noscroll");
+  document.body.style.top = "";
+  window.scrollTo(0, savedScroll);
+}
+
+function sheetEls(): { backdrop: HTMLElement; element: HTMLElement } {
   let backdrop = document.getElementById("drawerBackdrop");
   if (!backdrop) {
     backdrop = document.createElement("div");
@@ -18,37 +51,29 @@ function drawerEls(): { backdrop: HTMLElement; drawer: HTMLElement } {
     backdrop.className = "drawer-backdrop";
     document.body.appendChild(backdrop);
   }
-  let drawer = document.getElementById("drawerContainer");
-  if (!drawer) {
-    drawer = document.createElement("div");
-    drawer.id = "drawerContainer";
-    drawer.className = "drawer";
-    drawer.setAttribute("role", "dialog");
-    drawer.setAttribute("aria-modal", "true");
-    document.body.appendChild(drawer);
-    initDrawerDrag(drawer);
-    // Close button listener
-    drawer.addEventListener("click", (e) => {
-      if ((e.target as Element)?.closest("#drawerClose")) {
-        navigator.vibrate?.(10);
-        closeDrawer();
-      }
+  let element = document.getElementById("drawerContainer");
+  if (!element) {
+    element = document.createElement("div");
+    element.id = "drawerContainer";
+    element.className = "drawer";
+    element.setAttribute("role", "dialog");
+    element.setAttribute("aria-modal", "true");
+    document.body.appendChild(element);
+    elementScope.on(element, "click", (event) => {
+      if ((event.target as Element)?.closest("#drawerClose")) closeDrawer();
     });
+    initDrawerDrag(element, elementScope);
   }
-  return { backdrop, drawer };
+  return { backdrop, element };
 }
 
-// ---- Public API ----
+/** The only open path. Callers supply facts; this module owns the lifetime. */
+function openSheet({ title, content, onConfirm, onCancel }: SheetOptions): SheetHandle {
+  abandonActive();
+  const { backdrop, element: el } = sheetEls();
+  const scope = createListenerScope();
 
-export function drawer(title: string, content: string): void {
-  const { backdrop, drawer: drawerEl } = drawerEls();
-
-  if (closeTimer) {
-    clearTimeout(closeTimer);
-    closeTimer = null;
-  }
-
-  drawerEl.innerHTML = `
+  el.innerHTML = `
     <div class="drawer-handle"></div>
     <div class="drawer-header">
       <h2>${esc(title)}</h2>
@@ -58,34 +83,88 @@ export function drawer(title: string, content: string): void {
       ${content}
     </div>
   `;
+  el.setAttribute("aria-label", title);
 
-  drawerEl.setAttribute("aria-label", title);
+  let focusTimer: ReturnType<typeof setTimeout> | null = null;
+  let closing = false;
 
-  // Lock background scroll, remembering position
+  const sheet: Sheet = {
+    close(reason) {
+      if (closing || active !== sheet) return;
+      closing = true;
+      if (reason === "cancel") onCancel?.();
+      el.classList.remove("visible");
+      backdrop.classList.remove("visible");
+      closeTimer = setTimeout(() => {
+        closeTimer = null;
+        sheet.finish();
+      }, 300);
+    },
+    finish() {
+      sheet.dispose();
+      restoreScroll();
+    },
+    dispose() {
+      if (active === sheet) active = null;
+      if (focusTimer !== null) clearTimeout(focusTimer);
+      focusTimer = null;
+      scope.dispose();
+      el.classList.remove("visible");
+      backdrop.classList.remove("visible");
+      el.innerHTML = "";
+    },
+  };
+  active = sheet;
+
+  scope.on(el.querySelector("#drawerCancel"), "click", () => sheet.close("cancel"));
+  scope.on(el.querySelector("#drawerConfirm"), "click", () => {
+    sheet.close("confirm");
+    void onConfirm?.();
+  });
+
   savedScroll = window.scrollY;
   document.body.classList.add("noscroll");
   document.body.style.top = `-${savedScroll}px`;
 
-  // Animate in
-  drawerEl.style.transition = "none";
-  drawerEl.classList.remove("visible");
+  el.style.transition = "none";
+  el.classList.remove("visible");
   requestAnimationFrame(() => {
-    drawerEl.style.transition = "";
-    drawerEl.classList.add("visible");
+    if (active !== sheet) return;
+    el.style.transition = "";
+    el.classList.add("visible");
     backdrop.classList.add("visible");
   });
 
-  drawerOpen = true;
-
-  // Focus the first field, unless the user already focused something inside the
-  // drawer (e.g. the weight field after a barcode scan) while it was animating in.
-  setTimeout(() => {
-    if (drawerEl.contains(document.activeElement)) return;
-    const f = drawerEl.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
-      "input[autofocus], select[autofocus], input, select, textarea",
-    );
-    f?.focus({ preventScroll: true });
+  // Focus the first field unless a scan already focused something in the sheet.
+  focusTimer = setTimeout(() => {
+    focusTimer = null;
+    if (active !== sheet || !el.contains(document.activeElement)) {
+      const field = el.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        "input[autofocus], select[autofocus], input, select, textarea",
+      );
+      field?.focus({ preventScroll: true });
+    }
   }, 380);
+
+  return { dispose: () => sheet.dispose() };
+}
+
+function abandonActive(): void {
+  if (!active) return;
+  if (closeTimer !== null) {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+    active.finish();
+  } else {
+    active.dispose();
+    restoreScroll();
+  }
+}
+
+// ---- Public interface ----
+
+export function drawer(title: string, content: string): SheetHandle {
+  return openSheet({ title, content });
 }
 
 export function confirmDrawer(
@@ -94,198 +173,99 @@ export function confirmDrawer(
   confirmText: string,
   onConfirm: () => void | Promise<void>,
   onCancel?: () => void,
-): void {
-  const { backdrop, drawer: drawerEl } = drawerEls();
-
-  if (closeTimer) {
-    clearTimeout(closeTimer);
-    closeTimer = null;
-  }
-
-  drawerEl.innerHTML = `
-    <div class="drawer-handle"></div>
-    <div class="drawer-header">
-      <h2>${esc(title)}</h2>
-      <button type="button" class="drawer-close" id="drawerClose" aria-label="Закрыть">${I.x}</button>
-    </div>
-    <div class="drawer-content">
+): SheetHandle {
+  return openSheet({
+    title,
+    content: `
       <div class="notice">${esc(message)}</div>
       <div class="drawer-actions">
         <button type="button" class="btn-secondary" id="drawerCancel">Отмена</button>
         <button type="button" class="btn-danger-solid" id="drawerConfirm">${esc(confirmText)}</button>
       </div>
-    </div>
-  `;
-
-  drawerEl.setAttribute("aria-label", title);
-
-  savedScroll = window.scrollY;
-  document.body.classList.add("noscroll");
-  document.body.style.top = `-${savedScroll}px`;
-
-  drawerEl.style.transition = "none";
-  drawerEl.classList.remove("visible");
-  requestAnimationFrame(() => {
-    drawerEl.style.transition = "";
-    drawerEl.classList.add("visible");
-    backdrop.classList.add("visible");
-  });
-
-  drawerOpen = true;
-
-  // Bind action buttons
-  const cancelBtn = drawerEl.querySelector("#drawerCancel");
-  const confirmBtn = drawerEl.querySelector("#drawerConfirm");
-
-  cancelBtn?.addEventListener("click", () => {
-    navigator.vibrate?.(10);
-    closeDrawer();
-    onCancel?.();
-  });
-
-  confirmBtn?.addEventListener("click", async () => {
-    navigator.vibrate?.(10);
-    closeDrawer();
-    if (onConfirm) await onConfirm();
+    `,
+    onConfirm,
+    onCancel,
   });
 }
 
-export function alertDrawer(title: string, message: string): void {
-  const { backdrop, drawer: drawerEl } = drawerEls();
-
-  if (closeTimer) {
-    clearTimeout(closeTimer);
-    closeTimer = null;
-  }
-
-  drawerEl.innerHTML = `
-    <div class="drawer-handle"></div>
-    <div class="drawer-header">
-      <h2>${esc(title)}</h2>
-      <button type="button" class="drawer-close" id="drawerClose" aria-label="Закрыть">${I.x}</button>
-    </div>
-    <div class="drawer-content">
-      <div class="notice">${esc(message)}</div>
-    </div>
-  `;
-
-  drawerEl.setAttribute("aria-label", title);
-
-  savedScroll = window.scrollY;
-  document.body.classList.add("noscroll");
-  document.body.style.top = `-${savedScroll}px`;
-
-  drawerEl.style.transition = "none";
-  drawerEl.classList.remove("visible");
-  requestAnimationFrame(() => {
-    drawerEl.style.transition = "";
-    drawerEl.classList.add("visible");
-    backdrop.classList.add("visible");
-  });
-
-  drawerOpen = true;
-}
-
+/** Every other close path (close button, drag, callers) goes through cancel. */
 export function closeDrawer(): void {
-  const backdrop = document.getElementById("drawerBackdrop");
-  const drawer = document.getElementById("drawerContainer");
-  if (!drawer || !drawerOpen) return;
-
-  // Call callbacks if they exist
-  const drawerWithCallbacks = drawer as HTMLElement & {
-    _onConfirm?: () => void | Promise<void>;
-    _onCancel?: () => void;
-  };
-  drawerWithCallbacks._onCancel?.();
-
-  drawerOpen = false;
-  drawer.classList.remove("visible");
-  backdrop?.classList.remove("visible");
-
-  closeTimer = setTimeout(() => {
-    closeTimer = null;
-    document.body.classList.remove("noscroll");
-    document.body.style.top = "";
-    window.scrollTo(0, savedScroll);
-    // Clean up callbacks
-    drawerWithCallbacks._onConfirm = undefined;
-    drawerWithCallbacks._onCancel = undefined;
-    drawer.innerHTML = "";
-  }, 300);
+  active?.close("cancel");
 }
 
 // ============================================
-// Drag to dismiss
+// Drag to dismiss — owned by the sheet element, not by its content.
 // ============================================
 
-function initDrawerDrag(drawer: HTMLElement): void {
+function initDrawerDrag(element: HTMLElement, scope: ListenerScope): void {
   let startY: number | null = null;
 
   const begin = (y: number) => {
     startY = y;
-    drawer.dataset.dy = "0";
+    element.dataset.dy = "0";
   };
 
   // Touch (iOS): delegates to handle or header, skipping the close button
-  drawer.addEventListener(
+  scope.on(
+    element,
     "touchstart",
-    (e) => {
-      const target = e.target as Element;
+    (event) => {
+      const target = event.target as Element;
       const t = target?.closest<HTMLElement>(".drawer-handle, .drawer-header");
       if (!t || target?.closest("button")) return;
-      const touch = e.touches[0];
+      const touch = event.touches[0];
       if (!touch) return;
       begin(touch.clientY);
     },
     { passive: true },
   );
 
-  drawer.addEventListener(
+  scope.on(
+    element,
     "touchmove",
-    (e) => {
+    (event) => {
       if (startY === null) return;
-      const touch = e.touches[0];
+      const touch = event.touches[0];
       if (!touch) return;
       const dy = Math.max(0, touch.clientY - startY);
-      drawer.dataset.dy = String(dy);
-      drawer.style.transition = "none";
-      drawer.style.transform = `translateY(${dy}px)`;
+      element.dataset.dy = String(dy);
+      element.style.transition = "none";
+      element.style.transform = `translateY(${dy}px)`;
     },
     { passive: true },
   );
 
-  const endTouch = () => finishDrag(drawer);
-  drawer.addEventListener("touchend", endTouch);
-  drawer.addEventListener("touchcancel", endTouch);
+  const endTouch = () => finishDrag(element);
+  scope.on(element, "touchend", endTouch);
+  scope.on(element, "touchcancel", endTouch);
 
   // Mouse (desktop testing)
-  const onMouseDown = (e: MouseEvent) => {
-    const target = e.target as Element;
+  scope.on(element, "mousedown", (event) => {
+    const target = event.target as Element;
     const t = target?.closest<HTMLElement>(".drawer-handle, .drawer-header");
     if (!t || target?.closest("button")) return;
-    e.preventDefault();
-    begin(e.clientY);
+    event.preventDefault();
+    begin(event.clientY);
     const mm = (ev: MouseEvent) => {
       const dy = Math.max(0, ev.clientY - startY!);
-      drawer.dataset.dy = String(dy);
-      drawer.style.transition = "none";
-      drawer.style.transform = `translateY(${dy}px)`;
+      element.dataset.dy = String(dy);
+      element.style.transition = "none";
+      element.style.transform = `translateY(${dy}px)`;
     };
     const mu = () => {
-      finishDrag(drawer);
+      finishDrag(element);
       document.removeEventListener("mousemove", mm);
       document.removeEventListener("mouseup", mu);
     };
-    document.addEventListener("mousemove", mm);
-    document.addEventListener("mouseup", mu);
-  };
-  drawer.addEventListener("mousedown", onMouseDown);
+    scope.on(document, "mousemove", mm);
+    scope.on(document, "mouseup", mu);
+  });
 }
 
-function finishDrag(drawer: HTMLElement): void {
-  const dy = parseInt(drawer.dataset.dy || "0", 10);
-  delete drawer.dataset.dy;
-  drawer.style.transition = "";
-  drawer.style.transform = "";
+function finishDrag(element: HTMLElement): void {
+  const dy = parseInt(element.dataset.dy || "0", 10);
+  delete element.dataset.dy;
+  element.style.transition = "";
+  element.style.transform = "";
   if (dy > 96) closeDrawer();
 }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// App-level bottom sheet built on Reka UI's Drawer primitive. The primitive
-// owns focus, Escape, outside-press, scroll lock and swipe; this wrapper owns
-// only the app's visual language and the shared header.
+// Vue adapter for the app-level sheet contract: title + content + close.
+// core/drawer.ts is the DOM adapter for callers that still build HTML strings.
+// Reka owns focus, Escape, outside-press, scroll lock and swipe here; the
+// sheet module owns the same behaviour for the HTML-string adapter.
 import {
   DrawerClose,
   DrawerContent,
