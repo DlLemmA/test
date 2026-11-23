@@ -267,6 +267,8 @@
   select,
   textarea {
     @apply w-full border border-slate-300 rounded-xl px-3 py-2.5 bg-white text-slate-900 min-w-0;
+    /* iOS Safari zooms the page on focus when a field is smaller than 16px. */
+    font-size: 16px;
   }
   input:focus,
   select:focus,
@@ -2542,25 +2544,35 @@ body.noscroll {
   border-color: var(--color-negative);
   background: #fff0f0;
 }
-.customer-combo {
-  position: relative;
-}
-.customer-combo__control {
+/* Shared by native selects and the customer combobox. */
+.picker {
   position: relative;
   display: flex;
+  min-width: 0;
 }
-.customer-combo__control input {
+.picker__control {
   flex: 1;
   min-width: 0;
   padding-inline-end: 38px;
+  appearance: none;
+  -webkit-appearance: none;
 }
-.customer-combo__chevron {
+select.picker__control {
+  cursor: pointer;
+}
+.picker__caret {
   position: absolute;
-  inset-inline-end: 12px;
+  inset-inline-end: 15px;
   top: 50%;
-  transform: translateY(-50%);
-  color: var(--color-muted);
+  inline-size: 8px;
+  block-size: 8px;
+  border-inline-end: 2px solid var(--color-muted);
+  border-block-end: 2px solid var(--color-muted);
+  transform: translateY(-65%) rotate(45deg);
   pointer-events: none;
+}
+.customer-combo {
+  position: relative;
 }
 .customer-combo__list {
   position: absolute;

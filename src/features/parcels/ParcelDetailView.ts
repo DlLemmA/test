@@ -24,6 +24,8 @@ import {
 } from "./domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
+import { selectHtml } from "./ui/Select";
+import { unitsSelectHtml } from "./ui/UnitsSelect";
 import {
   applyItemGroupsSearch,
   itemSearchCountText,
@@ -697,12 +699,11 @@ function renderItemForm(
   initialStep: ItemFormStep,
 ): void {
   customerRepository.findAll().then((customers) => {
-    const customerOptions = customers
-      .map(
-        (c) =>
-          `<option value="${c.id}" ${c.id === item?.customerId ? "selected" : ""}>${esc(c.name)}${c.isSelf ? " (я)" : ""}</option>`,
-      )
-      .join("");
+    const customerOptions = customers.map((c) => ({
+      value: c.id,
+      label: `${c.name}${c.isSelf ? " (я)" : ""}`,
+      selected: c.id === item?.customerId,
+    }));
 
     const canEditTracks = !isNew && parcelStatus !== "done";
     const canEditWeights = !isNew && parcelStatus === "received";
@@ -773,11 +774,11 @@ function renderItemForm(
         }
         <div class="item-wizard__panel grid grid-cols-2 gap-3" data-panel="main" ${step === "main" ? "" : "hidden"}>
           <div class="field col-span-2"><label for="itemName">Название *</label><input id="itemName" name="name" required autocomplete="off" value="${esc(item?.name || "")}" ${step === "main" ? "autofocus" : ""}></div>
-          <div class="field col-span-2"><label for="itemCustomer">Заказчик *</label><select id="itemCustomer" name="customer_id" required>${customerOptions}</select></div>
+          <div class="field col-span-2"><label for="itemCustomer">Заказчик *</label>${selectHtml({ id: "itemCustomer", name: "customer_id", required: true, options: customerOptions })}</div>
           <div class="field"><label for="itemPriceCNY">Цена за всю позицию (CNY) *</label><input id="itemPriceCNY" name="priceCNY" type="number" step="0.01" required value="${item?.priceCNY || ""}"></div>
           <div class="field"><label for="itemPriceBYN">Цена за всю позицию (BYN) *</label><input id="itemPriceBYN" name="priceBYN" type="number" step="0.01" required value="${item?.priceBYN || ""}"></div>
           <div class="field"><label for="itemQuantity">Количество *</label><input id="itemQuantity" name="quantity" type="number" step="1" min="1" required value="${item?.quantity || 1}"></div>
-          <div class="field"><label for="itemUnit">Единица</label><select id="itemUnit" name="unit"><option value="pcs" ${item?.unit === "pcs" ? "selected" : ""}>шт</option><option value="packs" ${item?.unit === "packs" ? "selected" : ""}>уп</option><option value="pairs" ${item?.unit === "pairs" ? "selected" : ""}>пар</option></select></div>
+          <div class="field"><label for="itemUnit">Единица</label>${unitsSelectHtml({ id: "itemUnit", name: "unit", current: item?.unit })}</div>
           <div class="item-wizard__actions col-span-2">
             ${
               canEditTracks
@@ -1026,15 +1027,16 @@ async function moveItem(itemId: number): Promise<void> {
     return;
   }
 
-  const options = otherDrafts
-    .map((p) => `<option value="${p.id}">Посылка №${p.id} (${p.formattedDate})</option>`)
-    .join("");
+  const options = otherDrafts.map((p) => ({
+    value: p.id,
+    label: `Посылка №${p.id} (${p.formattedDate})`,
+  }));
 
   drawer(
     "Переместить товар",
     `
     <form id="moveForm">
-      <div class="field"><label>Выберите посылку</label><select name="targetParcel">${options}</select></div>
+      <div class="field"><label>Выберите посылку</label>${selectHtml({ name: "targetParcel", options })}</div>
       <div class="actions"><button type="submit">Переместить</button></div>
     </form>
   `,

@@ -1,9 +1,11 @@
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
-import { createCustomer } from "@/features/shared/services";
 import { parcelRepository } from "./infrastructure";
 import type { Parcel } from "./domain";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
+import { selectHtml } from "./ui/Select";
+import { unitsSelectHtml } from "./ui/UnitsSelect";
+import { createCustomerCombo, customerComboHtml } from "./customerCombo/CustomerCombo";
 import { on } from "@/core/listeners";
 import { router, toastState } from "@/core/state";
 import { I, esc, money } from "@/core/utils";
@@ -186,15 +188,11 @@ function stepNav(active: 1 | 2 | 3): string {
 }
 
 function renderStep1(root: HTMLElement, state: BatchState, render: (focus?: string) => void): void {
-  const parcelOptions = state.parcels
-    .map(
-      (p) => `
-        <option value="${p.id}" ${p.id === state.selectedParcelId ? "selected" : ""}>
-          Посылка №${p.id} · ${esc(parcelStatusInfo(p.status).label)} · ${esc(p.formattedDate)}
-        </option>
-      `,
-    )
-    .join("");
+  const parcelOptions = state.parcels.map((p) => ({
+    value: p.id,
+    label: `Посылка №${p.id} · ${parcelStatusInfo(p.status).label} · ${p.formattedDate}`,
+    selected: p.id === state.selectedParcelId,
+  }));
 
   root.innerHTML = `
     <div class="page page-batch">
@@ -209,7 +207,7 @@ function renderStep1(root: HTMLElement, state: BatchState, render: (focus?: stri
         <div class="field">
           <label for="addParcelSelect">Добавить в посылку</label>
           <span class="small muted block mb-1">Только черновики · отправленную посылку можно изменить в её карточке</span>
-          <select id="addParcelSelect" name="parcelId">${parcelOptions}</select>
+          ${selectHtml({ id: "addParcelSelect", name: "parcelId", options: parcelOptions })}
         </div>
         <div class="field">
           <label for="expectedItemsCount">Ожидаемое количество товаров</label>
@@ -280,268 +278,6 @@ function renderStep1(root: HTMLElement, state: BatchState, render: (focus?: stri
   });
 }
 
-function customerLabel(customer: Customer): string {
-  return customer.isSelf ? `${customer.name} (я)` : customer.name;
-}
-
-function customerKey(value: string): string {
-  return value
-    .trim()
-    .replace(/\s*\(я\)\s*$/i, "")
-    .toLocaleLowerCase("ru-RU");
-}
-
-function findCustomerByName(customers: Customer[], value: string): Customer | undefined {
-  const key = customerKey(value);
-  if (!key) return undefined;
-  return customers.find((c) => customerKey(c.name) === key);
-}
-
-// Rank search results: exact first, then prefix, then word prefix, then substring.
-function rankCustomers(customers: Customer[], query: string): Customer[] {
-  const key = customerKey(query);
-  return customers
-    .map((customer, index) => {
-      const name = customer.name.toLocaleLowerCase("ru-RU");
-      const score = !key
-        ? customer.isSelf
-          ? 0
-          : 1
-        : customerKey(customer.name) === key
-          ? 0
-          : name.startsWith(key)
-            ? 1
-            : name.split(/\s+/).some((word) => word.startsWith(key))
-              ? 2
-              : 3;
-      return { customer, index, score };
-    })
-    .filter(
-      ({ customer, score }) =>
-        !key || score < 3 || customer.name.toLocaleLowerCase("ru-RU").includes(key),
-    )
-    .sort((a, b) => a.score - b.score || a.index - b.index)
-    .map(({ customer }) => customer);
-}
-
-function customerPickerHtml(state: BatchState): string {
-  const selected = state.customers.find((c) => c.id === state.selectedCustomerId);
-  return `
-    <div class="field customer-combo" id="customerCombo">
-      <label for="customerComboInput">Заказчик</label>
-      <div class="customer-combo__control">
-        <input id="customerComboInput" type="text" role="combobox" aria-expanded="false"
-          aria-controls="customerComboList" aria-autocomplete="list" autocomplete="off"
-          placeholder="Выберите или создайте" value="${esc(selected ? customerLabel(selected) : "")}">
-        <span class="customer-combo__chevron" aria-hidden="true">▾</span>
-      </div>
-      <div class="customer-combo__list" id="customerComboList" role="listbox" hidden></div>
-      <span class="customer-combo__error" id="customerComboError" hidden></span>
-    </div>
-  `;
-}
-
-function bindCustomerCombo(
-  root: HTMLElement,
-  state: BatchState,
-  customerMap: Map<number, Customer>,
-): () => Promise<boolean> {
-  const wrapper = root.querySelector<HTMLElement>("#customerCombo");
-  const input = root.querySelector<HTMLInputElement>("#customerComboInput");
-  const control = root.querySelector<HTMLElement>(".customer-combo__control");
-  const list = root.querySelector<HTMLElement>("#customerComboList");
-  const errorEl = root.querySelector<HTMLElement>("#customerComboError");
-  if (!wrapper || !input || !control || !list || !errorEl) return async () => false;
-
-  // Focus stays in the input; the highlighted option is tracked via aria-activedescendant.
-  // `filter` is only set by typing, so opening on a preselected value shows the whole list.
-  let activeIndex = -1;
-  let filter = "";
-  let closeTimer: number | undefined;
-  const optionId = (index: number): string => `customerComboOption${index}`;
-  const optionButtons = (): HTMLButtonElement[] => [
-    ...list.querySelectorAll<HTMLButtonElement>(".customer-combo__option"),
-  ];
-  const clearActive = (): void => {
-    activeIndex = -1;
-    input.removeAttribute("aria-activedescendant");
-    for (const button of optionButtons()) button.removeAttribute("data-active");
-  };
-  const setActive = (index: number): void => {
-    const buttons = optionButtons();
-    if (buttons.length === 0) return;
-    activeIndex = (index + buttons.length) % buttons.length;
-    buttons.forEach((button, i) => {
-      if (i === activeIndex) button.setAttribute("data-active", "true");
-      else button.removeAttribute("data-active");
-    });
-    input.setAttribute("aria-activedescendant", optionId(activeIndex));
-    buttons[activeIndex]!.scrollIntoView({ block: "nearest" });
-  };
-
-  const clearError = (): void => {
-    errorEl.textContent = "";
-    errorEl.hidden = true;
-    input.removeAttribute("aria-invalid");
-  };
-  const showError = (message: string): void => {
-    errorEl.textContent = message;
-    errorEl.hidden = false;
-    input.setAttribute("aria-invalid", "true");
-  };
-
-  const renderOptions = (): void => {
-    const name = filter.trim();
-    const matches = rankCustomers(state.customers, name);
-    const options = matches
-      .map(
-        (c, index) => `
-          <button type="button" class="customer-combo__option" role="option" id="${optionId(index)}"
-            data-customer-id="${c.id}" aria-selected="${c.id === state.selectedCustomerId}">
-            ${esc(customerLabel(c))}
-          </button>
-        `,
-      )
-      .join("");
-    const create =
-      !name || findCustomerByName(state.customers, name)
-        ? ""
-        : `<button type="button" class="customer-combo__option customer-combo__option--create" role="option" data-create="true" id="${optionId(matches.length)}">
-           ${I.plus} Создать «${esc(name)}»
-         </button>`;
-    list.innerHTML = options + create || '<div class="customer-combo__empty">Нет заказчиков</div>';
-    clearActive();
-  };
-
-  const close = (): void => {
-    if (closeTimer !== undefined) {
-      clearTimeout(closeTimer);
-      closeTimer = undefined;
-    }
-    list.hidden = true;
-    input.setAttribute("aria-expanded", "false");
-    clearActive();
-  };
-  const open = (): void => {
-    renderOptions();
-    list.hidden = false;
-    input.setAttribute("aria-expanded", "true");
-  };
-  const select = (customer: Customer): void => {
-    state.selectedCustomerId = customer.id;
-    customerMap.set(customer.id, customer);
-    input.value = customerLabel(customer);
-    filter = "";
-    clearError();
-    close();
-  };
-
-  // Any typed value is valid: use an exact existing customer or create a new one.
-  const commitTypedValue = async (): Promise<boolean> => {
-    const name = input.value.trim();
-    if (!name) {
-      showError("Укажите заказчика");
-      input.focus();
-      return false;
-    }
-    const existing = findCustomerByName(state.customers, name);
-    if (existing) {
-      select(existing);
-      return true;
-    }
-    if (name.length > 100) {
-      showError("Имя заказчика слишком длинное");
-      input.focus();
-      return false;
-    }
-    try {
-      const customer = await createCustomer(name);
-      state.customers.push(customer);
-      select(customer);
-      toastState.add({ message: `Заказчик «${customer.name}» добавлен`, type: "success" });
-      return true;
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Не удалось создать заказчика");
-      return false;
-    }
-  };
-
-  // The whole control opens the list; no separate focusable toggle is needed.
-  on(control, "click", (e) => {
-    if ((e.target as HTMLElement).closest("input")) return;
-    if (list.hidden) open();
-    input.focus();
-  });
-  on(input, "focus", open);
-  on(input, "click", open);
-  on(input, "input", () => {
-    clearError();
-    filter = input.value;
-    const selected = state.customers.find((c) => c.id === state.selectedCustomerId);
-    if (selected && customerKey(input.value) !== customerKey(customerLabel(selected))) {
-      state.selectedCustomerId = null;
-    }
-    renderOptions();
-    if (list.hidden) open();
-  });
-  on(input, "keydown", (e) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      if (list.hidden) {
-        open();
-        setActive(0);
-      } else {
-        setActive(activeIndex + (e.key === "ArrowDown" ? 1 : -1));
-      }
-      return;
-    }
-    if (e.key === "Escape") {
-      if (!list.hidden) e.preventDefault();
-      close();
-      return;
-    }
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const highlighted = !list.hidden && activeIndex >= 0 ? optionButtons()[activeIndex] : null;
-      if (highlighted) highlighted.click();
-      else void commitTypedValue();
-    }
-  });
-  const cancelClose = (): void => {
-    if (closeTimer !== undefined) {
-      clearTimeout(closeTimer);
-      closeTimer = undefined;
-    }
-  };
-  // On touch screens tapping an option blurs the input before `click` fires.
-  on(list, "pointerdown", cancelClose);
-  on(list, "click", (e) => {
-    cancelClose();
-    const button = (e.target as HTMLElement).closest<HTMLButtonElement>(".customer-combo__option");
-    if (!button) return;
-
-    const id = button.dataset.customerId;
-    if (id) {
-      const customer =
-        state.customers.find((c) => c.id === Number(id)) ?? customerMap.get(Number(id));
-      if (customer) select(customer);
-      return;
-    }
-
-    if (button.dataset.create) void commitTypedValue();
-  });
-  on(wrapper, "focusout", (e) => {
-    if (wrapper.contains(e.relatedTarget as Node | null)) return;
-    cancelClose();
-    closeTimer = window.setTimeout(() => {
-      closeTimer = undefined;
-      close();
-    }, 150);
-  });
-
-  return commitTypedValue;
-}
-
 function batchAddHtml(state: BatchState): string {
   const modeBody =
     state.csvMode === "plain"
@@ -584,11 +320,11 @@ function batchAddHtml(state: BatchState): string {
               </div>
               <div class="field">
                 <label for="csvUiUnit">Единица</label>
-                <select id="csvUiUnit" enterkeyhint="done">
-                  <option value="pcs" ${state.csvUiDraft.unit === "pcs" ? "selected" : ""}>шт</option>
-                  <option value="packs" ${state.csvUiDraft.unit === "packs" ? "selected" : ""}>уп</option>
-                  <option value="pairs" ${state.csvUiDraft.unit === "pairs" ? "selected" : ""}>пар</option>
-                </select>
+                ${unitsSelectHtml({
+                  id: "csvUiUnit",
+                  current: state.csvUiDraft.unit,
+                  attrs: { enterkeyhint: "done" },
+                })}
               </div>
             </div>
             <div class="form-actions">
@@ -600,7 +336,7 @@ function batchAddHtml(state: BatchState): string {
 
   return `
     <div class="batch-add">
-      ${customerPickerHtml(state)}
+      ${customerComboHtml(state.customers.find((c) => c.id === state.selectedCustomerId))}
 
       <div class="batch-add__modes" role="group" aria-label="Режим добавления товаров">
         <button type="button" class="batch-add__mode" data-batch-mode="plain"
@@ -630,7 +366,7 @@ function bindBatchAdd(
     });
   });
 
-  const commitCustomer = bindCustomerCombo(root, state, customerMap);
+  const { commit: commitCustomer } = createCustomerCombo(root, state, customerMap);
 
   const currentCustomerId = (): number => state.selectedCustomerId ?? 0;
   const checkCustomer = async (): Promise<boolean> => {
