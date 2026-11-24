@@ -108,7 +108,9 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
 
   await expect(page.getByText("Комиссия (распределится по товарам)")).toBeVisible();
   await page.locator("#saveBatchBtn").click();
-  await expect(page.getByText("Партия сохранена (1 товар)")).toBeVisible();
+  await expect(
+    page.locator("#toastContainer .toast__message", { hasText: "Партия сохранена (1 товар)" }),
+  ).toBeVisible();
 
   const batch = await page.evaluate(async () => {
     const db = (window as unknown as { appDb: AppDb }).appDb;
@@ -131,7 +133,9 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   await page.locator("#addBatchBtn").click();
   await page.locator("#checkStepBtn").click();
   await page.locator("#saveBatchBtn").click();
-  await expect(page.getByText("Партия сохранена (1 товар)")).toBeVisible();
+  await expect(
+    page.locator("#toastContainer .toast__message", { hasText: "Партия сохранена (1 товар)" }),
+  ).toBeVisible();
 
   const selfPayment = await page.evaluate(async () => {
     const db = (window as unknown as { appDb: AppDb }).appDb;
@@ -157,7 +161,21 @@ test("combobox creates a customer and the batch keeps the selection", async ({ p
 
   await page.locator("#checkStepBtn").click();
   await page.locator("#saveBatchBtn").click();
-  await expect(page.getByText("Партия сохранена (1 товар)")).toBeVisible();
+  await expect(
+    page.locator("#toastContainer .toast__message", { hasText: "Партия сохранена (1 товар)" }),
+  ).toBeVisible();
+
+  // Reka components drop Vue's scoped-style attribute on their roots, so the
+  // toast CSS must be global: a transparent toast means the styles did not apply.
+  const toastStyle = await page
+    .locator("#toastContainer .toast")
+    .first()
+    .evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { background: style.backgroundColor, padding: style.padding };
+    });
+  expect(toastStyle.background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(toastStyle.padding).toBe("10px 16px");
 
   const ids = await page.evaluate(async () => {
     const db = (window as unknown as { appDb: AppDb }).appDb;
@@ -289,22 +307,20 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();
 
-  // Count root element insertions per host, not innerHTML writes: duplicate
-  // route owners show up as 2+ whether a view uses innerHTML or Vue's renderer.
+  // Count root element insertions in the router outlet, not innerHTML writes:
+  // two owners of the same route show up as 2+.
   await page.evaluate(() => {
-    const target = window as unknown as { viewRenders: Record<string, number> };
-    target.viewRenders = {};
-    for (const id of ["parcelView", "bottombar"]) {
-      const host = document.getElementById(id);
-      if (!host) throw new Error(`missing #${id}`);
-      new MutationObserver((records) => {
-        for (const record of records) {
-          if (Array.from(record.addedNodes).some((node) => node instanceof Element)) {
-            target.viewRenders[id] = (target.viewRenders[id] ?? 0) + 1;
-          }
+    const target = window as unknown as { viewRenders: number };
+    const host = document.getElementById("panel-container");
+    if (!host) throw new Error("missing #panel-container");
+    target.viewRenders = 0;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (Array.from(record.addedNodes).some((node) => node instanceof Element)) {
+          target.viewRenders += 1;
         }
-      }).observe(host, { childList: true });
-    }
+      }
+    }).observe(host, { childList: true });
   });
 
   await page.locator('[data-open="2"]').click();
@@ -312,10 +328,10 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   await expect(page.locator(".page-parcel-detail")).toBeVisible();
 
   const renders = await page.evaluate(
-    () => (window as unknown as { viewRenders: Record<string, number> }).viewRenders,
+    () => (window as unknown as { viewRenders: number }).viewRenders,
   );
-  expect(renders.parcelView).toBe(1);
-  expect(renders.bottombar).toBe(1);
+  expect(renders).toBe(1);
+  await expect(page.locator("#bottombar a")).toHaveCount(3);
 });
 
 test("parcel deletion drawer cancels and confirms", async ({ page }) => {

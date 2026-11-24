@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
+import { computed, onMounted, onScopeDispose, shallowRef } from "vue";
 import { RouterLink, useRouter } from "vue-router";
-import { useRenderRefresh } from "@/app/useRenderRefresh";
-import type { VueViewProps } from "@/app/mountVueView";
 import { parcelCommands } from "@/features/shared/wiring";
 import { toastState, uiState } from "@/core/state";
 import { parcelRepository } from "./infrastructure";
@@ -15,7 +13,6 @@ import { parcelDate } from "./ui/ParcelPresentation";
 import { exportParcel } from "./ui/exportParcel";
 import { confirmDeleteParcel } from "./ui/deleteParcelCopy";
 
-const props = defineProps<VueViewProps>();
 const router = useRouter();
 
 const parcels = shallowRef<Parcel[]>([]);
@@ -35,10 +32,18 @@ const deleteOpen = computed({
   },
 });
 
-const refresh = useRenderRefresh(props, async (signal) => {
+const loadScope = new AbortController();
+onScopeDispose(() => loadScope.abort());
+
+async function load(): Promise<void> {
   const found = await parcelRepository.findAll();
-  if (!signal.aborted) parcels.value = found;
-});
+  if (!loadScope.signal.aborted) parcels.value = found;
+}
+onMounted(load);
+
+function refresh(): void {
+  void load();
+}
 
 function parcelTitle(parcel: Parcel): string {
   return parcel.name || `Посылка №${parcel.id}`;

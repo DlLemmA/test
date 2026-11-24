@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
+import { computed, onMounted, onScopeDispose, shallowRef } from "vue";
 import { RouterLink } from "vue-router";
-import { useRenderRefresh } from "@/app/useRenderRefresh";
-import type { VueViewProps } from "@/app/mountVueView";
 import { toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
 import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
@@ -13,7 +11,6 @@ import CustomerForm from "./ui/CustomerForm.vue";
 import { SELF_SUFFIX } from "./ui/CustomerPresentation";
 import CustomerMark from "./ui/CustomerMark.vue";
 
-const props = defineProps<VueViewProps>();
 const statements = shallowRef<CustomerStatement[]>([]);
 const formTarget = shallowRef<number | "new" | null>(null);
 
@@ -27,10 +24,18 @@ const formCustomer = computed(
   () => statements.value.find((statement) => statement.customer.id === formTarget.value)?.customer,
 );
 
-const refresh = useRenderRefresh(props, async (signal) => {
+const loadScope = new AbortController();
+onScopeDispose(() => loadScope.abort());
+
+async function load(): Promise<void> {
   const facts = await getCustomerStatements();
-  if (!signal.aborted) statements.value = facts;
-});
+  if (!loadScope.signal.aborted) statements.value = facts;
+}
+onMounted(load);
+
+function refresh(): void {
+  void load();
+}
 
 function onSaved(): void {
   formTarget.value = null;

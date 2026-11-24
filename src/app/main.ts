@@ -12,29 +12,16 @@ import {
   replaceAll,
   type DbSnapshot,
 } from "@/core/dbSchema";
-import { createListenerScope } from "@/core/listeners";
 import { toastState } from "@/core/state";
-import { mountAppShell } from "./AppShell";
+import App from "./App.vue";
 import { appRouter } from "./router";
-import { mountToastHost } from "./toastRendering";
+import { dbReady } from "./startup";
 
 // ---- Initialize ----
 async function init(): Promise<void> {
   try {
     await db.open();
-
-    // vue-router starts on install. This app owns the router for the whole
-    // session, so disposing a view cannot reset navigation state.
-    const routerHost = createApp({ name: "RouterHost", render: () => null });
-    routerHost.use(appRouter);
-    routerHost.mount(document.createElement("div"));
-
-    const scope = createListenerScope();
-    const toastContainer = document.getElementById("toastContainer");
-    if (toastContainer) mountToastHost(toastContainer);
-    await mountAppShell(scope);
-
-    console.log("App initialized");
+    dbReady.value = true;
   } catch (err) {
     console.error("Failed to initialize app:", err);
     toastState.add({
@@ -42,6 +29,12 @@ async function init(): Promise<void> {
       type: "error",
     });
   }
+
+  const app = createApp(App);
+  app.use(appRouter);
+  app.mount("#app");
+  await appRouter.isReady();
+  console.log("App initialized");
 }
 
 if (document.readyState === "loading") {

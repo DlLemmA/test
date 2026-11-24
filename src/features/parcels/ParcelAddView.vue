@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef } from "vue";
+import { computed, nextTick, onMounted, onScopeDispose, ref, useTemplateRef } from "vue";
 import { StepperIndicator, StepperItem, StepperRoot, StepperTitle, StepperTrigger } from "reka-ui";
-import { useRouter } from "vue-router";
-import { useRenderRefresh } from "@/app/useRenderRefresh";
-import type { VueViewProps } from "@/app/mountVueView";
+import { useRoute, useRouter } from "vue-router";
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
@@ -17,7 +15,7 @@ import { fromSelect, parseItems, type ItemRow, type ItemUiDraft } from "./ui/bat
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { formatDateNumeric, ITEM_BARE_FORMS, unitLabel } from "./ui/ParcelPresentation";
 
-const props = defineProps<VueViewProps>();
+const route = useRoute();
 const router = useRouter();
 
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
@@ -107,16 +105,19 @@ const notice = computed(() => {
   return "Вся сумма распределена по товарам. Неучтённых BYN нет.";
 });
 
-useRenderRefresh(props, async (signal) => {
+const loadScope = new AbortController();
+onScopeDispose(() => loadScope.abort());
+
+async function load(): Promise<void> {
   const [foundParcels, foundCustomers] = await Promise.all([
     parcelRepository.findAll(),
     customerRepository.findAll(),
   ]);
-  if (signal.aborted) return;
+  if (loadScope.signal.aborted) return;
 
   const nextDrafts = foundParcels.filter((parcel) => parcel.status === "draft");
   if (!initialized) {
-    const preset = Number(props.params.parcelId);
+    const preset = Number(route.params.parcelId);
     selectedParcelId.value =
       nextDrafts.find((parcel) => parcel.id === preset)?.id ?? nextDrafts[0]?.id ?? 0;
     selectedCustomerId.value = foundCustomers[0]?.id ?? null;
@@ -127,7 +128,8 @@ useRenderRefresh(props, async (signal) => {
   parcels.value = foundParcels;
   customers.value = foundCustomers;
   loaded.value = true;
-});
+}
+onMounted(load);
 
 function focusNext(selector: string): void {
   void nextTick(() => root.value?.querySelector<HTMLElement>(selector)?.focus());

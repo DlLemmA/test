@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { shallowRef } from "vue";
-import { RouterLink, useRouter } from "vue-router";
-import { useRenderRefresh } from "@/app/useRenderRefresh";
-import type { VueViewProps } from "@/app/mountVueView";
+import { onMounted, onScopeDispose, shallowRef } from "vue";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { emptyCustomerBalance } from "@/features/balances/domain";
 import { toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
@@ -17,22 +15,30 @@ import { customerLabel } from "./ui/CustomerPresentation";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import CustomerMark from "./ui/CustomerMark.vue";
 
-const props = defineProps<VueViewProps>();
+const route = useRoute();
 const router = useRouter();
 const statement = shallowRef<CustomerStatement | null>(null);
 const missing = shallowRef(false);
 
-const refresh = useRenderRefresh(props, async (signal) => {
-  const customerId = Number(props.params.customerId);
+const loadScope = new AbortController();
+onScopeDispose(() => loadScope.abort());
+
+async function load(): Promise<void> {
+  const customerId = Number(route.params.customerId);
   if (!Number.isInteger(customerId) || customerId <= 0) {
     void router.push({ name: "people" });
     return;
   }
   const facts = await getCustomerStatement(customerId);
-  if (signal.aborted) return;
+  if (loadScope.signal.aborted) return;
   missing.value = !facts;
   statement.value = facts;
-});
+}
+onMounted(load);
+
+function refresh(): void {
+  void load();
+}
 
 function share(entry: CustomerParcelStatement, customerId: number) {
   return entry.balance.byCustomer.get(customerId) ?? emptyCustomerBalance();

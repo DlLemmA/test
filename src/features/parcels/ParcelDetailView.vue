@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { computed, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { useEventListener, useSupported } from "@vueuse/core";
-import { RouterLink, useRouter } from "vue-router";
-import { useRenderRefresh } from "@/app/useRenderRefresh";
-import type { VueViewProps } from "@/app/mountVueView";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { toastState, uiState } from "@/core/state";
 import { kg, money } from "@/core/utils";
 import { getParcelStatement, type ParcelStatement } from "@/features/statements/service";
@@ -26,7 +24,7 @@ import ParcelMoveForm from "./ui/ParcelMoveForm.vue";
 
 type ItemFormStep = "main" | "tracks" | "weights";
 
-const props = defineProps<VueViewProps>();
+const route = useRoute();
 const router = useRouter();
 
 const statement = shallowRef<ParcelStatement | null>(null);
@@ -61,15 +59,18 @@ function defaultItemStep(status: Parcel["status"]): ItemFormStep {
   return "main";
 }
 
-const refresh = useRenderRefresh(props, async (signal) => {
-  const parcelId = Number(props.params.parcelId);
+const loadScope = new AbortController();
+onScopeDispose(() => loadScope.abort());
+
+async function load(): Promise<void> {
+  const parcelId = Number(route.params.parcelId);
   if (!Number.isInteger(parcelId) || parcelId <= 0) {
     void router.push({ name: "parcels" });
     return;
   }
   uiState.setCurrentParcelId(parcelId);
   const result = await getParcelStatement(parcelId);
-  if (signal.aborted) return;
+  if (loadScope.signal.aborted) return;
   if (!result) {
     uiState.setCurrentParcelId(null);
     void router.push({ name: "parcels" });
@@ -82,7 +83,12 @@ const refresh = useRenderRefresh(props, async (signal) => {
     openGroups.value = new Set();
   }
   statement.value = result;
-});
+}
+onMounted(load);
+
+function refresh(): void {
+  void load();
+}
 
 const parcel = computed(() => statement.value?.parcel ?? null);
 const items = computed(() => statement.value?.items ?? []);

@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { nextTick } from "vue";
+import { defineComponent, h, nextTick } from "vue";
+import { mount } from "@vue/test-utils";
+import { ToastProvider } from "reka-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { toastState } from "@/core/state";
-import { mountToastHost } from "./toastRendering";
+import { toastManager, toastState } from "@/core/state";
+import Toaster from "./Toaster.vue";
 
 let container: HTMLElement;
 let unmount: () => void;
@@ -12,7 +14,14 @@ beforeEach(() => {
   container = document.createElement("div");
   container.id = "toastContainer";
   document.body.appendChild(container);
-  unmount = mountToastHost(container);
+
+  const Harness = defineComponent({
+    setup() {
+      return () => h(ToastProvider, { label: "Уведомления", toastManager }, () => h(Toaster));
+    },
+  });
+  const wrapper = mount(Harness, { attachTo: container });
+  unmount = () => wrapper.unmount();
   ids = [];
 });
 
@@ -42,7 +51,10 @@ describe("toast host", () => {
     await nextTick();
 
     expect(action).toHaveBeenCalledTimes(1);
-    expect(container.textContent).not.toContain("второй");
+    // jsdom has no exit animation, so the closed toast stays mounted until
+    // Presence removes it; Reka marks it as closed immediately.
+    const closedToast = container.querySelector(`[data-toast-id="${ids[1]}"]`)?.closest(".toast");
+    expect(closedToast?.getAttribute("data-state")).toBe("closed");
     expect(container.textContent).toContain("первый");
   });
 
