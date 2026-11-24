@@ -19,6 +19,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup
         uses: ./.github/actions/setup
 
@@ -31,6 +34,9 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup
         uses: ./.github/actions/setup
 
@@ -43,6 +49,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup
         uses: ./.github/actions/setup
 
@@ -65,6 +74,9 @@ jobs:
       E2E_BASE_URL: ${{ needs.deploy.outputs.url }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup
         uses: ./.github/actions/setup
 
@@ -85,6 +97,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup
         uses: ./.github/actions/setup
 

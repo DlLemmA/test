@@ -1,12 +1,9 @@
 name: Setup
-description: Checkout the repo, set up Node, and install dependencies
+description: Set up Node and install dependencies
 
 runs:
   using: composite
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     - name: Setup Node
       uses: actions/setup-node@v4
       with:
