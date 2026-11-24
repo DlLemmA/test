@@ -72,10 +72,7 @@ function canPayShipping(group: ItemGroupView): boolean {
 }
 
 function isGroupOpen(group: ItemGroupView): boolean {
-  return (
-    props.openCustomerGroups.has(group.customerId) ||
-    (props.searching && group.visibleRows.length > 0)
-  );
+  return props.openCustomerGroups.has(group.customerId);
 }
 
 function badge(row: ItemRowView): { label: string; class: string; title: string } {

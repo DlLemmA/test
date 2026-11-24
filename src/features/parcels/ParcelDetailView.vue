@@ -143,6 +143,23 @@ const itemGroups = computed(() =>
 const searching = computed(
   () => itemGroups.value.result.queryLength > 0 || missingTracksOnly.value,
 );
+
+watch(
+  [searching, itemGroups],
+  ([active, groups]) => {
+    if (!active) return;
+    const next = new Set(openGroups.value);
+    let changed = false;
+    for (const group of groups.groups) {
+      if (group.visibleRows.length > 0 && !next.has(group.customerId)) {
+        next.add(group.customerId);
+        changed = true;
+      }
+    }
+    if (changed) openGroups.value = next;
+  },
+  { immediate: true },
+);
 const noResults = computed(() => searching.value && itemGroups.value.result.visible === 0);
 const showMissingFilter = computed(
   () => parcel.value?.status === "draft" && (missingTracks.value > 0 || missingTracksOnly.value),
