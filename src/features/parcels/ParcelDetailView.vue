@@ -306,16 +306,18 @@ async function markDone(): Promise<void> {
   }
 }
 
-function toggleGroup(customerId: number): void {
+/** `toggle` also fires when Vue sets `open`; set the reported state instead of flipping it. */
+function toggleGroup(customerId: number, open: boolean): void {
   const next = new Set(openGroups.value);
-  if (next.has(customerId)) next.delete(customerId);
-  else next.add(customerId);
+  if (open === next.has(customerId)) return;
+  if (open) next.add(customerId);
+  else next.delete(customerId);
   openGroups.value = next;
 }
 
 function closeGroup(customerId: number): void {
   const next = new Set(openGroups.value);
-  next.delete(customerId);
+  if (!next.delete(customerId)) return;
   openGroups.value = next;
 }
 

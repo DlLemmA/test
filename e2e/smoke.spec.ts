@@ -342,6 +342,32 @@ test("bottom dock keeps its own compositing layer", async ({ page }) => {
   await expect(page.locator("#bottombar a")).toHaveCount(3);
 });
 
+test("search opens a matching group without toggling it repeatedly", async ({ page }) => {
+  await page.goto("/#/parcel/2");
+  const group = page.locator('details[data-item-group][data-customer="2"]');
+  await expect(group).toBeVisible();
+
+  await page.evaluate(() => {
+    const el = document.querySelector<HTMLDetailsElement>(
+      'details[data-item-group][data-customer="2"]',
+    );
+    if (!el) throw new Error("missing group");
+    const w = window as unknown as { groupToggles: string[] };
+    w.groupToggles = [];
+    el.addEventListener("toggle", () => w.groupToggles.push(String(el.open)));
+  });
+
+  await page.locator("#parcelItemSearch").fill("Катя");
+  await expect(group).toHaveAttribute("open", "");
+
+  // Programmatic `open` fires `toggle` too. The handler must set that state,
+  // not flip it — otherwise Vue and the browser ping-pong forever.
+  await page.waitForTimeout(200);
+  expect(
+    await page.evaluate(() => (window as unknown as { groupToggles: string[] }).groupToggles),
+  ).toEqual(["true"]);
+});
+
 test("drawer keeps its sheet chrome and action buttons", async ({ page }) => {
   await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();

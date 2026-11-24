@@ -23,7 +23,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  toggleGroup: [customerId: number];
+  toggleGroup: [customerId: number, open: boolean];
   closeGroup: [customerId: number];
   toggleGoods: [customerId: number, checked: boolean];
   toggleShipping: [customerId: number];
@@ -102,7 +102,7 @@ function itemPaid(itemId: number): boolean {
       data-item-group
       :data-customer="group.customerId"
       :open="isGroupOpen(group)"
-      @toggle="emit('toggleGroup', group.customerId)"
+      @toggle="emit('toggleGroup', group.customerId, ($event.target as HTMLDetailsElement).open)"
     >
       <summary class="parcel-entry item-group__head settle-entry" :data-status="parcel.status">
         <CustomerMark :customer="group.customer" variant="box" />
