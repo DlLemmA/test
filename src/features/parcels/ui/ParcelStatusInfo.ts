@@ -1,4 +1,4 @@
-import type { ParcelItemStatus, ParcelStatus } from "@/core/database";
+import type { ParcelItemStatus, ParcelStatus } from "@/core/dbSchema";
 
 export type StatusInfo = { label: string; class: string };
 

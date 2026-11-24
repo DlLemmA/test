@@ -1,21 +1,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onScopeDispose, ref, useTemplateRef } from "vue";
 import { StepperIndicator, StepperItem, StepperRoot, StepperTitle, StepperTrigger } from "reka-ui";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
-import { parcelRepository } from "./infrastructure";
-import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
+import { reconcileBatch, type BatchItemInput } from "./domain";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import CustomerCombo from "./ui/CustomerCombo.vue";
 import { fromSelect, parseItems, type ItemRow, type ItemUiDraft } from "./ui/batchImport";
-import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
-import { formatDateNumeric, ITEM_BARE_FORMS, unitLabel } from "./ui/ParcelPresentation";
+import { ITEM_BARE_FORMS, unitLabel } from "./ui/ParcelPresentation";
 
-const route = useRoute();
 const router = useRouter();
 
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
@@ -24,9 +21,7 @@ const STEP_LABELS = ["Суммы заказа", "Товары", "Проверк�
 
 const step = ref(1);
 const loaded = ref(false);
-const parcels = ref<Parcel[]>([]);
 const customers = ref<Customer[]>([]);
-const selectedParcelId = ref(0);
 const expectedRaw = ref("");
 const cnyRaw = ref("");
 const bynRaw = ref("");
@@ -56,7 +51,6 @@ const combo = useTemplateRef<InstanceType<typeof CustomerCombo>>("combo");
 
 let initialized = false;
 
-const drafts = computed(() => parcels.value.filter((parcel) => parcel.status === "draft"));
 const rate = computed(() => (totalCNY.value > 0 ? totalBYN.value / totalCNY.value : 0));
 const currentCNY = computed(() => items.value.reduce((sum, item) => sum + item.priceCNY, 0));
 const currentBYN = computed(() => items.value.reduce((sum, item) => sum + item.priceBYN, 0));
@@ -109,23 +103,13 @@ const loadScope = new AbortController();
 onScopeDispose(() => loadScope.abort());
 
 async function load(): Promise<void> {
-  const [foundParcels, foundCustomers] = await Promise.all([
-    parcelRepository.findAll(),
-    customerRepository.findAll(),
-  ]);
+  const foundCustomers = await customerRepository.findAll();
   if (loadScope.signal.aborted) return;
 
-  const nextDrafts = foundParcels.filter((parcel) => parcel.status === "draft");
   if (!initialized) {
-    const preset = Number(route.params.parcelId);
-    selectedParcelId.value =
-      nextDrafts.find((parcel) => parcel.id === preset)?.id ?? nextDrafts[0]?.id ?? 0;
     selectedCustomerId.value = foundCustomers[0]?.id ?? null;
     initialized = true;
-  } else if (!nextDrafts.some((parcel) => parcel.id === selectedParcelId.value)) {
-    selectedParcelId.value = nextDrafts[0]?.id ?? 0;
   }
-  parcels.value = foundParcels;
   customers.value = foundCustomers;
   loaded.value = true;
 }
@@ -305,8 +289,8 @@ function goToReview(): void {
 async function saveBatch(): Promise<void> {
   saving.value = true;
   try {
-    const { addItemsToParcel } = await import("@/features/shared/services");
-    await addItemsToParcel(selectedParcelId.value, items.value, {
+    const { createParcelBatch } = await import("@/features/shared/services");
+    await createParcelBatch(items.value, {
       totalCNY: totalCNY.value,
       totalBYN: totalBYN.value,
     });
@@ -325,15 +309,7 @@ async function saveBatch(): Promise<void> {
 
 <template>
   <div ref="root" class="page page-batch">
-    <template v-if="loaded && drafts.length === 0">
-      <header class="page-head"><h1>Новая партия</h1></header>
-      <div class="empty">
-        Нет черновиков. Создайте посылку — если нужно что-то изменить в уже отправленной,
-        используйте редактирование посылки.
-      </div>
-    </template>
-
-    <template v-else-if="loaded">
+    <template v-if="loaded">
       <header class="page-head">
         <h1>
           {{ step === 1 ? "Новая партия" : step === 2 ? "Товары партии" : "Проверка партии" }}
@@ -378,26 +354,6 @@ async function saveBatch(): Promise<void> {
         @input="clearFieldError"
         @change="clearFieldError"
       >
-        <div class="field">
-          <label for="addParcelSelect">Добавить в посылку</label>
-          <span class="small muted block mb-1">
-            Только черновики · отправленную посылку можно изменить в её карточке
-          </span>
-          <div class="picker">
-            <select
-              id="addParcelSelect"
-              v-model.number="selectedParcelId"
-              class="picker__control"
-              name="parcelId"
-            >
-              <option v-for="parcel in drafts" :key="parcel.id" :value="parcel.id">
-                Посылка №{{ parcel.id }} · {{ parcelStatusInfo(parcel.status).label }} ·
-                {{ formatDateNumeric(parcel.createdAt) }}
-              </option>
-            </select>
-            <span class="picker__caret" aria-hidden="true" />
-          </div>
-        </div>
         <div class="field">
           <label for="expectedItemsCount">Ожидаемое количество товаров</label>
           <span id="expectedItemsHint" class="small muted block mb-1">

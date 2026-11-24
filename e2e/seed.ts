@@ -2,17 +2,25 @@ import type { Page } from "@playwright/test";
 
 export type Table = {
   clear(): Promise<void>;
+  get(id: number): Promise<Record<string, unknown> | undefined>;
   add(row: Record<string, unknown>): Promise<unknown>;
   update(id: number, changes: Record<string, unknown>): Promise<unknown>;
   bulkAdd(rows: unknown[]): Promise<unknown>;
   toArray(): Promise<Array<Record<string, unknown>>>;
 };
 
-export type AppDb = {
+export type AppCache = {
   customers: Table;
   parcels: Table;
   parcelItems: Table;
   payments: Table;
+};
+
+type SchemaSnapshot = {
+  customers: Array<Record<string, unknown>>;
+  parcels: Array<Record<string, unknown>>;
+  parcelItems: Array<Record<string, unknown>>;
+  payments: Array<Record<string, unknown>>;
 };
 
 type AppSchema = {
@@ -20,88 +28,99 @@ type AppSchema = {
   itemStatus: readonly ["ordered", "shipped", "received", "lost"];
   paymentType: readonly ["item", "shipping"];
   unit: readonly ["pcs", "packs", "pairs"];
-  replaceAll(snapshot: {
-    customers: Array<Record<string, unknown>>;
-    parcels: Array<Record<string, unknown>>;
-    parcelItems: Array<Record<string, unknown>>;
-    payments: Array<Record<string, unknown>>;
-  }): Promise<void>;
+  replaceAll(snapshot: SchemaSnapshot): Promise<void>;
 };
 
 const CREATED_AT = "2026-01-01T00:00:00.000Z";
 
+const DEMO_SNAPSHOT = (createdAt: string, schema: AppSchema): SchemaSnapshot => ({
+  customers: [
+    { id: 1, name: "Я", isSelf: true },
+    { id: 2, name: "Катя", isSelf: false },
+  ],
+  parcels: [
+    { id: 1, status: schema.parcelStatus[0], createdAt },
+    {
+      id: 2,
+      status: schema.parcelStatus[2],
+      createdAt,
+      shippedAt: createdAt,
+      completedAt: createdAt,
+      boxWeightG: 100,
+      shippingCostBYN: 10,
+    },
+  ],
+  parcelItems: [
+    {
+      id: 10,
+      parcelId: 2,
+      name: "Товар Я",
+      priceCNY: 10,
+      priceBYN: 1.3,
+      quantity: 1,
+      unit: schema.unit[0],
+      customerId: 1,
+      trackNumbers: JSON.stringify(["SELF-1"]),
+      weightsG: JSON.stringify([100]),
+      status: schema.itemStatus[1],
+      tracksCompletedAt: createdAt,
+      createdAt,
+    },
+    {
+      id: 11,
+      parcelId: 2,
+      name: "Товар Кати",
+      priceCNY: 20,
+      priceBYN: 2.6,
+      quantity: 1,
+      unit: schema.unit[0],
+      customerId: 2,
+      trackNumbers: JSON.stringify(["KAT-1"]),
+      weightsG: JSON.stringify([200]),
+      status: schema.itemStatus[1],
+      tracksCompletedAt: createdAt,
+      createdAt,
+    },
+  ],
+  payments: [
+    {
+      parcelId: 2,
+      customerId: 2,
+      itemId: 11,
+      type: schema.paymentType[0],
+      paid: false,
+      createdAt,
+    },
+    { parcelId: 2, customerId: 2, type: schema.paymentType[1], paid: false, createdAt },
+  ],
+});
+
 /**
- * Replace the browser database with a small, deterministic fixture. Everything
- * the smoke tests need lives here: a draft, a shipped parcel, one self item
- * and one payable item for another customer. The shared schema seam performs
- * the replacement in one transaction, so no test ever observes half a fixture.
+ * Seed the in-memory cache, then reload so the app mounts with test auth and
+ * the fixture already in place. No Postgres or real auth flow is involved.
  */
 export async function seedSmokeData(page: Page): Promise<void> {
   await page.goto("/");
-  await page.evaluate(async (createdAt) => {
+  const vocabulary = await page.evaluate(() => {
     const { appSchema } = window as unknown as { appSchema: AppSchema };
-    const { parcelStatus, itemStatus, paymentType, unit } = appSchema;
-    await appSchema.replaceAll({
-      customers: [
-        { id: 1, name: "Я", isSelf: true },
-        { id: 2, name: "Катя", isSelf: false },
-      ],
-      parcels: [
-        { id: 1, status: parcelStatus[0], createdAt },
-        {
-          id: 2,
-          status: parcelStatus[2],
-          createdAt,
-          shippedAt: createdAt,
-          completedAt: createdAt,
-          boxWeightG: 100,
-          shippingCostBYN: 10,
-        },
-      ],
-      parcelItems: [
-        {
-          id: 10,
-          parcelId: 2,
-          name: "Товар Я",
-          priceCNY: 10,
-          priceBYN: 1.3,
-          quantity: 1,
-          unit: unit[0],
-          customerId: 1,
-          trackNumbers: JSON.stringify(["SELF-1"]),
-          weightsG: JSON.stringify([100]),
-          status: itemStatus[1],
-          tracksCompletedAt: createdAt,
-          createdAt,
-        },
-        {
-          id: 11,
-          parcelId: 2,
-          name: "Товар Кати",
-          priceCNY: 20,
-          priceBYN: 2.6,
-          quantity: 1,
-          unit: unit[0],
-          customerId: 2,
-          trackNumbers: JSON.stringify(["KAT-1"]),
-          weightsG: JSON.stringify([200]),
-          status: itemStatus[1],
-          tracksCompletedAt: createdAt,
-          createdAt,
-        },
-      ],
-      payments: [
-        {
-          parcelId: 2,
-          customerId: 2,
-          itemId: 11,
-          type: paymentType[0],
-          paid: false,
-          createdAt,
-        },
-        { parcelId: 2, customerId: 2, type: paymentType[1], paid: false, createdAt },
-      ],
-    });
-  }, CREATED_AT);
+    return {
+      parcelStatus: appSchema.parcelStatus,
+      itemStatus: appSchema.itemStatus,
+      paymentType: appSchema.paymentType,
+      unit: appSchema.unit,
+    };
+  });
+
+  await page.evaluate(
+    async (snapshot) => {
+      const { appAuth, appSchema } = window as unknown as {
+        appAuth: { enterTestMode(): void };
+        appSchema: AppSchema;
+      };
+      appAuth.enterTestMode();
+      await appSchema.replaceAll(snapshot);
+    },
+    DEMO_SNAPSHOT(CREATED_AT, vocabulary),
+  );
   await page.reload();
 }

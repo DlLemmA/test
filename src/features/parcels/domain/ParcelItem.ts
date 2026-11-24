@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ParcelItemRow, ParcelStatus, ParcelItemStatus } from "@/core/database";
+import type { ParcelItemRow, ParcelStatus, ParcelItemStatus } from "@/core/dbSchema";
 
 export const ParcelItemCreateSchema = z.object({
   parcelId: z.number().int().positive(),
@@ -10,6 +10,10 @@ export const ParcelItemCreateSchema = z.object({
   unit: z.enum(["pcs", "packs", "pairs"]),
   customerId: z.number().int().positive(),
 });
+
+/** The batch wizard creates its parcel and items together, so no parcel id yet. */
+export const ParcelItemBatchCreateSchema = ParcelItemCreateSchema.omit({ parcelId: true });
+export type ParcelItemBatchCreateInput = z.infer<typeof ParcelItemBatchCreateSchema>;
 
 export const ParcelItemUpdateSchema = z.object({
   parcelId: z.number().int().positive().optional(),

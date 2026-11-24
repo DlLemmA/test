@@ -14,15 +14,14 @@
     "lint:fix": "oxlint . --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "schema:codegen": "node scripts/generate-seed-constants.mjs",
     "precommit": "lint-staged",
     "prepare": "husky"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
     "@vueuse/core": "^14.4.0",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
-    "dexie": "^4.4.7",
     "reka-ui": "^2.11.0",
     "vue": "^3.5.46",
     "vue-router": "^4.6.5",

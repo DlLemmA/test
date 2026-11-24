@@ -26,11 +26,33 @@ export interface PaymentRepository {
   save(payment: Payment): Promise<Payment>;
 }
 
+/** A payment whose item id is only known after the items have been inserted. */
+export interface PlannedPayment {
+  itemIndex: number; // 1-based index into the batch items
+  customerId: number;
+  type: "item" | "shipping";
+  paid: boolean;
+  paidAt?: string;
+  createdAt: string;
+}
+
+export interface CreatedParcelBatch {
+  parcel: Parcel;
+  items: ParcelItem[];
+  payments: Payment[];
+}
+
 /** One operation = one adapter transaction; no CRUD surface leaks to callers. */
 export interface ParcelWriteStore {
   saveParcel(parcel: Parcel): Promise<Parcel>;
   /** Insert a batch atomically and return the persisted items with their ids. */
   addItems(items: ParcelItem[]): Promise<ParcelItem[]>;
+  /** Create a new parcel with its items and payments in one transaction. */
+  createParcelWithItems(
+    parcel: Parcel,
+    items: ParcelItem[],
+    payments: PlannedPayment[],
+  ): Promise<CreatedParcelBatch>;
   saveItem(item: ParcelItem): Promise<ParcelItem>;
   deleteItem(id: number): Promise<void>;
   /** Delete a parcel with its items and payments in one transaction. */

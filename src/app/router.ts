@@ -4,10 +4,18 @@
 // ============================================
 
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router";
+import { authSession } from "@/core/auth";
+import SignInView from "./SignInView.vue";
 
-export type AppRoute = "parcels" | "parcel" | "people" | "customer" | "add";
+export type AppRoute = "parcels" | "parcel" | "people" | "customer" | "add" | "sign-in";
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: "/sign-in",
+    name: "sign-in",
+    component: SignInView,
+    meta: { public: true },
+  },
   {
     path: "/parcels",
     name: "parcels",
@@ -39,4 +47,11 @@ const routes: RouteRecordRaw[] = [
 export const appRouter = createRouter({
   history: createWebHashHistory(),
   routes,
+});
+
+appRouter.beforeEach((to) => {
+  if (to.name === "sign-in") {
+    return authSession.value ? { name: "parcels" } : true;
+  }
+  return authSession.value ? true : { name: "sign-in", query: { next: to.fullPath } };
 });

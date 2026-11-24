@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Customer } from "@/features/customers/domain";
-import type { ParcelItemStatus } from "@/core/database";
+import type { ParcelItemStatus } from "@/core/dbSchema";
 import { Parcel, ParcelItem } from "../domain";
 import {
   currentItems,

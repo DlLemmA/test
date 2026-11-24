@@ -1,4 +1,4 @@
-import type { ParcelStatus } from "@/core/database";
+import type { ParcelStatus } from "@/core/dbSchema";
 
 // UI copy: what the parcel is waiting for next. One place shared by list,
 // parcel detail and customer detail — the domain keeps only status semantics.

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ParcelRow, ParcelStatus } from "@/core/database";
+import type { ParcelRow, ParcelStatus } from "@/core/dbSchema";
 
 // ============================================
 // Zod Schemas (boundary validation)

@@ -89,7 +89,7 @@ function canPayShipping(group: ItemGroupView): boolean {
             }"
           >
             <input
-              v-indeterminate="partiallyPaid(props.group)"
+              :indeterminate="partiallyPaid(props.group)"
               type="checkbox"
               class="item-paid-all"
               :data-customer="props.group.customerId"

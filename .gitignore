@@ -34,3 +34,6 @@ playwright-report/
 
 # Misc
 *.local
+
+# Local issue tracker / scratch notes
+.scratch/

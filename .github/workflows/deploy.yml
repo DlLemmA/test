@@ -43,9 +43,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Generated console constants are current
-        run: npm run schema:codegen && git diff --exit-code seed-console.js
-
   test:
     runs-on: ubuntu-latest
     steps:
@@ -96,6 +93,9 @@ jobs:
         run: npm run test:e2e
 
   build:
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

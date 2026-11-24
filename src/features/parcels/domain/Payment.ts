@@ -1,4 +1,4 @@
-import type { PaymentRow } from "@/core/database";
+import type { PaymentRow } from "@/core/dbSchema";
 
 // ============================================
 // Payment Entity (Persisted)

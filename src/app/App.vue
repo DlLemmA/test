@@ -1,24 +1,40 @@
 <script setup lang="ts">
 import { ToastProvider } from "reka-ui";
-import { RouterView, useRouter } from "vue-router";
+import { watch } from "vue";
+import { RouterView, useRoute, useRouter } from "vue-router";
+import { authReady, authSession } from "@/core/auth";
 import { toastManager } from "@/core/state";
 import AppHeader from "./AppHeader.vue";
 import AppNavbar from "./AppNavbar.vue";
-import type { AppRoute } from "./router";
+import SignInView from "./SignInView.vue";
 import { dbReady } from "./startup";
 import Toaster from "./Toaster.vue";
 
 const router = useRouter();
+const route = useRoute();
 
-function go(target: AppRoute): void {
-  void router.push({ name: target });
-}
+watch(authSession, (session) => {
+  if (!session && route.name !== "sign-in") {
+    void router.replace({ name: "sign-in" });
+  } else if (session && route.name === "sign-in") {
+    const next = route.query.next;
+    const target =
+      typeof next === "string" && next.startsWith("/") && !next.startsWith("//")
+        ? next
+        : "/parcels";
+    void router.replace(target);
+  }
+});
 </script>
 
 <template>
   <ToastProvider label="Уведомления" :toast-manager="toastManager">
-    <div v-if="dbReady" class="app-shell">
-      <AppHeader @imported="go('parcels')" />
+    <div v-if="!authReady" class="auth-loading">Проверяем доступ…</div>
+    <SignInView v-else-if="!authSession" />
+    <div v-else-if="!dbReady" class="auth-loading">Загружаем данные…</div>
+
+    <div v-else class="app-shell">
+      <AppHeader />
 
       <main id="main-content" class="flex-1 px-4 pb-28 overflow-y-auto">
         <div id="panel-container" style="view-transition-name: panel-root">
@@ -34,3 +50,13 @@ function go(target: AppRoute): void {
     </div>
   </ToastProvider>
 </template>
+
+<style scoped>
+.auth-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  color: var(--color-muted);
+  background: var(--color-canvas);
+}
+</style>

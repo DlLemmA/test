@@ -125,4 +125,24 @@ describe("PaymentService", () => {
     expect(await service.markSelfItemsPaid(1, [{ id: 10, customerId: 1 }])).toEqual([]);
     expect(await repo.findAll()).toEqual([]);
   });
+
+  it("plans paid payments only for self items in a new batch", () => {
+    const service = new PaymentService(new InMemoryPayments(), async () => 7);
+    const planned = service.planBatchPayments(
+      [
+        { index: 1, customerId: 7 },
+        { index: 2, customerId: 8 },
+        { index: 3, customerId: 7 },
+      ],
+      7,
+    );
+
+    expect(planned.map((payment) => payment.itemIndex)).toEqual([1, 3]);
+    expect(planned.every((payment) => payment.paid && payment.type === "item")).toBe(true);
+  });
+
+  it("plans nothing when the batch has no self customer", () => {
+    const service = new PaymentService(new InMemoryPayments(), noSelf);
+    expect(service.planBatchPayments([{ index: 1, customerId: 7 }], undefined)).toEqual([]);
+  });
 });

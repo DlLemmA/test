@@ -8,13 +8,21 @@ import { z } from "zod";
 import { Parcel, ParcelUpdateSchema, type ParcelUpdateInput } from "../domain/Parcel";
 import {
   ParcelItem,
+  ParcelItemBatchCreateSchema,
   ParcelItemCreateSchema,
   ParcelItemUpdateSchema,
+  type ParcelItemBatchCreateInput,
   type ParcelItemCreateInput,
   type ParcelItemUpdateInput,
 } from "../domain/ParcelItem";
 import { parcelReadiness } from "../domain/ParcelReadiness";
-import type { ParcelItemRepository, ParcelRepository, ParcelWriteStore } from "../domain/ports";
+import type {
+  CreatedParcelBatch,
+  ParcelItemRepository,
+  ParcelRepository,
+  ParcelWriteStore,
+  PlannedPayment,
+} from "../domain/ports";
 
 function validated<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
@@ -44,6 +52,17 @@ export class ParcelCommands {
 
   async createParcel(): Promise<Parcel> {
     return this.writes.saveParcel(Parcel.create());
+  }
+
+  /** Validate a whole batch, then persist parcel, items and payments atomically. */
+  async createParcelWithItems(
+    inputs: ParcelItemBatchCreateInput[],
+    payments: PlannedPayment[],
+  ): Promise<CreatedParcelBatch> {
+    const items = inputs.map((input) =>
+      ParcelItem.create({ ...validated(ParcelItemBatchCreateSchema, input), parcelId: 0 }),
+    );
+    return this.writes.createParcelWithItems(Parcel.create(), items, payments);
   }
 
   async updateParcel(parcelId: number, input: ParcelUpdateInput): Promise<Parcel> {

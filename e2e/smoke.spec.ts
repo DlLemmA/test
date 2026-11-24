@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { seedSmokeData, type AppDb } from "./seed";
+import { seedSmokeData, type AppCache } from "./seed";
 
 test.beforeEach(async ({ page }) => {
   await seedSmokeData(page);
@@ -59,8 +59,8 @@ test("delivery follows one fact on both screens when weight is missing", async (
   const withWeight = await page.locator(".check-row--total b").innerText();
 
   await page.evaluate(async () => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    await db.parcels.update(2, { boxWeightG: null });
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcels.update(2, { boxWeightG: null });
   });
   await page.reload();
 
@@ -87,7 +87,9 @@ test("payment toggle persists and self stays paid", async ({ page }) => {
   await expect(page.locator('.entry-menu__list [data-toggle-payment="11"]')).toBeDisabled();
 
   const paid = await page.evaluate(async () => {
-    const payments = await (window as unknown as { appDb: AppDb }).appDb.payments.toArray();
+    const payments = await (
+      window as unknown as { appCache: AppCache }
+    ).appCache.payments.toArray();
     return payments.filter((p) => p.itemId === 11 && p.paid).length;
   });
   expect(paid).toBe(1);
@@ -106,20 +108,33 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   await page.locator("#checkStepBtn").click();
 
   await expect(page.getByText("Комиссия (распределится по товарам)")).toBeVisible();
+  const parcelsBefore = await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    return (await cache.parcels.toArray()).length;
+  });
   await page.locator("#saveBatchBtn").click();
   await expect(
     page.locator("#toastContainer .toast__message", { hasText: "Партия сохранена (1 товар)" }),
   ).toBeVisible();
 
   const batch = await page.evaluate(async () => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    const item = (await db.parcelItems.toArray()).find((i) => i.name === "Товар с комиссией");
-    const payments = await db.payments.toArray();
-    return { priceCNY: item?.priceCNY, customerId: item?.customerId, payments: payments.length };
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    const item = (await cache.parcelItems.toArray()).find((i) => i.name === "Товар с комиссией");
+    const payments = await cache.payments.toArray();
+    const parcels = await cache.parcels.toArray();
+    return {
+      priceCNY: item?.priceCNY,
+      customerId: item?.customerId,
+      payments: payments.length,
+      parcels: parcels.length,
+      parcelId: item?.parcelId,
+    };
   });
   expect(batch.priceCNY).toBe(105);
   expect(batch.customerId).toBe(2);
   expect(batch.payments).toBe(2);
+  expect(batch.parcels).toBe(parcelsBefore + 1);
+  expect(batch.parcelId).not.toBe(1);
 
   await page.goto("/#/add");
   await page.locator("#sumCNY").fill("10");
@@ -137,9 +152,9 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   ).toBeVisible();
 
   const selfPayment = await page.evaluate(async () => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    const item = (await db.parcelItems.toArray()).find((i) => i.name === "Товар Я из партии");
-    const payments = await db.payments.toArray();
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    const item = (await cache.parcelItems.toArray()).find((i) => i.name === "Товар Я из партии");
+    const payments = await cache.payments.toArray();
     return payments.find((p) => p.itemId === item?.id);
   });
   expect(selfPayment?.paid).toBe(true);
@@ -177,9 +192,9 @@ test("combobox creates a customer and the batch keeps the selection", async ({ p
   expect(toastStyle.padding).toBe("10px 16px");
 
   const ids = await page.evaluate(async () => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    const customers = await db.customers.toArray();
-    const items = await db.parcelItems.toArray();
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    const customers = await cache.customers.toArray();
+    const items = await cache.parcelItems.toArray();
     return {
       created: customers.find((c) => c.name === "Новый заказчик")?.id,
       assigned: items.find((i) => i.name === "Товар нового")?.customerId,
@@ -191,8 +206,8 @@ test("combobox creates a customer and the batch keeps the selection", async ({ p
 
 test("ship button explains why a draft is not ready", async ({ page }) => {
   await page.evaluate(async () => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    await db.parcelItems.add({
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcelItems.add({
       parcelId: 1,
       name: "Товар без треков",
       priceCNY: 1,
@@ -217,8 +232,8 @@ test("ship button explains why a draft is not ready", async ({ page }) => {
 
 test("finish button explains which items are unweighed", async ({ page }) => {
   await page.evaluate(async () => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    await db.parcelItems.update(11, { weightsG: "[]" });
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcelItems.update(11, { weightsG: "[]" });
   });
 
   await page.goto("/#/parcel/2");
@@ -230,8 +245,8 @@ test("finish button explains which items are unweighed", async ({ page }) => {
 
 test("receiving saves weights and commits items without reopening the parcel", async ({ page }) => {
   await page.evaluate(async (createdAt) => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    await db.parcels.add({
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcels.add({
       id: 3,
       status: "shipped",
       createdAt,
@@ -239,7 +254,7 @@ test("receiving saves weights and commits items without reopening the parcel", a
       boxWeightG: 100,
       shippingCostBYN: 10,
     });
-    await db.parcelItems.add({
+    await cache.parcelItems.add({
       id: 30,
       parcelId: 3,
       name: "Товар на приёмку",
@@ -270,9 +285,9 @@ test("receiving saves weights and commits items without reopening the parcel", a
   await expect(page.locator("#toastContainer")).toContainText("Веса обновлены");
 
   const saved = await page.evaluate(async () => {
-    const db = (window as unknown as { appDb: AppDb }).appDb;
-    const parcel = await db.parcels.get(3);
-    const item = await db.parcelItems.get(30);
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    const parcel = await cache.parcels.get(3);
+    const item = await cache.parcelItems.get(30);
     return { status: parcel?.status, weight: item?.weightsG, itemStatus: item?.status };
   });
   expect(saved.status).toBe("received");
@@ -292,7 +307,9 @@ test("customer card toggles one item and the whole parcel", async ({ page }) => 
   await expect(page.locator("#toastContainer").getByText("Посылка оплачена")).toBeVisible();
 
   const state = await page.evaluate(async () => {
-    const payments = await (window as unknown as { appDb: AppDb }).appDb.payments.toArray();
+    const payments = await (
+      window as unknown as { appCache: AppCache }
+    ).appCache.payments.toArray();
     return {
       paidItems: payments.filter((p) => p.type === "item" && p.paid).length,
       paidShipping: payments.filter((p) => p.type === "shipping" && p.paid).length,
@@ -418,23 +435,11 @@ test("drawer keeps its sheet chrome and action buttons", async ({ page }) => {
   expect(chrome.actions.display).toBe("flex");
 });
 
-test("header owns backup and demo drawers", async ({ page }) => {
+test("header offers sign out", async ({ page }) => {
   await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();
-
-  await page.locator("#backupBtn").click();
-  await expect(page.getByText("База / резерв")).toBeVisible();
-  await expect(page.locator("#dbFile")).toBeAttached();
-  await page.locator(".drawer-close").click();
-  await expect(page.getByText("База / резерв")).toBeHidden();
-
-  await page.locator("#demoBtn").click();
-  await expect(page.getByText("Загрузить демо-данные")).toBeVisible();
-  await expect(
-    page.getByText("Это заменит ВСЕ текущие данные (заказчики, посылки, товары). Продолжить?"),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Отмена" }).click();
-  await expect(page.getByText("Загрузить демо-данные")).toBeHidden();
+  await expect(page.locator("#signOutBtn")).toBeVisible();
+  await expect(page.locator("#demoBtn")).toHaveCount(0);
 });
 
 test("shared parcel-entry styles load on every route", async ({ page }) => {
@@ -546,4 +551,17 @@ test("item wizard adds a draft item with tracks", async ({ page }) => {
 
   await expect(page.locator("#toastContainer")).toContainText("Товар сохранён");
   await expect(row).toContainText("Треки готовы");
+});
+
+test("sign-in is a public route for a signed-out user", async ({ page }) => {
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto("/#/sign-in");
+
+  await expect(page.locator("#signInTitle")).toHaveText("Pindoчет");
+  await expect(page.locator("#signInEmail")).toBeVisible();
+  await expect(page.locator("#sendMagicLink")).toBeEnabled();
+  await expect(page.locator(".app-shell")).toHaveCount(0);
+
+  await page.goto("/#/parcels");
+  await expect(page).toHaveURL(/\/#\/sign-in\?next=\/parcels$/);
 });

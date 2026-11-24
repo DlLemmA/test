@@ -1,6 +1,6 @@
 import { effectivePaid } from "@/features/settlement/domain";
 import { Payment } from "../domain/Payment";
-import type { PaymentRepository } from "../domain/ports";
+import type { PaymentRepository, PlannedPayment } from "../domain/ports";
 
 export type SelfCustomerIdProvider = () => Promise<number | undefined>;
 
@@ -91,6 +91,30 @@ export class PaymentService {
     }
 
     return changed;
+  }
+
+  /**
+   * Plan the self customer's payments for a batch that does not exist yet.
+   * itemIndex is 1-based so the RPC can resolve the generated item ids.
+   */
+  planBatchPayments(
+    items: Array<{ index: number; customerId: number }>,
+    selfCustomerId: number | undefined,
+  ): PlannedPayment[] {
+    if (selfCustomerId === undefined) return [];
+    const now = new Date();
+    const paidAt = now.toISOString().split("T")[0];
+    const createdAt = now.toISOString();
+    return items
+      .filter((item) => effectivePaid(item.customerId, selfCustomerId, false))
+      .map((item) => ({
+        itemIndex: item.index,
+        customerId: item.customerId,
+        type: "item",
+        paid: true,
+        paidAt,
+        createdAt,
+      }));
   }
 
   /** Record the self customer's share of a new batch as paid in one call. */

@@ -45,10 +45,10 @@ function refresh(): void {
   void load();
 }
 
-async function addParcel(): Promise<void> {
-  const draft = parcels.value.find((parcel) => parcel.status === "draft");
-  const parcel = draft || (await parcelCommands.createParcel());
-  void router.push({ name: "parcel", params: { parcelId: String(parcel.id) } });
+function addParcel(): void {
+  // The batch wizard creates the parcel and its items in one write; creating an
+  // empty draft first would leave an orphan when the batch is saved.
+  void router.push({ name: "add" });
 }
 
 async function exportFromMenu(id: number): Promise<void> {

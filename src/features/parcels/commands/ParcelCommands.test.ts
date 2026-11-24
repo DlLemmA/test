@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { Parcel } from "../domain/Parcel";
 import { ParcelItem } from "../domain/ParcelItem";
 import { Payment } from "../domain/Payment";
-import type { ParcelItemRepository, ParcelRepository, ParcelWriteStore } from "../domain/ports";
+import type {
+  CreatedParcelBatch,
+  ParcelItemRepository,
+  ParcelRepository,
+  ParcelWriteStore,
+  PlannedPayment,
+} from "../domain/ports";
 import { ParcelCommands } from "./ParcelCommands";
 
 class SharedData {
@@ -45,6 +51,28 @@ class Writes implements ParcelWriteStore {
   }
   async addItems(items: ParcelItem[]): Promise<ParcelItem[]> {
     return Promise.all(items.map((item) => this.saveItem(item)));
+  }
+  async createParcelWithItems(
+    parcel: Parcel,
+    items: ParcelItem[],
+    payments: PlannedPayment[],
+  ): Promise<CreatedParcelBatch> {
+    const savedParcel = await this.saveParcel(parcel);
+    const savedItems = await Promise.all(
+      items.map((item) => this.saveItem(item.update({ parcelId: savedParcel.id }))),
+    );
+    const savedPayments = payments.map((payment) => {
+      const id = this.data.nextId++;
+      const saved = Payment.fromPersistence({
+        ...payment,
+        id,
+        parcelId: savedParcel.id,
+        itemId: savedItems[payment.itemIndex - 1]?.id,
+      });
+      this.data.payments.set(id, saved);
+      return saved;
+    });
+    return { parcel: savedParcel, items: savedItems, payments: savedPayments };
   }
   async saveItem(item: ParcelItem): Promise<ParcelItem> {
     const id = item.id || this.data.nextId++;
@@ -105,6 +133,57 @@ describe("ParcelCommands", () => {
       ]),
     ).rejects.toThrow("Название обязательно");
     expect(data.items.size).toBe(0);
+  });
+
+  it("creates a new parcel with its items and planned payments", async () => {
+    const { commands, data } = makeCommands();
+    const batch = await commands.createParcelWithItems(
+      [
+        {
+          name: "Товар партии",
+          priceCNY: 10,
+          priceBYN: 1.3,
+          quantity: 1,
+          unit: "pcs",
+          customerId: 7,
+        },
+      ],
+      [
+        {
+          itemIndex: 1,
+          customerId: 7,
+          type: "item",
+          paid: true,
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    );
+
+    expect(batch.parcel.status).toBe("draft");
+    expect(batch.items[0]?.parcelId).toBe(batch.parcel.id);
+    expect(batch.payments[0]?.itemId).toBe(batch.items[0]?.id);
+    expect(batch.payments[0]?.paid).toBe(true);
+    expect([data.parcels.size, data.items.size, data.payments.size]).toEqual([1, 1, 1]);
+  });
+
+  it("rejects an invalid batch item before writing anything", async () => {
+    const { commands, data } = makeCommands();
+    await expect(
+      commands.createParcelWithItems(
+        [
+          {
+            name: "",
+            priceCNY: 1,
+            priceBYN: 0.1,
+            quantity: 1,
+            unit: "pcs",
+            customerId: 7,
+          },
+        ],
+        [],
+      ),
+    ).rejects.toThrow("Название обязательно");
+    expect([data.parcels.size, data.items.size, data.payments.size]).toEqual([0, 0, 0]);
   });
 
   it("does not add or delete items on a shipped parcel", async () => {

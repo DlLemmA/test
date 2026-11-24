@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ParcelStatus } from "@/core/database";
+import type { ParcelStatus } from "@/core/dbSchema";
 import { Parcel } from "./Parcel";
 import { ParcelItem } from "./ParcelItem";
 import {

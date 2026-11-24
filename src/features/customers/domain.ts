@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CustomerRow } from "@/core/database";
+import type { CustomerRow } from "@/core/dbSchema";
 
 // ============================================
 // Zod Schemas (boundary validation)
