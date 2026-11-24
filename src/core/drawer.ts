@@ -7,7 +7,6 @@
 // properties on the DOM node are gone: the close reason is now explicit.
 // ============================================
 
-import "../features/shared/ui/drawer.css";
 import { createListenerScope, type ListenerScope } from "./listeners";
 import { I, esc } from "./utils";
 

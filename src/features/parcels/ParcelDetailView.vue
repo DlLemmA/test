@@ -586,5 +586,3 @@ async function confirmDelete(): Promise<void> {
     />
   </div>
 </template>
-
-<style src="./parcelDetail.css"></style>

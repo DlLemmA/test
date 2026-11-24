@@ -171,5 +171,3 @@ async function confirmDelete(): Promise<void> {
     />
   </div>
 </template>
-
-<style src="./parcelList.css"></style>

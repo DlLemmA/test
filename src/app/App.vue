@@ -231,5 +231,3 @@ async function confirmPending(): Promise<void> {
     </div>
   </ToastProvider>
 </template>
-
-<style src="./app.css"></style>

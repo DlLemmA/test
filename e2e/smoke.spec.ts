@@ -334,6 +334,87 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   await expect(page.locator("#bottombar a")).toHaveCount(3);
 });
 
+test("drawer keeps its sheet chrome and action buttons", async ({ page }) => {
+  await page.goto("/#/parcels");
+  await expect(page.locator(".page-parcels")).toBeVisible();
+
+  const entry = page.locator(".parcel-entry").filter({ hasText: "Посылка №1" });
+  await entry.locator("details.entry-menu > summary").click();
+  await entry.locator("[data-del]").click();
+  await expect(page.locator(".drawer-content .notice")).toBeVisible();
+
+  const chrome = await page.evaluate(() => {
+    const doc = document;
+    const pick = (selector: string) => {
+      const el = doc.querySelector<HTMLElement>(selector);
+      if (!el) throw new Error(`missing ${selector}`);
+      const style = getComputedStyle(el);
+      return {
+        display: style.display,
+        position: style.position,
+        background: style.backgroundColor,
+        radius: style.borderTopLeftRadius,
+        maxWidth: style.maxWidth,
+        gap: style.gap,
+      };
+    };
+    const handle = doc.querySelector<HTMLElement>(".drawer-handle");
+    return {
+      overlay: pick(".app-drawer-overlay"),
+      sheet: pick(".app-drawer-content"),
+      handle: pick(".drawer-handle"),
+      handleBar: handle ? getComputedStyle(handle, "::after").width : "missing",
+      close: pick(".drawer-close"),
+      content: pick(".drawer-content"),
+      actions: pick(".drawer-actions"),
+    };
+  });
+
+  expect(chrome.overlay.position).toBe("fixed");
+  expect(chrome.overlay.background).toBe("rgba(42, 29, 39, 0.45)");
+  expect(chrome.sheet.position).toBe("fixed");
+  expect(chrome.sheet.maxWidth).toBe("620px");
+  expect(chrome.sheet.background).toBe("rgb(253, 251, 246)");
+  expect(chrome.sheet.radius).toBe("20px");
+  expect(chrome.handle.display).toBe("flex");
+  expect(chrome.handleBar).toBe("40px");
+  expect(chrome.close.background).toBe("rgb(255, 244, 248)");
+  expect(chrome.close.radius).toBe("999px");
+  expect(chrome.content.display).toBe("flex");
+  expect(chrome.content.gap).toBe("12px");
+  expect(chrome.actions.display).toBe("flex");
+});
+
+test("shared parcel-entry styles load on every route", async ({ page }) => {
+  for (const route of ["/#/customer/2", "/#/parcel/2", "/#/parcels"]) {
+    await page.goto(route);
+    await page.reload();
+
+    const entry = page.locator(".parcel-entry").first();
+    await expect(entry).toBeVisible();
+    expect(await entry.evaluate((el) => getComputedStyle(el).display)).toBe("grid");
+
+    const head = entry.locator(".parcel-entry__head").first();
+    const headStyle = await head.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { display: style.display, justify: style.justifyContent, gap: style.gap };
+    });
+    expect(headStyle.display).toBe("flex");
+    expect(headStyle.justify).toBe("space-between");
+    expect(headStyle.gap).toBe("8px");
+
+    const state = entry.locator(".parcel-entry__state").first();
+    const stateStyle = await state.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const dot = getComputedStyle(el, "::before");
+      return { position: style.position, padding: style.paddingLeft, dot: dot.width };
+    });
+    expect(stateStyle.position).toBe("relative");
+    expect(stateStyle.padding).toBe("9px");
+    expect(stateStyle.dot).toBe("5px");
+  }
+});
+
 test("parcel deletion drawer cancels and confirms", async ({ page }) => {
   await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();

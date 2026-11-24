@@ -1,4 +1,3 @@
-import "./ui/receiveFlow.css";
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { parcelItemRepository, parcelRepository } from "./infrastructure";

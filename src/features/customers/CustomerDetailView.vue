@@ -267,5 +267,3 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
     <div v-else class="empty">Товаров пока нет</div>
   </div>
 </template>
-
-<style src="./customerDetail.css"></style>

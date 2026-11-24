@@ -21,5 +21,3 @@ const { toasts } = useToastManager<ToastData>();
   </ToastRoot>
   <ToastViewport class="toast-viewport" label="Уведомления" />
 </template>
-
-<style src="./toast.css"></style>

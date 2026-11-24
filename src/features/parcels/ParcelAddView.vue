@@ -715,5 +715,3 @@ async function saveBatch(): Promise<void> {
     </template>
   </div>
 </template>
-
-<style src="./parcelAdd.css"></style>
