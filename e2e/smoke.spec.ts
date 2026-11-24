@@ -53,6 +53,35 @@ test("amounts agree between the parcel and customer screens", async ({ page }) =
   expect(customerDebt).toBe(parcelRemaining);
 });
 
+test("unpaid items warn without blocking finish", async ({ page }) => {
+  await page.goto("/#/parcel/2");
+  await expect(page.locator(".detail-action__hint")).toContainText("Не оплачено: 1 товар");
+
+  await page.locator("#markAsDone").click();
+  await expect(page.locator('.detail-hero[data-status="done"]')).toBeVisible();
+  await expect(page.locator("#exportParcel")).toBeVisible();
+});
+
+test("draft rows offer a direct track action; received rows show weights", async ({ page }) => {
+  await page.goto("/#/parcel/2");
+  await page.locator('details[data-item-group][data-customer="2"] > summary').click();
+  const receivedRow = page.locator('.item-entry:has([data-edit="11"])');
+  await expect(receivedRow.locator('[data-add-track="11"]')).toHaveCount(0);
+  await expect(receivedRow.locator(".track-weight")).toHaveText("200 г");
+  await expect(receivedRow.locator(".track-code")).toHaveText("KAT-1");
+
+  await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcels.update(2, { status: "draft" });
+  });
+  await page.reload();
+  await page.locator('details[data-item-group][data-customer="2"] > summary').click();
+  const draftRow = page.locator('.item-entry:has([data-edit="11"])');
+  await expect(draftRow.locator('[data-add-track="11"]')).toBeVisible();
+  await expect(draftRow.locator(".track-weight")).toHaveCount(0);
+  await expect(draftRow.locator(".track-code")).toHaveText("KAT-1");
+});
+
 test("delivery follows one fact on both screens when weight is missing", async ({ page }) => {
   await page.goto("/#/customer/2");
   await expect(page.locator("[data-toggle-shipping]")).toHaveCount(1);
@@ -348,7 +377,7 @@ test("finish button explains which items are unweighed", async ({ page }) => {
   });
 
   await page.goto("/#/parcel/2");
-  await expect(page.locator(".detail-action__hint")).toContainText("Взвесьте все треки");
+  await expect(page.locator(".detail-action__hint").first()).toContainText("Взвесьте все треки");
 
   await page.locator("#markAsDone").click();
   await expect(page.locator("#toastContainer").getByText(/не взвешены/)).toBeVisible();

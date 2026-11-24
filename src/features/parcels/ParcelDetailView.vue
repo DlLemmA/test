@@ -2,7 +2,7 @@
 import { computed, onMounted, onScopeDispose, ref, shallowRef } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { toastState, uiState } from "@/core/state";
-import { kg, money } from "@/core/utils";
+import { kg, money, t } from "@/core/utils";
 import {
   getParcelStatement,
   type ParcelStatement,
@@ -15,7 +15,7 @@ import ConfirmDrawer from "@/features/shared/ui/ConfirmDrawer.vue";
 import { parcelReadiness, type Parcel, type PaymentState } from "./domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
-import { parcelDate } from "./ui/ParcelPresentation";
+import { ITEM_FORMS, parcelDate } from "./ui/ParcelPresentation";
 import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/ReadinessCopy";
 import { openReceiveFlow } from "./ReceiveFlow";
 import { exportParcel } from "./ui/exportParcel";
@@ -109,6 +109,14 @@ const customers = computed(() => viewStatement.value?.customers ?? []);
 const balances = computed(() => viewStatement.value?.balance.byCustomer ?? new Map());
 const deliveryByItem = computed(() => viewStatement.value?.balance.deliveryByItem ?? new Map());
 const settlement = computed(() => viewStatement.value?.settlement ?? null);
+/** Finishing is a logistics step: unpaid lines stay as debt, but stay visible. */
+const unpaidItemsHint = computed(() => {
+  const paid = settlement.value?.paidItems;
+  if (!paid) return null;
+  const count = items.value.filter((item) => !paid.has(item.id)).length;
+  if (count === 0) return null;
+  return `Не оплачено: ${t(ITEM_FORMS, count)}. Долг останется после завершения`;
+});
 
 const date = computed(() => (parcel.value ? parcelDate(parcel.value) : null));
 const status = computed(() => (parcel.value ? parcelStatusInfo(parcel.value.status) : null));
@@ -357,6 +365,7 @@ async function confirmDelete(): Promise<void> {
         <p v-if="finishHint(parcelReadiness(parcel, items).finish)" class="detail-action__hint">
           {{ finishHint(parcelReadiness(parcel, items).finish) }}
         </p>
+        <p v-if="unpaidItemsHint" class="detail-action__hint">{{ unpaidItemsHint }}</p>
       </template>
       <button v-else type="button" class="text-btn" id="exportParcel" @click="exportParcel(parcel)">
         <AppIcon name="sheet" /> Экспорт в Excel

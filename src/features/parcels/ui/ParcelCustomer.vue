@@ -82,7 +82,8 @@ function canPayShipping(group: ItemGroupView): boolean {
         <div class="parcel-entry__hint">
           {{ t(ITEM_FORMS, props.group.rows.length) }} ·
           {{ groupWeight(props.group) > 0 ? `${groupWeight(props.group)} г` : "вес —" }} · товары
-          {{ money(groupTotal(props.group)) }} · доставка {{ money(props.balance.delivery.owed) }} ·
+          {{ money(groupTotal(props.group))
+          }}{{ hasDelivery() ? ` · доставка ${money(props.balance.delivery.owed)}` : "" }} ·
           <span class="settle-entry__total">итого {{ money(props.balance.owed) }}</span>
         </div>
         <div class="settle-entry__checks" @click.stop>

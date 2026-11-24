@@ -2066,8 +2066,8 @@ select.picker__control {
 }
 .detail-hero {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 14px;
   padding: 8px 0 14px;
   border-top: 1px solid var(--color-line-strong);
   border-bottom: 1px solid var(--color-line);
@@ -2076,6 +2076,8 @@ select.picker__control {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  padding-inline-end: 12px;
+  border-inline-end: 1px solid var(--color-line);
   line-height: 1;
 }
 .detail-hero__date b {
@@ -2176,10 +2178,13 @@ select.picker__control {
   font-size: 14px;
 }
 
-/* Parcel calculation — one actionable answer, bookkeeping behind it */
+/* Parcel calculation — one ledger rule under the stamp, not a second card */
 .parcel-calc {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
   padding: 10px 0;
   border-bottom: 1px solid var(--color-line);
 }
@@ -2191,7 +2196,7 @@ select.picker__control {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -2215,6 +2220,7 @@ select.picker__control {
 .parcel-calc__meta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px 16px;
   margin: 0;
 }
@@ -2589,50 +2595,46 @@ select.picker__control {
   white-space: nowrap;
 }
 .item-row__tracks {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   margin-top: 8px;
 }
 .item-entry__no-tracks {
-  padding: 2px 0;
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .item-entry.is-missing-tracks .item-entry__index b,
 .item-entry.is-missing-tracks .item-entry__no-tracks {
   color: var(--color-warning);
 }
 .track-value-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  flex-wrap: wrap;
-  min-block-size: 38px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--color-line);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-block-size: 24px;
 }
-.track-value-row:last-child {
-  border-bottom: 0;
+.track-value-row + .track-value-row {
+  padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--color-line);
 }
 .track-index {
-  flex: none;
-  width: 18px;
   color: var(--color-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .track-code {
-  flex: 1 1 140px;
-  min-inline-size: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .track-weight {
-  flex: none;
   color: var(--color-muted);
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .item-entry__track-controls {
@@ -2640,13 +2642,13 @@ select.picker__control {
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 .page-parcel-detail .item-entry__track-controls .text-btn {
-  min-block-size: 36px;
-  padding: 4px 6px;
+  min-block-size: 24px;
+  padding: 2px 4px;
   color: var(--color-muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .page-parcel-detail .item-entry__track-controls .text-btn.is-primary {
   color: var(--color-accent-strong);
@@ -2680,7 +2682,7 @@ select.picker__control {
 }
 @media (max-width: 360px) {
   .detail-hero {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: max-content minmax(0, 1fr);
   }
   .detail-hero__date b {
     font-size: 25px;
@@ -3468,9 +3470,16 @@ select.picker__control {
     overflow-wrap: anywhere;
   }
   .detail-hero {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: max-content minmax(0, 1fr);
   }
   .detail-hero__date b {
     font-size: 25px;
+  }
+  .parcel-calc,
+  .parcel-calc__meta {
+    justify-content: flex-start;
+  }
+  .item-row__tracks {
+    gap: 4px 10px;
   }
 }
