@@ -5,15 +5,6 @@ test.beforeEach(async ({ page }) => {
   await seedSmokeData(page);
 });
 
-/** Item groups and their action menus are collapsed until a user opens them. */
-async function openKatyaItemMenu(page: import("@playwright/test").Page): Promise<void> {
-  const group = page.locator('details[data-item-group][data-customer="2"]');
-  if (!(await group.evaluate((el) => (el as HTMLDetailsElement).open))) {
-    await group.locator("summary").click();
-  }
-  await page.locator('.item-entry:has([data-edit="11"]) .entry-menu__trigger').click();
-}
-
 test("opens a parcel from the list", async ({ page }) => {
   await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();
@@ -30,7 +21,9 @@ test("opens a parcel from the list", async ({ page }) => {
 test("presentation vocabulary stays consistent across screens", async ({ page }) => {
   await page.goto("/#/people");
   await expect(page.locator(".customer-row__name").first()).toHaveText("Я (я)");
-  await expect(page.locator(".customer-row__meta").nth(1)).toHaveText("1 товар · 1 посылка");
+  await expect(page.locator(".customer-row__meta").nth(1)).toHaveText(
+    "1 товар · 1 посылка · привезено 0.200 кг",
+  );
 
   await page.goto("/#/parcel/2");
   await page.locator('details[data-item-group][data-customer="2"] > summary').click();
@@ -48,6 +41,10 @@ test("amounts agree between the parcel and customer screens", async ({ page }) =
     .innerText();
 
   await page.goto("/#/customer/2");
+  await expect(page.locator(".detail-hero__facts")).toContainText("привезено 0.200 кг");
+  await expect(
+    page.locator(".item-check", { hasText: "Товар Кати" }).locator(".item-check__weight"),
+  ).toHaveText("200 г");
   const customerDebt = await page.locator(".check-row--total b").innerText();
 
   expect(customerDebt).toBe(parcelRemaining);
@@ -69,6 +66,12 @@ test("draft rows offer a direct track action; received rows show weights", async
   await expect(receivedRow.locator('[data-add-track="11"]')).toHaveCount(0);
   await expect(receivedRow.locator(".track-weight")).toHaveText("200 г");
   await expect(receivedRow.locator(".track-code")).toHaveText("KAT-1");
+  await expect(receivedRow.locator(".entry-menu__trigger")).toHaveCount(0);
+
+  await receivedRow.locator("[data-edit]").click();
+  await expect(page.locator("[data-panel='weights']")).toBeVisible();
+  await expect(page.locator("[data-panel='tracks']")).toHaveCount(0);
+  await page.locator(".drawer-close").click();
 
   await page.evaluate(async () => {
     const cache = (window as unknown as { appCache: AppCache }).appCache;
@@ -80,11 +83,14 @@ test("draft rows offer a direct track action; received rows show weights", async
   await expect(draftRow.locator('[data-add-track="11"]')).toBeVisible();
   await expect(draftRow.locator(".track-weight")).toHaveCount(0);
   await expect(draftRow.locator(".track-code")).toHaveText("KAT-1");
+
+  await draftRow.locator("[data-edit]").click();
+  await expect(page.locator("[data-panel='tracks']")).toBeVisible();
 });
 
 test("delivery follows one fact on both screens when weight is missing", async ({ page }) => {
   await page.goto("/#/customer/2");
-  await expect(page.locator("[data-toggle-shipping]")).toHaveCount(1);
+  await expect(page.locator("[data-toggle-shipping]")).toBeEnabled();
   const withWeight = await page.locator(".check-row--total b").innerText();
 
   await page.evaluate(async () => {
@@ -94,7 +100,10 @@ test("delivery follows one fact on both screens when weight is missing", async (
   await page.reload();
 
   await page.goto("/#/customer/2");
-  await expect(page.locator("[data-toggle-shipping]")).toHaveCount(0);
+  await expect(page.locator("[data-toggle-shipping]")).toBeDisabled();
+  await expect(page.locator(".pay-summary--delivery .pay-summary__note")).toContainText(
+    "цена не задана",
+  );
   const withoutWeight = await page.locator(".check-row--total b").innerText();
   expect(withoutWeight).not.toBe(withWeight);
 
@@ -114,8 +123,9 @@ test("a zero delivery share cannot be paid on either screen", async ({ page }) =
   await expect(katya.locator(".payment-bullet").last()).toContainText("Доставка: —");
 
   await page.goto("/#/customer/2");
-  await expect(page.locator("[data-toggle-shipping]")).toHaveCount(0);
+  await expect(page.locator("[data-toggle-shipping]")).toBeDisabled();
 
+  await page.locator(".customer-items-fold > summary").click();
   await page.locator('[data-toggle-payment="11"]').check();
   await expect(page.locator('[data-toggle-parcel="2"]')).toBeChecked();
 
@@ -128,18 +138,28 @@ test("a zero delivery share cannot be paid on either screen", async ({ page }) =
   expect(shippingRows).toBe(0);
 });
 
-test("payment toggle persists and self stays paid", async ({ page }) => {
+test("payment toggle sits with the price and self stays paid", async ({ page }) => {
   await page.goto("/#/parcel/2");
-  await openKatyaItemMenu(page);
-  await page.locator('.entry-menu__list [data-toggle-payment="11"]').click();
+  await expect(page.locator('[data-toggle-payment="10"]')).toHaveCount(0);
+  await page.locator('details[data-item-group][data-customer="2"] > summary').click();
 
-  await openKatyaItemMenu(page);
-  await expect(page.locator('.entry-menu__list [data-toggle-payment="11"]')).toBeDisabled();
-  await expect(page.locator('.entry-menu__list [data-toggle-payment="11"]')).toHaveClass(/is-paid/);
+  const pay = page.locator('[data-toggle-payment="11"]');
+  const payLabel = page.locator('.pay-check:has([data-toggle-payment="11"]) .pay-check__label');
+  await expect(pay).not.toBeChecked();
+  await expect(payLabel).toHaveText("Оплатить");
+  await pay.check();
+  await expect(pay).toBeChecked();
+  await expect(payLabel).toHaveText("Оплачено");
+
+  // A mistaken payment can be unchecked from the same spot.
+  await pay.uncheck();
+  await expect(pay).not.toBeChecked();
+  await expect(payLabel).toHaveText("Оплатить");
+  await pay.check();
+  await expect(pay).toBeChecked();
 
   await page.reload();
-  await openKatyaItemMenu(page);
-  await expect(page.locator('.entry-menu__list [data-toggle-payment="11"]')).toBeDisabled();
+  await expect(page.locator('[data-toggle-payment="11"]')).toBeChecked();
 
   const paid = await page.evaluate(async () => {
     const payments = await (
@@ -437,11 +457,21 @@ test("receiving saves weights and commits items without reopening the parcel", a
 
 test("customer card toggles one item and the whole parcel", async ({ page }) => {
   await page.goto("/#/customer/2");
+  await expect(page.locator(".customer-items")).toBeHidden();
+  await page.locator(".customer-items-fold > summary").click();
+  await expect(page.locator('[data-toggle-payment="11"]')).toBeVisible();
+  await expect(
+    page.locator(".pay-summary", { hasText: "Товары оплачены" }).locator(".pay-summary__amount"),
+  ).toHaveText("2.60 BYN");
+  await expect(
+    page.locator(".pay-summary", { hasText: "Посылка оплачена" }).locator(".pay-summary__amount"),
+  ).not.toHaveText("2.60 BYN");
 
   await page.locator('[data-toggle-payment="11"]').check();
   await expect(
     page.locator("#toastContainer").getByText("Товар отмечен как оплаченный"),
   ).toBeVisible();
+  await expect(page.locator('[data-toggle-goods="2"]')).toBeChecked();
 
   await page.locator('[data-toggle-parcel="2"]').check();
   await expect(page.locator("#toastContainer").getByText("Посылка оплачена")).toBeVisible();
@@ -457,6 +487,24 @@ test("customer card toggles one item and the whole parcel", async ({ page }) => 
   });
   expect(state.paidItems).toBe(1);
   expect(state.paidShipping).toBe(1);
+});
+
+test("goods checkbox pays goods only and turns pink", async ({ page }) => {
+  await page.goto("/#/customer/2");
+  await expect(page.locator(".customer-items")).toBeHidden();
+  const goods = page.locator('[data-toggle-goods="2"]');
+  await expect(goods).not.toBeChecked();
+
+  await goods.check();
+  await expect(page.locator('[data-toggle-payment="11"]')).toBeChecked();
+  await expect(page.locator('[data-toggle-shipping="2"]')).not.toBeChecked();
+  expect(await goods.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+    "rgb(216, 27, 96)",
+  );
+
+  await goods.uncheck();
+  await expect(page.locator('[data-toggle-payment="11"]')).not.toBeChecked();
+  await expect(page.locator('[data-toggle-parcel="2"]')).not.toBeChecked();
 });
 
 test("a route change mounts its view exactly once", async ({ page }) => {
@@ -643,6 +691,19 @@ test("shared parcel-entry styles load on every route", async ({ page }) => {
   await expectParcelEntryStyles("/#/customer/2");
   await expectParcelEntryStyles("/#/parcel/2");
   await expectParcelEntryStyles("/#/parcels");
+
+  await page.goto("/#/customer/2");
+  const arrow = page.locator(".page-customer-detail .parcel-line .btn-icon").first();
+  await expect(arrow).toBeVisible();
+  const arrowStyle = await arrow.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { bg: style.backgroundColor, color: style.color, width: style.width };
+  });
+  expect(arrowStyle).toEqual({
+    bg: "rgb(255, 228, 239)",
+    color: "rgb(157, 20, 80)",
+    width: "40px",
+  });
 });
 
 test("parcel deletion drawer cancels and confirms", async ({ page }) => {

@@ -14,6 +14,7 @@ const props = defineProps<{
   rows: ItemRowView[];
   customerId: number;
   groupLabel: string;
+  isSelf: boolean;
   parcel: Parcel;
   deliveryByItem: Map<number, number>;
   settlement: SettlementFacts;
@@ -41,6 +42,11 @@ function showWeights(): boolean {
 
 function itemPaid(itemId: number): boolean {
   return props.settlement.paidItems.has(itemId);
+}
+
+/** Payment lives with the price; self items are paid by policy, not by a button. */
+function canTogglePayment(): boolean {
+  return !props.isSelf && ["shipped", "received", "done"].includes(props.parcel.status);
 }
 </script>
 
@@ -75,8 +81,31 @@ function itemPaid(itemId: number): boolean {
           row.item.trackNumbers.length ? ` · ${t(TRACK_FORMS, row.item.trackNumbers.length)}` : ""
         }}
         ·
-        <span class="item-entry__price" :class="{ 'is-paid': itemPaid(row.item.id) }">
-          {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
+        <span class="item-entry__pay">
+          <span class="item-entry__price" :class="{ 'is-paid': itemPaid(row.item.id) }">
+            {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
+          </span>
+          <label
+            v-if="canTogglePayment()"
+            class="pay-check"
+            :class="{ 'is-paid': itemPaid(row.item.id) }"
+          >
+            <input
+              type="checkbox"
+              class="pay-check__input"
+              :name="`itemPaid-${row.item.id}`"
+              :data-toggle-payment="row.item.id"
+              :checked="itemPaid(row.item.id)"
+              @change="emit('toggleItemPayment', row.item.id)"
+            />
+            <span class="pay-check__label">
+              {{ itemPaid(row.item.id) ? "Оплачено" : "Оплатить" }}
+            </span>
+          </label>
+          <span v-else-if="itemPaid(row.item.id)" class="pay-check is-paid">
+            <span class="pay-check__box" aria-hidden="true" />
+            <span class="pay-check__label">Оплачено</span>
+          </span>
         </span>
         <span
           v-if="(props.deliveryByItem.get(row.item.id) || 0) > 0"
@@ -123,23 +152,11 @@ function itemPaid(itemId: number): boolean {
         <AppIcon name="pencil" />
       </button>
       <AppDropdownMenu
-        v-if="props.parcel.status !== 'done'"
+        v-if="props.parcel.status === 'draft'"
         :label="`Действия с товаром «${row.item.name}»`"
         :title="`Действия с товаром «${row.item.name}»`"
       >
         <AppDropdownMenuItem
-          v-if="['shipped', 'received', 'done'].includes(props.parcel.status)"
-          :class="{ 'is-paid': itemPaid(row.item.id) }"
-          :data-toggle-payment="row.item.id"
-          :disabled="itemPaid(row.item.id)"
-          :aria-label="`${itemPaid(row.item.id) ? 'Оплачено' : 'Оплатить'} товар «${row.item.name}»`"
-          @select="emit('toggleItemPayment', row.item.id)"
-        >
-          <AppIcon :name="itemPaid(row.item.id) ? 'check' : 'creditcard'" />
-          {{ itemPaid(row.item.id) ? "Оплачено" : "Оплатить" }}
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          v-if="props.parcel.status === 'draft'"
           :data-move="row.item.id"
           :aria-label="`Переместить товар «${row.item.name}»`"
           @select="emit('moveItem', row.item.id, props.customerId)"
@@ -147,7 +164,6 @@ function itemPaid(itemId: number): boolean {
           <AppIcon name="arrowRight" /> Переместить
         </AppDropdownMenuItem>
         <AppDropdownMenuItem
-          v-if="props.parcel.status === 'draft'"
           class="is-danger"
           :data-delete="row.item.id"
           :aria-label="`Удалить товар «${row.item.name}»`"

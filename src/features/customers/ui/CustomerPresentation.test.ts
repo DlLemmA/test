@@ -3,6 +3,7 @@ import { t } from "@/core/utils";
 import {
   CUSTOMER_FORMS,
   customerInitials,
+  broughtWeight,
   customerKey,
   customerLabel,
   findCustomerByName,
@@ -44,5 +45,11 @@ describe("customer presentation", () => {
     expect(t(CUSTOMER_FORMS, 1)).toBe("1 заказчик");
     expect(t(CUSTOMER_FORMS, 3)).toBe("3 заказчика");
     expect(t(CUSTOMER_FORMS, 11)).toBe("11 заказчиков");
+  });
+
+  it("shows brought kilograms only when the weight is known", () => {
+    expect(broughtWeight([])).toBeNull();
+    expect(broughtWeight([{ weightsG: [] }])).toBeNull();
+    expect(broughtWeight([{ weightsG: [420, 380] }, { weightsG: [210] }])).toBe("1.010 кг");
   });
 });

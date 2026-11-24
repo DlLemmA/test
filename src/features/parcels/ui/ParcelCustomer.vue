@@ -88,11 +88,9 @@ function canPayShipping(group: ItemGroupView): boolean {
         </div>
         <div class="settle-entry__checks" @click.stop>
           <label
+            v-if="canToggleGoods(props.group)"
             class="payment-bullet"
-            :class="{
-              'is-paid': goodsPaid(props.group),
-              'is-locked': !canToggleGoods(props.group),
-            }"
+            :class="{ 'is-paid': goodsPaid(props.group) }"
           >
             <input
               :indeterminate="partiallyPaid(props.group)"
@@ -100,7 +98,6 @@ function canPayShipping(group: ItemGroupView): boolean {
               class="item-paid-all"
               :data-customer="props.group.customerId"
               :checked="goodsPaid(props.group)"
-              :disabled="!canToggleGoods(props.group)"
               @change="
                 emit(
                   'toggleGoods',
@@ -111,20 +108,23 @@ function canPayShipping(group: ItemGroupView): boolean {
             />
             <span>Товары: {{ goodsPaid(props.group) ? "оплачено" : "не оплачено" }}</span>
           </label>
+          <span
+            v-else
+            class="payment-bullet is-locked"
+            :class="{ 'is-paid': goodsPaid(props.group) }"
+          >
+            Товары: {{ goodsPaid(props.group) ? "оплачено" : "не оплачено" }}
+          </span>
           <label
-            v-if="hasDelivery()"
+            v-if="hasDelivery() && canPayShipping(props.group)"
             class="payment-bullet"
-            :class="{
-              'is-paid': props.settlement.paidDelivery.has(props.group.customerId),
-              'is-locked': !canPayShipping(props.group),
-            }"
+            :class="{ 'is-paid': props.settlement.paidDelivery.has(props.group.customerId) }"
           >
             <input
               type="checkbox"
               class="shipping-paid"
               :data-customer="props.group.customerId"
               :checked="props.settlement.paidDelivery.has(props.group.customerId)"
-              :disabled="!canPayShipping(props.group)"
               @change="emit('toggleShipping', props.group.customerId)"
             />
             <span
@@ -136,6 +136,16 @@ function canPayShipping(group: ItemGroupView): boolean {
               }}</span
             >
           </label>
+          <span
+            v-else-if="hasDelivery()"
+            class="payment-bullet is-locked"
+            :class="{ 'is-paid': props.settlement.paidDelivery.has(props.group.customerId) }"
+          >
+            Доставка:
+            {{
+              props.settlement.paidDelivery.has(props.group.customerId) ? "оплачено" : "не оплачено"
+            }}
+          </span>
           <span v-else class="payment-bullet is-locked">Доставка: —</span>
         </div>
       </div>

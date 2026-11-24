@@ -3,10 +3,23 @@
 // UI copy belongs here; the domain keeps only customer facts.
 // ============================================
 
+import { kg } from "@/core/utils";
+
 export const SELF_SUFFIX = "(я)";
 export const SELF_INITIAL = "Я";
 export const CUSTOMER_FORMS =
   "нет заказчиков | {count} заказчик | {count} заказчика | {count} заказчиков";
+
+type WeightLike = { weightsG: number[] };
+
+/** One person's brought weight across all their items, or null when unknown. */
+export function broughtWeight(items: WeightLike[]): string | null {
+  const grams = items.reduce(
+    (sum, item) => sum + item.weightsG.reduce((itemSum, weight) => itemSum + weight, 0),
+    0,
+  );
+  return grams > 0 ? `${kg(grams)} кг` : null;
+}
 
 export type CustomerLike = { name: string; isSelf: boolean };
 

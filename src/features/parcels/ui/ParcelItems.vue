@@ -119,7 +119,7 @@ function clearSearch(): void {
 }
 
 function defaultItemStep(status: Parcel["status"]): ItemFormStep {
-  if (status === "draft" || status === "shipped") return "tracks";
+  if (status === "draft") return "tracks";
   if (status === "received") return "weights";
   return "main";
 }
@@ -225,6 +225,7 @@ function openDelete(itemId: number, customerId: number): void {
           :rows="group.visibleRows"
           :customer-id="group.customerId"
           :group-label="group.label"
+          :is-self="group.customer?.isSelf ?? false"
           :parcel="props.parcel"
           :delivery-by-item="props.deliveryByItem"
           :settlement="props.settlement"

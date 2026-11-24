@@ -44,7 +44,8 @@ const tracks = ref<string[]>([""]);
 const weights = ref<Record<string, string>>({});
 const tracksCompleted = ref(false);
 
-const canEditTracks = computed(() => !isNew.value && props.parcelStatus !== "done");
+/** Tracks are entry data: once the parcel is shipped they are read-only. */
+const canEditTracks = computed(() => !isNew.value && props.parcelStatus === "draft");
 const canEditWeights = computed(() => !isNew.value && props.parcelStatus === "received");
 const customerOptions = computed(() =>
   customers.value.map((customer) => ({
@@ -58,16 +59,12 @@ const weightRows = computed(() =>
     .filter(Boolean)
     .map((track, idx) => ({ track, idx })),
 );
-const steps = computed<WizardStep[]>(() => [
-  { id: "main", label: "Товар" },
-  { id: "tracks", label: "Треки" },
-  {
-    id: "weights",
-    label: "Веса",
-    disabled: !canEditWeights.value,
-    title: canEditWeights.value ? "Веса" : "Веса доступны после получения",
-  },
-]);
+const steps = computed<WizardStep[]>(() => {
+  const result: WizardStep[] = [{ id: "main", label: "Товар" }];
+  if (canEditTracks.value) result.push({ id: "tracks", label: "Треки" });
+  if (canEditWeights.value) result.push({ id: "weights", label: "Веса" });
+  return result;
+});
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Ошибка";
@@ -75,7 +72,10 @@ function errorMessage(err: unknown): string {
 
 function defaultStep(): ItemFormStep {
   if (isNew.value) return "main";
-  if (props.initialStep === "weights" && !canEditWeights.value) return "tracks";
+  if (props.initialStep === "tracks" && !canEditTracks.value) return "main";
+  if (props.initialStep === "weights" && !canEditWeights.value) {
+    return canEditTracks.value ? "tracks" : "main";
+  }
   return props.initialStep;
 }
 
@@ -191,9 +191,9 @@ async function submit(): Promise<void> {
     (cleanTracks.length > 0 || (item.value?.trackNumbers.length ?? 0) > 0)
   ) {
     data.trackNumbers = cleanTracks;
-    if (canEditWeights.value) {
-      data.weightsG = cleanTracks.map((track) => Number(weights.value[track] ?? 0) || 0);
-    }
+  }
+  if (canEditWeights.value && item.value) {
+    data.weightsG = item.value.trackNumbers.map((track) => Number(weights.value[track] ?? 0) || 0);
   }
 
   try {
@@ -232,7 +232,7 @@ async function submit(): Promise<void> {
       @submit.prevent="submit"
     >
       <WizardSteps
-        v-if="canEditTracks"
+        v-if="steps.length > 1"
         :steps="steps"
         :current="step"
         label="Шаги редактирования товара"
@@ -321,6 +321,16 @@ async function submit(): Promise<void> {
           >
             Далее: треки
           </button>
+          <button
+            v-else-if="canEditWeights"
+            type="button"
+            class="btn-secondary"
+            data-goto="weights"
+            enterkeyhint="next"
+            @click="goTo('weights')"
+          >
+            Далее: веса
+          </button>
           <button type="submit" class="btn-primary" enterkeyhint="done">
             {{ isNew ? "Добавить" : "Сохранить" }}
           </button>
@@ -382,16 +392,6 @@ async function submit(): Promise<void> {
           <button type="button" class="text-btn" data-goto="main" @click="goTo('main')">
             Назад
           </button>
-          <button
-            v-if="canEditWeights"
-            type="button"
-            class="btn-secondary"
-            data-goto="weights"
-            enterkeyhint="next"
-            @click="goTo('weights')"
-          >
-            Далее: веса
-          </button>
           <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
         </div>
       </div>
@@ -432,7 +432,7 @@ async function submit(): Promise<void> {
           </div>
         </fieldset>
         <div class="item-wizard__actions">
-          <button type="button" class="text-btn" data-goto="tracks" @click="goTo('tracks')">
+          <button type="button" class="text-btn" data-goto="main" @click="goTo('main')">
             Назад
           </button>
           <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>

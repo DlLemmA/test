@@ -8,7 +8,7 @@ import { getCustomerStatements } from "@/features/statements/service";
 import type { CustomerStatement } from "@/features/statements/service";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import CustomerForm from "./ui/CustomerForm.vue";
-import { SELF_SUFFIX } from "./ui/CustomerPresentation";
+import { broughtWeight, SELF_SUFFIX } from "./ui/CustomerPresentation";
 import CustomerMark from "./ui/CustomerMark.vue";
 
 const statements = shallowRef<CustomerStatement[]>([]);
@@ -75,6 +75,9 @@ function balanceAmount(statement: CustomerStatement): string {
               <span class="customer-row__meta">
                 {{ t(ITEM_BARE_FORMS, statement.items.length) }} ·
                 {{ t(PARCEL_FORMS, statement.parcelCount) }}
+                <template v-if="broughtWeight(statement.items)">
+                  · привезено {{ broughtWeight(statement.items) }}
+                </template>
               </span>
               <span
                 class="customer-row__balance"

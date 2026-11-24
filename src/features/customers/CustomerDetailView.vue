@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onScopeDispose, shallowRef } from "vue";
+import { computed, onMounted, onScopeDispose, shallowRef } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { emptyCustomerBalance } from "@/features/balances/domain";
 import { toastState } from "@/core/state";
@@ -11,7 +11,7 @@ import type { ParcelItem } from "@/features/parcels/domain";
 import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
 import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
 import { paymentService } from "@/features/shared/wiring";
-import { customerLabel } from "./ui/CustomerPresentation";
+import { broughtWeight, customerLabel } from "./ui/CustomerPresentation";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import CustomerMark from "./ui/CustomerMark.vue";
 
@@ -19,6 +19,9 @@ const route = useRoute();
 const router = useRouter();
 const statement = shallowRef<CustomerStatement | null>(null);
 const missing = shallowRef(false);
+const totalBroughtWeight = computed(() =>
+  statement.value ? broughtWeight(statement.value.items) : null,
+);
 
 const loadScope = new AbortController();
 onScopeDispose(() => loadScope.abort());
@@ -48,8 +51,25 @@ function deliveryShare(item: ParcelItem, entry: CustomerParcelStatement): number
   return entry.balance.deliveryByItem.get(item.id) ?? 0;
 }
 
+function itemWeightG(item: ParcelItem): number {
+  return item.weightsG.reduce((sum, weight) => sum + weight, 0);
+}
+
+function itemsWeightG(entry: CustomerParcelStatement): number {
+  return entry.items.reduce((sum, item) => sum + itemWeightG(item), 0);
+}
+
 function paidFlags(entry: CustomerParcelStatement): boolean[] {
   return entry.items.map((item) => entry.settlement.paidItems.has(item.id));
+}
+
+function goodsPaid(entry: CustomerParcelStatement): boolean {
+  const flags = paidFlags(entry);
+  return flags.length > 0 && flags.every(Boolean);
+}
+
+function goodsIndeterminate(entry: CustomerParcelStatement): boolean {
+  return !goodsPaid(entry) && paidFlags(entry).some(Boolean);
 }
 
 function deliveryPayable(entry: CustomerParcelStatement, customerId: number): boolean {
@@ -88,6 +108,30 @@ async function togglePayment(event: Event, entry: CustomerParcelStatement, itemI
     await paymentService.setItemPaid(entry.parcel.id, itemId, current.customer.id, checked);
     toastState.add({
       message: checked ? "Товар отмечен как оплаченный" : "Оплата товара снята",
+      type: "success",
+    });
+    refresh();
+  } catch (error) {
+    input.checked = !checked;
+    toastState.add({ message: errorMessage(error), type: "error" });
+  }
+}
+
+async function toggleGoods(event: Event, entry: CustomerParcelStatement) {
+  const input = event.target as HTMLInputElement;
+  const checked = input.checked;
+  const current = statement.value;
+  if (!current || current.customer.isSelf) return;
+  try {
+    await paymentService.setParcelPayment(
+      entry.parcel.id,
+      current.customer.id,
+      entry.items.map((item) => item.id),
+      checked,
+      false,
+    );
+    toastState.add({
+      message: checked ? "Товары оплачены" : "Оплата товаров снята",
       type: "success",
     });
     refresh();
@@ -159,6 +203,9 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
         <p class="detail-hero__facts">
           {{ t(ITEM_FORMS, statement.items.length) }} в
           {{ t(PARCEL_IN_FORMS, statement.parcels.length) }}
+          <span v-if="totalBroughtWeight" class="detail-hero__weight">
+            · привезено {{ totalBroughtWeight }}
+          </span>
         </p>
       </div>
     </section>
@@ -217,57 +264,119 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
           </RouterLink>
         </div>
 
-        <label class="parcel-check">
-          <input
-            type="checkbox"
-            :data-toggle-parcel="entry.parcel.id"
-            :checked="parcelPaid(entry, statement.customer.id)"
-            :indeterminate="parcelIndeterminate(entry, statement.customer.id)"
-            :disabled="statement.customer.isSelf"
-            @change="toggleParcel($event, entry)"
-          />
-          <span>Посылка оплачена</span>
-        </label>
-
-        <div class="customer-items">
-          <label v-for="item in entry.items" :key="item.id" class="item-check">
+        <div class="pay-summary-row">
+          <label class="pay-summary">
             <input
               type="checkbox"
-              :data-toggle-payment="item.id"
-              :data-parcel="entry.parcel.id"
-              :checked="entry.settlement.paidItems.has(item.id)"
+              class="pay-summary__input"
+              :data-toggle-goods="entry.parcel.id"
+              :checked="goodsPaid(entry)"
+              :indeterminate="goodsIndeterminate(entry)"
               :disabled="statement.customer.isSelf"
-              @change="togglePayment($event, entry, item.id)"
+              @change="toggleGoods($event, entry)"
             />
-            <span class="item-check__name" :title="item.name">{{ item.name }}</span>
-            <span class="item-check__prices">
-              <span class="item-check__price">{{
-                money(item.totalPriceBYN + deliveryShare(item, entry))
-              }}</span>
-              <span v-if="deliveryShare(item, entry) > 0" class="item-check__without-delivery">
-                без доставки {{ money(item.totalPriceBYN) }}
+            <span class="pay-summary__body">
+              <span class="pay-summary__label">Товары оплачены</span>
+              <span class="pay-summary__note">без доставки</span>
+            </span>
+            <span class="pay-summary__amount">{{
+              money(share(entry, statement.customer.id).goods.owed)
+            }}</span>
+          </label>
+
+          <label class="pay-summary pay-summary--total">
+            <input
+              type="checkbox"
+              class="pay-summary__input"
+              :data-toggle-parcel="entry.parcel.id"
+              :checked="parcelPaid(entry, statement.customer.id)"
+              :indeterminate="parcelIndeterminate(entry, statement.customer.id)"
+              :disabled="statement.customer.isSelf"
+              @change="toggleParcel($event, entry)"
+            />
+            <span class="pay-summary__body">
+              <span class="pay-summary__label">Посылка оплачена</span>
+              <span class="pay-summary__note">
+                {{
+                  deliveryPayable(entry, statement.customer.id)
+                    ? "товары + доставка"
+                    : "доставка не учтена"
+                }}
               </span>
             </span>
+            <span class="pay-summary__amount">{{
+              money(share(entry, statement.customer.id).owed)
+            }}</span>
           </label>
         </div>
 
-        <label v-if="deliveryPayable(entry, statement.customer.id)" class="item-check">
+        <label class="pay-summary pay-summary--delivery">
           <input
             type="checkbox"
+            class="pay-summary__input"
             :data-toggle-shipping="entry.parcel.id"
-            :checked="entry.settlement.paidDelivery.has(statement.customer.id)"
-            :disabled="statement.customer.isSelf"
+            :checked="
+              deliveryPayable(entry, statement.customer.id) &&
+              entry.settlement.paidDelivery.has(statement.customer.id)
+            "
+            :disabled="statement.customer.isSelf || !deliveryPayable(entry, statement.customer.id)"
             @change="toggleShipping($event, entry)"
           />
-          <span
-            class="item-check__name"
-            title="Доставка уже включена в цену товаров — здесь отмечается её оплата"
-            >Доставка (включена в цены)</span
-          >
-          <span class="item-check__price">{{
-            money(share(entry, statement.customer.id).delivery.owed)
+          <span class="pay-summary__body">
+            <span class="pay-summary__label">Доставка оплачена</span>
+            <span class="pay-summary__note">
+              {{
+                statement.customer.isSelf
+                  ? "у «Я» всегда оплачено"
+                  : deliveryPayable(entry, statement.customer.id)
+                    ? "включена в цены товаров"
+                    : "цена не задана"
+              }}
+            </span>
+          </span>
+          <span class="pay-summary__amount">{{
+            deliveryPayable(entry, statement.customer.id)
+              ? money(share(entry, statement.customer.id).delivery.owed)
+              : "—"
           }}</span>
         </label>
+
+        <details class="customer-items-fold">
+          <summary class="customer-items-fold__summary">
+            <AppIcon name="chevronRight" />
+            <span>{{ t(ITEM_FORMS, entry.items.length) }}</span>
+            <span class="customer-items-fold__meta">
+              {{ itemsWeightG(entry) > 0 ? `${itemsWeightG(entry)} г` : "вес —" }} ·
+              {{ money(share(entry, statement.customer.id).goods.owed) }}
+            </span>
+          </summary>
+          <div class="customer-items">
+            <label v-for="item in entry.items" :key="item.id" class="item-check">
+              <input
+                type="checkbox"
+                :data-toggle-payment="item.id"
+                :data-parcel="entry.parcel.id"
+                :checked="entry.settlement.paidItems.has(item.id)"
+                :disabled="statement.customer.isSelf"
+                @change="togglePayment($event, entry, item.id)"
+              />
+              <span class="item-check__title">
+                <span class="item-check__name" :title="item.name">{{ item.name }}</span>
+                <span v-if="itemWeightG(item) > 0" class="item-check__weight">
+                  {{ itemWeightG(item) }} г
+                </span>
+              </span>
+              <span class="item-check__prices">
+                <span class="item-check__price">{{
+                  money(item.totalPriceBYN + deliveryShare(item, entry))
+                }}</span>
+                <span v-if="deliveryShare(item, entry) > 0" class="item-check__without-delivery">
+                  без доставки {{ money(item.totalPriceBYN) }}
+                </span>
+              </span>
+            </label>
+          </div>
+        </details>
       </section>
     </template>
     <div v-else class="empty">Товаров пока нет</div>
