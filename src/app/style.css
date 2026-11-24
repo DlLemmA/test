@@ -555,6 +555,10 @@
   z-index: 30;
   max-width: 42rem;
   margin-inline: auto;
+  /* Safari repaints a fixed backdrop-filter layer while the page scrolls.
+     Keep the dock on its own compositing layer so it does not flicker/jump. */
+  transform: translateZ(0);
+  will-change: transform;
 }
 .bottombar-shadow {
   position: absolute;

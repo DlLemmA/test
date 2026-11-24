@@ -334,6 +334,14 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   await expect(page.locator("#bottombar a")).toHaveCount(3);
 });
 
+test("bottom dock keeps its own compositing layer", async ({ page }) => {
+  await page.goto("/#/parcels");
+  const wrap = page.locator(".bottombar-wrap");
+  await expect(wrap).toBeVisible();
+  expect(await wrap.evaluate((el) => getComputedStyle(el).willChange)).toBe("transform");
+  await expect(page.locator("#bottombar a")).toHaveCount(3);
+});
+
 test("drawer keeps its sheet chrome and action buttons", async ({ page }) => {
   await page.goto("/#/parcels");
   await expect(page.locator(".page-parcels")).toBeVisible();

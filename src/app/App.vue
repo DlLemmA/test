@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef } from "vue";
 import { ToastProvider } from "reka-ui";
-import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
+import { RouterView, useRouter } from "vue-router";
 import AppDrawer from "@/features/shared/ui/AppDrawer.vue";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import ConfirmDrawer from "@/features/shared/ui/ConfirmDrawer.vue";
@@ -10,16 +10,15 @@ import { toastManager, toastState } from "@/core/state";
 import { t } from "@/core/utils";
 import { CUSTOMER_FORMS } from "@/features/customers/ui/CustomerPresentation";
 import { ITEM_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
+import AppNavbar from "./AppNavbar.vue";
 import type { AppRoute } from "./router";
 import { dbReady } from "./startup";
 import Toaster from "./Toaster.vue";
 
-const route = useRoute();
 const router = useRouter();
 
 type PendingAction = "demo" | "backup";
 
-const activeRoute = computed<AppRoute>(() => (route.name as AppRoute) ?? "parcels");
 const backupOpen = shallowRef(false);
 const backupFile = shallowRef<File | null>(null);
 const pendingAction = shallowRef<PendingAction | null>(null);
@@ -51,10 +50,6 @@ function errorMessage(err: unknown): string {
 
 function go(target: AppRoute): void {
   void router.push({ name: target });
-}
-
-function onTabClick(): void {
-  navigator.vibrate?.(10);
 }
 
 function onBackupFileChange(event: Event): void {
@@ -152,41 +147,7 @@ async function confirmPending(): Promise<void> {
         </div>
       </main>
 
-      <div class="bottombar-wrap">
-        <div class="bottombar-shadow" aria-hidden="true"></div>
-        <nav id="bottombar" class="bottombar" aria-label="Основная навигация">
-          <RouterLink
-            class="bottombar-item"
-            :class="{ active: activeRoute === 'parcels' }"
-            :to="{ name: 'parcels' }"
-            :aria-current="activeRoute === 'parcels' ? 'page' : undefined"
-            @click="onTabClick"
-          >
-            <AppIcon name="history" />
-            <span>Посылки</span>
-          </RouterLink>
-          <RouterLink
-            class="bottombar-item"
-            :class="{ active: activeRoute === 'add' }"
-            :to="{ name: 'add' }"
-            :aria-current="activeRoute === 'add' ? 'page' : undefined"
-            @click="onTabClick"
-          >
-            <AppIcon name="plus" />
-            <span>Создать</span>
-          </RouterLink>
-          <RouterLink
-            class="bottombar-item"
-            :class="{ active: activeRoute === 'people' }"
-            :to="{ name: 'people' }"
-            :aria-current="activeRoute === 'people' ? 'page' : undefined"
-            @click="onTabClick"
-          >
-            <AppIcon name="users" />
-            <span>Заказчики</span>
-          </RouterLink>
-        </nav>
-      </div>
+      <AppNavbar />
 
       <AppDrawer v-model:open="backupOpen" title="База / резерв">
         <div class="panel">
