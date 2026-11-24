@@ -7,6 +7,8 @@ import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { parcelCommands } from "@/features/shared/wiring";
 import AppDrawer from "@/features/shared/ui/AppDrawer.vue";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import WizardSteps from "@/features/shared/ui/WizardSteps.vue";
+import type { WizardStep } from "@/features/shared/ui/wizardSteps";
 import { parcelItemRepository } from "../infrastructure";
 import type { Parcel, ParcelItem, ParcelItemUpdateInput } from "../domain";
 import { UNIT_OPTIONS, type UnitValue } from "./ParcelPresentation";
@@ -56,6 +58,16 @@ const weightRows = computed(() =>
     .filter(Boolean)
     .map((track, idx) => ({ track, idx })),
 );
+const steps = computed<WizardStep[]>(() => [
+  { id: "main", label: "Товар" },
+  { id: "tracks", label: "Треки" },
+  {
+    id: "weights",
+    label: "Веса",
+    disabled: !canEditWeights.value,
+    title: canEditWeights.value ? "Веса" : "Веса доступны после получения",
+  },
+]);
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Ошибка";
@@ -118,12 +130,8 @@ function goTo(next: ItemFormStep): void {
   void nextTick(focusStepPanel);
 }
 
-function stepClass(current: ItemFormStep, index: number): Record<string, boolean> {
-  const order: ItemFormStep[] = ["main", "tracks", "weights"];
-  return {
-    "is-active": step.value === current,
-    "is-done": order.indexOf(step.value) > index,
-  };
+function navigateStep(id: string): void {
+  goTo(id as ItemFormStep);
 }
 
 function addTrackRow(): void {
@@ -223,49 +231,13 @@ async function submit(): Promise<void> {
       novalidate
       @submit.prevent="submit"
     >
-      <nav v-if="canEditTracks" class="wizard-steps" aria-label="Шаги редактирования товара">
-        <ol class="item-wizard__steps">
-          <li>
-            <button
-              type="button"
-              class="wizard-step"
-              data-step="main"
-              :class="stepClass('main', 0)"
-              @click="goTo('main')"
-            >
-              <span class="wizard-step__dot" aria-hidden="true">1</span>
-              <span class="wizard-step__label">Товар</span>
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              class="wizard-step"
-              data-step="tracks"
-              :class="stepClass('tracks', 1)"
-              @click="goTo('tracks')"
-            >
-              <span class="wizard-step__dot" aria-hidden="true">2</span>
-              <span class="wizard-step__label">Треки</span>
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              class="wizard-step"
-              :class="[{ 'is-locked': !canEditWeights }, stepClass('weights', 2)]"
-              data-step="weights"
-              :disabled="!canEditWeights"
-              :aria-disabled="!canEditWeights"
-              :title="canEditWeights ? 'Веса' : 'Веса доступны после получения'"
-              @click="goTo('weights')"
-            >
-              <span class="wizard-step__dot" aria-hidden="true">3</span>
-              <span class="wizard-step__label">Веса</span>
-            </button>
-          </li>
-        </ol>
-      </nav>
+      <WizardSteps
+        v-if="canEditTracks"
+        :steps="steps"
+        :current="step"
+        label="Шаги редактирования товара"
+        @navigate="navigateStep"
+      />
 
       <div
         class="item-wizard__panel grid grid-cols-2 gap-3"

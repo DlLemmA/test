@@ -33,14 +33,19 @@ function clearValidity(input: HTMLInputElement | null): void {
   input?.removeAttribute("aria-invalid");
 }
 
+// Vue coerces v-model on type="number" to a number once the user types.
+const text = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value);
+
 async function submit(): Promise<void> {
   const currentForm = form.value;
   if (!currentForm) return;
   const weight = Number(boxWeightG.value);
   const amount = Number(shippingCostBYN.value);
-  const invalidWeight = boxWeightG.value.trim() === "" || !Number.isFinite(weight) || weight <= 0;
+  const invalidWeight =
+    text(boxWeightG.value).trim() === "" || !Number.isFinite(weight) || weight <= 0;
   const invalidAmount =
-    shippingCostBYN.value.trim() === "" || !Number.isFinite(amount) || amount <= 0;
+    text(shippingCostBYN.value).trim() === "" || !Number.isFinite(amount) || amount <= 0;
   weightInput.value?.setCustomValidity(invalidWeight ? "Укажите вес посылки" : "");
   amountInput.value?.setCustomValidity(invalidAmount ? "Укажите сумму доставки" : "");
   weightInput.value?.setAttribute("aria-invalid", String(invalidWeight));

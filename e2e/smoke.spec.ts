@@ -43,7 +43,7 @@ test("amounts agree between the parcel and customer screens", async ({ page }) =
   await page.goto("/#/parcel/2");
   const parcelRemaining = await page
     .locator(".parcel-calc__item")
-    .filter({ hasText: "Остаток" })
+    .filter({ hasText: "Должны" })
     .locator("b")
     .innerText();
 
@@ -73,6 +73,32 @@ test("delivery follows one fact on both screens when weight is missing", async (
   await expect(page.locator(".shipping-paid")).toHaveCount(0);
 });
 
+test("a zero delivery share cannot be paid on either screen", async ({ page }) => {
+  await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcelItems.update(11, { weightsG: "[]" });
+  });
+
+  await page.goto("/#/parcel/2");
+  const katya = page.locator('details[data-item-group][data-customer="2"]');
+  await expect(katya.locator(".shipping-paid")).toHaveCount(0);
+  await expect(katya.locator(".payment-bullet").last()).toContainText("Доставка: —");
+
+  await page.goto("/#/customer/2");
+  await expect(page.locator("[data-toggle-shipping]")).toHaveCount(0);
+
+  await page.locator('[data-toggle-payment="11"]').check();
+  await expect(page.locator('[data-toggle-parcel="2"]')).toBeChecked();
+
+  const shippingRows = await page.evaluate(async () => {
+    const payments = await (
+      window as unknown as { appCache: AppCache }
+    ).appCache.payments.toArray();
+    return payments.filter((payment) => payment.type === "shipping" && payment.paid).length;
+  });
+  expect(shippingRows).toBe(0);
+});
+
 test("payment toggle persists and self stays paid", async ({ page }) => {
   await page.goto("/#/parcel/2");
   await openKatyaItemMenu(page);
@@ -97,6 +123,8 @@ test("payment toggle persists and self stays paid", async ({ page }) => {
 
 test("saves a batch with distributed commission and a paid self item", async ({ page }) => {
   await page.goto("/#/add");
+  await expect(page.locator("#addParcelSelect")).toHaveValue("1");
+  await page.locator("#addParcelSelect").selectOption("0");
   await page.locator("#sumCNY").fill("105");
   await page.locator("#sumBYN").fill("13.65");
   await page.locator('#stage1Form button[type="submit"]').click();
@@ -160,6 +188,43 @@ test("saves a batch with distributed commission and a paid self item", async ({ 
   expect(selfPayment?.paid).toBe(true);
 });
 
+test("batch can be added to a chosen draft and preselected from a parcel", async ({ page }) => {
+  await page.goto("/#/add");
+  await expect(page.locator("#addParcelSelect option")).toHaveCount(2);
+  await expect(page.locator("#addParcelSelect")).toHaveValue("1");
+  await expect(page.locator("#addParcelSelect option").nth(1)).toHaveText(/Посылка №1/);
+
+  await page.goto("/#/parcel/1");
+  await page.locator("#openBatchForm").click();
+  await expect(page.locator("#addParcelSelect")).toHaveValue("1");
+
+  await page.locator("#sumCNY").fill("10");
+  await page.locator("#sumBYN").fill("1.3");
+  await page.locator('#stage1Form button[type="submit"]').click();
+  await page.locator("#customerComboInput").fill("Катя");
+  await page.locator('[data-customer-id="2"]').click();
+  await page.locator("#csvText").fill("Товар в черновик 1 шт 10");
+  await page.locator("#addBatchBtn").click();
+  await page.locator("#checkStepBtn").click();
+
+  const parcelsBefore = await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    return (await cache.parcels.toArray()).length;
+  });
+  await page.locator("#saveBatchBtn").click();
+  await expect(
+    page.locator("#toastContainer .toast__message", { hasText: "Партия сохранена (1 товар)" }),
+  ).toBeVisible();
+
+  const added = await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    const item = (await cache.parcelItems.toArray()).find((i) => i.name === "Товар в черновик");
+    return { parcelId: item?.parcelId, parcels: (await cache.parcels.toArray()).length };
+  });
+  expect(added.parcelId).toBe(1);
+  expect(added.parcels).toBe(parcelsBefore);
+});
+
 test("combobox creates a customer and the batch keeps the selection", async ({ page }) => {
   await page.goto("/#/add");
   await page.locator("#sumCNY").fill("20");
@@ -204,6 +269,21 @@ test("combobox creates a customer and the batch keeps the selection", async ({ p
   expect(ids.assigned).toBe(ids.created);
 });
 
+test("goods payment checkbox flips immediately and stays in sync", async ({ page }) => {
+  await page.goto("/#/parcel/2");
+  const check = page.locator('.item-paid-all[data-customer="2"]');
+  const label = page.locator('details[data-item-group][data-customer="2"] .payment-bullet', {
+    hasText: "Товары:",
+  });
+  await expect(check).not.toBeChecked();
+  await expect(label).toContainText("не оплачено");
+
+  await check.check();
+  await expect(check).toBeChecked();
+  await expect(label).toContainText("оплачено");
+  await expect(page.locator("#toastContainer")).not.toContainText("Не удалось изменить оплату");
+});
+
 test("ship button explains why a draft is not ready", async ({ page }) => {
   await page.evaluate(async () => {
     const cache = (window as unknown as { appCache: AppCache }).appCache;
@@ -228,6 +308,37 @@ test("ship button explains why a draft is not ready", async ({ page }) => {
 
   await page.locator("#shipParcel").click();
   await expect(page.locator("#toastContainer").getByText(/не отмечены/)).toBeVisible();
+});
+
+test("ship form accepts typed weight and amount", async ({ page }) => {
+  await page.evaluate(async (createdAt) => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcelItems.add({
+      parcelId: 1,
+      name: "Товар с треком",
+      priceCNY: 1,
+      priceBYN: 0.5,
+      quantity: 1,
+      unit: "pcs",
+      customerId: 2,
+      trackNumbers: JSON.stringify(["TRACK-1"]),
+      weightsG: "[]",
+      status: "ordered",
+      tracksCompletedAt: createdAt,
+      createdAt,
+    });
+  }, "2026-01-01T00:00:00.000Z");
+
+  await page.goto("/#/parcel/1");
+  await page.locator("#shipParcel").click();
+  await page.locator("#shipBoxWeight").fill("600");
+  await page.locator("#shipAmount").fill("12.50");
+  await page.locator("#shipForm button[type=submit]").click();
+
+  await expect(
+    page.locator("#toastContainer .toast__message", { hasText: "Посылка отправлена" }),
+  ).toBeVisible();
+  await expect(page.locator("#receiveParcel")).toBeVisible();
 });
 
 test("finish button explains which items are unweighed", async ({ page }) => {
@@ -348,6 +459,35 @@ test("a route change mounts its view exactly once", async ({ page }) => {
   );
   expect(renders).toBe(1);
   await expect(page.locator("#bottombar a")).toHaveCount(3);
+});
+
+test("parcel row parts morph into the detail hero", async ({ page }) => {
+  await page.goto("/#/parcels");
+  await expect(page.locator(".page-parcels")).toBeVisible();
+
+  await page.locator('[data-open="2"]').click();
+  await expect(page.locator(".page-parcel-detail")).toBeVisible();
+
+  const names = await page.evaluate(() => ({
+    title: getComputedStyle(document.querySelector(".detail-hero h1")!).getPropertyValue(
+      "view-transition-name",
+    ),
+    date: getComputedStyle(document.querySelector(".detail-hero__date")!).getPropertyValue(
+      "view-transition-name",
+    ),
+    status: getComputedStyle(document.querySelector(".detail-state")!).getPropertyValue(
+      "view-transition-name",
+    ),
+    next: getComputedStyle(document.querySelector(".detail-hero__next")!).getPropertyValue(
+      "view-transition-name",
+    ),
+  }));
+  expect(names).toEqual({
+    title: "parcel-title",
+    date: "parcel-date",
+    status: "parcel-status",
+    next: "parcel-next",
+  });
 });
 
 test("bottom dock keeps its own compositing layer", async ({ page }) => {
@@ -564,4 +704,18 @@ test("sign-in is a public route for a signed-out user", async ({ page }) => {
 
   await page.goto("/#/parcels");
   await expect(page).toHaveURL(/\/#\/sign-in\?next=\/parcels$/);
+});
+
+test("dev sign-in can enter test mode without email", async ({ page }) => {
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto("/#/sign-in?next=/parcels");
+
+  const entry = page.locator("#enterTestMode");
+  await expect(entry).toBeVisible();
+  await expect(entry).toContainText("Войти в тестовом режиме");
+
+  await entry.click();
+
+  await expect(page).toHaveURL(/#\/parcels$/);
+  await expect(page.locator(".page-parcels")).toBeVisible();
 });

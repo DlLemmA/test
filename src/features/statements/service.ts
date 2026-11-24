@@ -18,6 +18,7 @@ import {
   type StatementData,
 } from "./domain/Statement";
 
+export { withPaymentState } from "./domain/Statement";
 export type {
   CustomerParcelStatement,
   CustomerStatement,

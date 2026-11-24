@@ -37,7 +37,7 @@ watch(authSession, (session) => {
       <AppHeader />
 
       <main id="main-content" class="flex-1 px-4 pb-28 overflow-y-auto">
-        <div id="panel-container" style="view-transition-name: panel-root">
+        <div id="panel-container" class="view-panel" tabindex="-1">
           <RouterView />
         </div>
       </main>
@@ -50,13 +50,3 @@ watch(authSession, (session) => {
     </div>
   </ToastProvider>
 </template>
-
-<style scoped>
-.auth-loading {
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  color: var(--color-muted);
-  background: var(--color-canvas);
-}
-</style>

@@ -8,6 +8,7 @@ import {
   buildCustomerStatements,
   buildParcelStatement,
   type StatementData,
+  withPaymentState,
 } from "./Statement";
 
 const CREATED_AT = "2026-11-23T00:00:00.000Z";
@@ -113,6 +114,21 @@ describe("statements", () => {
     expect(statement.settlement.paidItems.has(11)).toBe(true);
     expect(statement.settlement.paidItems.has(10)).toBe(true); // self
     expect(buildParcelStatement(statements(), 999)).toBeNull();
+  });
+
+  it("recomputes payment and balance facts for an optimistic update", () => {
+    const statement = buildParcelStatement(statements(), 1)!;
+    const before = statement.balance.byCustomer.get(2)!;
+    const state = {
+      itemPaid: new Map<number, boolean>([[11, false]]),
+      shippingPaid: new Map<number, boolean>(),
+    };
+    // The fixture has payments already; clear them through the same input shape
+    // the view will use when it mirrors a pending checkbox change.
+    const optimistic = withPaymentState(statement, state);
+
+    expect(optimistic.settlement.paidItems.has(11)).toBe(false);
+    expect(optimistic.balance.byCustomer.get(2)!.remaining).toBeGreaterThan(before.remaining);
   });
 
   it("gives a customer screen the same facts as every parcel card", () => {

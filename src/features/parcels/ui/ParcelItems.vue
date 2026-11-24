@@ -152,20 +152,23 @@ function openDelete(itemId: number, customerId: number): void {
     aria-label="Поиск товаров в посылке"
   >
     <label class="sr-only" for="parcelItemSearch">Поиск товаров</label>
-    <input
-      id="parcelItemSearch"
-      v-model="searchQuery"
-      type="search"
-      class="item-search__input"
-      name="itemSearch"
-      placeholder="Название, заказчик или трек"
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="none"
-      spellcheck="false"
-      enterkeyhint="search"
-      @keydown.esc.prevent="clearSearch"
-    />
+    <span class="item-search__field">
+      <AppIcon name="search" />
+      <input
+        id="parcelItemSearch"
+        v-model="searchQuery"
+        type="search"
+        class="item-search__input"
+        name="itemSearch"
+        placeholder="Название, заказчик или трек"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="none"
+        spellcheck="false"
+        enterkeyhint="search"
+        @keydown.esc.prevent="clearSearch"
+      />
+    </span>
     <button
       v-if="showMissingFilter"
       type="button"
@@ -203,7 +206,9 @@ function openDelete(itemId: number, customerId: number): void {
       </button>
     </header>
     <div id="parcelItemsList">
-      <div v-if="props.items.length === 0" class="empty">Нет товаров</div>
+      <div v-if="props.items.length === 0" class="empty">
+        Товаров пока нет. Добавьте позицию — треки можно заполнить позже.
+      </div>
       <ParcelCustomer
         v-for="group in itemGroups.groups"
         :key="group.customerId"
@@ -236,7 +241,7 @@ function openDelete(itemId: number, customerId: number): void {
         class="empty item-search__empty"
         :hidden="!noResults"
       >
-        Ничего не найдено. Измените запрос.
+        Ничего не найдено. Попробуйте другое название или сбросьте фильтр.
       </p>
     </div>
   </section>

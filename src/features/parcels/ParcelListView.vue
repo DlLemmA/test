@@ -91,7 +91,9 @@ async function confirmDelete(): Promise<void> {
           @delete="deleteTarget = $event"
         />
       </template>
-      <div v-else class="empty">Нет посылок. Нажмите «+», чтобы создать первую.</div>
+      <div v-else class="empty">
+        Партий пока нет. Начните с сумм заказа — товары и заказчиков добавите следующим шагом.
+      </div>
     </section>
 
     <div class="form-actions form-actions--final">

@@ -6,6 +6,7 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router";
 import { authSession } from "@/core/auth";
 import SignInView from "./SignInView.vue";
+import { runViewTransition } from "./viewTransitions";
 
 export type AppRoute = "parcels" | "parcel" | "people" | "customer" | "add" | "sign-in";
 
@@ -49,9 +50,12 @@ export const appRouter = createRouter({
   routes,
 });
 
-appRouter.beforeEach((to) => {
+appRouter.beforeEach((to, from) => {
   if (to.name === "sign-in") {
     return authSession.value ? { name: "parcels" } : true;
   }
-  return authSession.value ? true : { name: "sign-in", query: { next: to.fullPath } };
+  if (!authSession.value) {
+    return { name: "sign-in", query: { next: to.fullPath } };
+  }
+  return runViewTransition(appRouter, to, from);
 });

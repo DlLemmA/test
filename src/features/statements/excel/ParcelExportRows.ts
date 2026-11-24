@@ -51,7 +51,7 @@ export function buildParcelExportRows(statement: ParcelStatement): ExportRow[] {
     "Доля доставки, BYN",
     "Итого должен, BYN",
     "Оплачено, BYN",
-    "Остаток, BYN",
+    "Долг, BYN",
   ]);
   for (const [customerId, customerBalance] of balance.byCustomer) {
     const customerItems = items.filter((item) => item.customerId === customerId);

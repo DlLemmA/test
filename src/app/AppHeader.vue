@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { signOut } from "@/core/auth";
 import { toastState } from "@/core/state";
+import AppIcon from "@/features/shared/ui/AppIcon.vue";
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -40,7 +41,8 @@ async function signOutAndReset(): Promise<void> {
     </div>
     <div class="header-actions">
       <button id="signOutBtn" class="header-btn" type="button" @click="signOutAndReset">
-        Выйти
+        <AppIcon name="logOut" />
+        <span>Выйти</span>
       </button>
     </div>
   </header>

@@ -89,17 +89,30 @@ export const I = {
   ),
   arrowRight: icon('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'),
   check: icon('<polyline points="20 6 9 17 4 12"/>'),
-  checkCircle: icon('<circle cx="12" cy="12" r="10"/><polyline points="16 8 12 12 8 16"/>'),
+  checkCircle: icon('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'),
+  info: icon('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+  alertTriangle: icon(
+    '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  ),
+  xCircle: icon('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
   scan: icon(
     '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 5h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M5 19H3a2 2 0 0 1-2-2v-2"/><line x1="7" x2="17" y1="12" y2="12"/><line x1="12" x2="12" y1="7" y2="17"/>',
   ),
   creditcard: icon(
-    '<rect width="18" height="10" x="3" y="7" rx="2" ry="2"/><line x1="8" x2="8" y1="7" y2="7.01"/><line x1="10" x2="10" y1="7" y2="7.01"/><line x1="12" x2="12" y1="7" y2="7.01"/>',
+    '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
   ),
   copy: icon(
     '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   ),
   user: icon('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+  mail: icon('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m2 7 10 6 10-6"/>'),
+  logOut: icon(
+    '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  ),
+  search: icon('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+  flaskConical: icon(
+    '<path d="M9 3h6"/><path d="M10 3v5.3L4.6 17.4a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 8.3V3"/><path d="M6.3 17h11.4"/>',
+  ),
   chevronLeft: icon('<path d="m15 18-6-6 6-6"/>'),
   chevronRight: icon('<path d="m9 18 6-6-6-6"/>'),
   inbox: icon(

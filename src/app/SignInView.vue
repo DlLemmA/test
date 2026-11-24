@@ -1,11 +1,26 @@
 <script setup lang="ts">
 import { shallowRef } from "vue";
-import { sendMagicLink } from "@/core/auth";
+import { useRouter } from "vue-router";
+import { enableTestSession, sendMagicLink } from "@/core/auth";
+import AppIcon from "@/features/shared/ui/AppIcon.vue";
+
+const router = useRouter();
+const isDev = import.meta.env.DEV;
 
 const email = shallowRef("");
 const sending = shallowRef(false);
 const message = shallowRef("");
 const error = shallowRef("");
+
+/** Dev-only shortcut through the same session seam the e2e suite uses. */
+function enterTestMode(): void {
+  enableTestSession();
+  const next = router.currentRoute.value.query.next;
+  const target =
+    typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/parcels";
+  window.location.hash = `#${target}`;
+  window.location.reload();
+}
 
 async function submit(): Promise<void> {
   if (sending.value) return;
@@ -26,9 +41,12 @@ async function submit(): Promise<void> {
 <template>
   <main class="sign-in">
     <section class="sign-in__card" aria-labelledby="signInTitle">
-      <span class="sign-in__mark" aria-hidden="true">P</span>
+      <span class="sign-in__mark" aria-hidden="true">
+        <AppIcon name="package" />
+      </span>
+      <p class="sign-in__eyebrow">Общий журнал · вход для двоих</p>
       <h1 id="signInTitle">Pindoчет</h1>
-      <p class="sign-in__lead">Учёт посылок для двоих. Вход по ссылке из письма.</p>
+      <p class="sign-in__lead">Посылки, товары и расчёты — в одном журнале и без лишних полей.</p>
 
       <form class="sign-in__form" @submit.prevent="submit">
         <label for="signInEmail">Email</label>
@@ -46,11 +64,32 @@ async function submit(): Promise<void> {
           aria-describedby="signInHint signInStatus"
           required
         />
-        <p id="signInHint" class="sign-in__hint">Вход доступен только приглашённым аккаунтам.</p>
-        <button id="sendMagicLink" class="btn-primary" type="submit" :disabled="sending">
+        <p id="signInHint" class="sign-in__hint">
+          Ссылка придёт на почту. Доступ только у приглашённых.
+        </p>
+        <button
+          id="sendMagicLink"
+          class="btn-primary sign-in__submit"
+          type="submit"
+          :disabled="sending"
+        >
+          <AppIcon name="mail" />
           {{ sending ? "Отправляем…" : "Отправить ссылку" }}
         </button>
       </form>
+
+      <div v-if="isDev" class="sign-in__dev">
+        <span class="sign-in__dev-label">Для разработки</span>
+        <button
+          id="enterTestMode"
+          type="button"
+          class="btn-secondary sign-in__test"
+          @click="enterTestMode"
+        >
+          <AppIcon name="flaskConical" /> Войти в тестовом режиме
+        </button>
+        <span class="sign-in__dev-hint">Без письма — на локальных данных.</span>
+      </div>
 
       <p id="signInStatus" class="sign-in__status" role="status" aria-live="polite">
         <span v-if="message" class="is-success">{{ message }}</span>
@@ -59,89 +98,3 @@ async function submit(): Promise<void> {
     </section>
   </main>
 </template>
-
-<style scoped>
-.sign-in {
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--color-canvas);
-}
-
-.sign-in__card {
-  width: min(100%, 420px);
-  padding: 28px;
-  border: 1px solid var(--color-line);
-  border-radius: 20px;
-  background: var(--color-paper);
-  box-shadow: 0 12px 40px -24px rgb(32 36 44 / 35%);
-}
-
-.sign-in__mark {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 12px;
-  border-radius: 14px;
-  background: var(--color-accent-soft);
-  color: var(--color-accent-strong);
-  font-weight: 800;
-}
-
-h1 {
-  margin: 0;
-  font-size: 1.75rem;
-}
-
-.sign-in__lead {
-  margin: 6px 0 20px;
-  color: var(--color-muted);
-}
-
-.sign-in__form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-label {
-  font-weight: 600;
-}
-
-input {
-  min-height: 48px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 12px;
-  background: #fff;
-  color: var(--color-ink);
-  font-size: max(1rem, 1em);
-}
-
-input:focus-visible {
-  outline: 3px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.sign-in__hint,
-.sign-in__status {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.875rem;
-}
-
-.sign-in__status {
-  min-height: 1.25em;
-  margin-top: 10px;
-}
-
-.is-success {
-  color: var(--color-positive);
-}
-
-.is-error {
-  color: var(--color-negative);
-}
-</style>

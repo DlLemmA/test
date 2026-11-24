@@ -27,9 +27,9 @@ export function deliveryInvoiced(parcel: Parcel): boolean {
   return (parcel.status === "received" || parcel.status === "done") && shippingInfoComplete(parcel);
 }
 
-/** Delivery payment may be changed only for a real customer with invoiced delivery. */
-export function canPayDelivery(parcel: Parcel, isSelf: boolean): boolean {
-  return !isSelf && deliveryInvoiced(parcel);
+/** Delivery payment may be changed only for a real customer with a non-zero invoiced share. */
+export function canPayDelivery(parcel: Parcel, isSelf: boolean, deliveryOwed: number): boolean {
+  return !isSelf && deliveryInvoiced(parcel) && deliveryOwed > 0;
 }
 
 export interface SettlementFacts {

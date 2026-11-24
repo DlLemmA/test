@@ -52,11 +52,17 @@ function paidFlags(entry: CustomerParcelStatement): boolean[] {
   return entry.items.map((item) => entry.settlement.paidItems.has(item.id));
 }
 
+function deliveryPayable(entry: CustomerParcelStatement, customerId: number): boolean {
+  return entry.settlement.deliveryInvoiced && share(entry, customerId).delivery.owed > 0;
+}
+
 function parcelPaid(entry: CustomerParcelStatement, customerId: number): boolean {
   const flags = paidFlags(entry);
   const shippingPaid = entry.settlement.paidDelivery.has(customerId);
   return (
-    flags.length > 0 && flags.every(Boolean) && (!entry.settlement.deliveryInvoiced || shippingPaid)
+    flags.length > 0 &&
+    flags.every(Boolean) &&
+    (!deliveryPayable(entry, customerId) || shippingPaid)
   );
 }
 
@@ -65,7 +71,7 @@ function parcelIndeterminate(entry: CustomerParcelStatement, customerId: number)
   const shippingPaid = entry.settlement.paidDelivery.has(customerId);
   return (
     !parcelPaid(entry, customerId) &&
-    (flags.some(Boolean) || (entry.settlement.deliveryInvoiced && shippingPaid))
+    (flags.some(Boolean) || (deliveryPayable(entry, customerId) && shippingPaid))
   );
 }
 
@@ -95,7 +101,7 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
   const input = event.target as HTMLInputElement;
   const checked = input.checked;
   const current = statement.value;
-  if (!current) return;
+  if (!current || !deliveryPayable(entry, current.customer.id)) return;
   try {
     await paymentService.setShippingPaid(entry.parcel.id, current.customer.id, checked);
     toastState.add({
@@ -120,7 +126,7 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
       current.customer.id,
       entry.items.map((item) => item.id),
       checked,
-      entry.settlement.deliveryInvoiced,
+      deliveryPayable(entry, current.customer.id),
     );
     toastState.add({
       message: checked ? "Посылка оплачена" : "Оплата посылки снята",
@@ -245,7 +251,7 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
           </label>
         </div>
 
-        <label v-if="entry.settlement.deliveryInvoiced" class="item-check">
+        <label v-if="deliveryPayable(entry, statement.customer.id)" class="item-check">
           <input
             type="checkbox"
             :data-toggle-shipping="entry.parcel.id"

@@ -3,6 +3,7 @@ import { RouterLink } from "vue-router";
 import AppDropdownMenu from "@/features/shared/ui/AppDropdownMenu.vue";
 import AppDropdownMenuItem from "@/features/shared/ui/AppDropdownMenuItem.vue";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import { markParcelTransition } from "@/app/viewTransitions";
 import { parcelDate } from "./ParcelPresentation";
 import { nextStepLabel } from "./ParcelNextStatus";
 import { parcelStatusInfo } from "./ParcelStatusInfo";
@@ -17,6 +18,13 @@ const emit = defineEmits<{
 
 function parcelTitle(parcel: Parcel): string {
   return parcel.name || `Посылка №${parcel.id}`;
+}
+
+function onOpen(event: MouseEvent): void {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return;
+  }
+  markParcelTransition(props.parcel.id);
 }
 </script>
 
@@ -43,6 +51,7 @@ function parcelTitle(parcel: Parcel): string {
         :data-open="props.parcel.id"
         :aria-label="`Открыть посылку ${parcelTitle(props.parcel)}`"
         :to="{ name: 'parcel', params: { parcelId: String(props.parcel.id) } }"
+        @click.capture="onOpen"
       >
         <AppIcon name="arrowRight" />
       </RouterLink>

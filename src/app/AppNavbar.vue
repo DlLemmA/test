@@ -5,7 +5,12 @@ import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import type { AppRoute } from "./router";
 
 const route = useRoute();
-const activeRoute = computed<AppRoute>(() => (route.name as AppRoute) ?? "parcels");
+const activeRoute = computed<AppRoute>(() => {
+  const name = route.name as AppRoute;
+  if (name === "parcel") return "parcels";
+  if (name === "customer") return "people";
+  return name ?? "parcels";
+});
 
 function onTabClick(): void {
   navigator.vibrate?.(10);
@@ -23,7 +28,7 @@ function onTabClick(): void {
         :aria-current="activeRoute === 'parcels' ? 'page' : undefined"
         @click="onTabClick"
       >
-        <AppIcon name="history" />
+        <AppIcon name="package" />
         <span>Посылки</span>
       </RouterLink>
       <RouterLink

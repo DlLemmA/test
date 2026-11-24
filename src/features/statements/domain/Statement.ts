@@ -18,6 +18,7 @@ import {
   type Parcel,
   type ParcelItem,
   type Payment,
+  type PaymentState,
 } from "@/features/parcels/domain";
 
 /** Everything the statement builder needs; the loader supplies it. */
@@ -82,6 +83,33 @@ export function buildParcelStatement(
     customers: data.customers,
     balance,
     settlement: settlementFacts({ parcel, items, paymentState, selfCustomerId: selfId }),
+  };
+}
+
+/**
+ * Rebuild a statement with an already-decided payment state. Used for an
+ * optimistic checkbox update: the same policy and balance math as a fresh
+ * load, but without a round trip to Supabase.
+ */
+export function withPaymentState(
+  statement: ParcelStatement,
+  paymentState: PaymentState,
+): ParcelStatement {
+  const selfId = selfCustomerId(statement.customers);
+  return {
+    ...statement,
+    balance: customerBalances({
+      parcel: statement.parcel,
+      items: statement.items,
+      paymentState,
+      selfCustomerId: selfId,
+    }),
+    settlement: settlementFacts({
+      parcel: statement.parcel,
+      items: statement.items,
+      paymentState,
+      selfCustomerId: selfId,
+    }),
   };
 }
 

@@ -58,10 +58,11 @@ describe("settlement policy", () => {
     expect(deliveryInvoiced(parcel("received", 100, undefined))).toBe(false);
   });
 
-  it("lets a real customer pay only invoiced delivery", () => {
-    expect(canPayDelivery(parcel("received", 100, 10), false)).toBe(true);
-    expect(canPayDelivery(parcel("received", undefined, 10), false)).toBe(false);
-    expect(canPayDelivery(parcel("received", 100, 10), true)).toBe(false);
+  it("lets a real customer pay only a non-zero invoiced delivery share", () => {
+    expect(canPayDelivery(parcel("received", 100, 10), false, 5)).toBe(true);
+    expect(canPayDelivery(parcel("received", 100, 10), false, 0)).toBe(false);
+    expect(canPayDelivery(parcel("received", undefined, 10), false, 5)).toBe(false);
+    expect(canPayDelivery(parcel("received", 100, 10), true, 5)).toBe(false);
   });
 
   it("marks the self customer's items and delivery paid without payment rows", () => {

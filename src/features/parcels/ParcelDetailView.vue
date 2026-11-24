@@ -3,11 +3,16 @@ import { computed, onMounted, onScopeDispose, ref, shallowRef } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { toastState, uiState } from "@/core/state";
 import { kg, money } from "@/core/utils";
-import { getParcelStatement, type ParcelStatement } from "@/features/statements/service";
+import {
+  getParcelStatement,
+  type ParcelStatement,
+  withPaymentState,
+} from "@/features/statements/service";
+import { effectivePaid } from "@/features/settlement/domain";
 import { parcelCommands, paymentService } from "@/features/shared/wiring";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import ConfirmDrawer from "@/features/shared/ui/ConfirmDrawer.vue";
-import { parcelReadiness, type Parcel } from "./domain";
+import { parcelReadiness, type Parcel, type PaymentState } from "./domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { parcelDate } from "./ui/ParcelPresentation";
@@ -28,6 +33,8 @@ const route = useRoute();
 const router = useRouter();
 
 const statement = shallowRef<ParcelStatement | null>(null);
+/** A pending payment change, kept until the server round trip confirms it. */
+const pendingPayment = shallowRef<PaymentState | null>(null);
 
 const shipOpen = ref(false);
 const editOpen = ref(false);
@@ -67,12 +74,41 @@ function refresh(): void {
   void load();
 }
 
-const parcel = computed(() => statement.value?.parcel ?? null);
-const items = computed(() => statement.value?.items ?? []);
-const customers = computed(() => statement.value?.customers ?? []);
-const balances = computed(() => statement.value?.balance.byCustomer ?? new Map());
-const deliveryByItem = computed(() => statement.value?.balance.deliveryByItem ?? new Map());
-const settlement = computed(() => statement.value?.settlement ?? null);
+/** Mirror one checkbox change into every fact derived from the statement. */
+function previewPayment(
+  customerId: number,
+  itemIds: number[],
+  paid: boolean,
+  shipping: boolean,
+): void {
+  const current = statement.value;
+  if (!current) return;
+  const state: PaymentState = {
+    itemPaid: new Map(Array.from(current.settlement.paidItems, (id) => [id, true])),
+    shippingPaid: new Map(Array.from(current.settlement.paidDelivery, (id) => [id, true])),
+  };
+  const selfId = current.customers.find((customer) => customer.isSelf)?.id;
+  const effective = effectivePaid(customerId, selfId, paid);
+  for (const itemId of itemIds) state.itemPaid.set(itemId, effective);
+  if (shipping) state.shippingPaid.set(customerId, effective);
+  pendingPayment.value = state;
+}
+
+function clearPending(): void {
+  pendingPayment.value = null;
+}
+
+const viewStatement = computed(() =>
+  statement.value && pendingPayment.value
+    ? withPaymentState(statement.value, pendingPayment.value)
+    : statement.value,
+);
+const parcel = computed(() => viewStatement.value?.parcel ?? null);
+const items = computed(() => viewStatement.value?.items ?? []);
+const customers = computed(() => viewStatement.value?.customers ?? []);
+const balances = computed(() => viewStatement.value?.balance.byCustomer ?? new Map());
+const deliveryByItem = computed(() => viewStatement.value?.balance.deliveryByItem ?? new Map());
+const settlement = computed(() => viewStatement.value?.settlement ?? null);
 
 const date = computed(() => (parcel.value ? parcelDate(parcel.value) : null));
 const status = computed(() => (parcel.value ? parcelStatusInfo(parcel.value.status) : null));
@@ -88,19 +124,27 @@ const tariffPerKg = computed(() => {
 const calculation = computed(() => {
   const goodsTotal = items.value.reduce((sum, item) => sum + item.totalPriceBYN, 0);
   const delivery = parcel.value?.shippingCostBYN || 0;
-  const remaining = Array.from(balances.value.values()).reduce((sum, b) => sum + b.remaining, 0);
-  return [
-    { label: "Позиций", value: String(items.value.length) },
-    { label: "Вес", value: boxWeight.value > 0 ? `${kg(boxWeight.value)} кг` : "—" },
-    { label: "Товары", value: money(goodsTotal) },
-    { label: "Доставка", value: delivery > 0 ? money(delivery) : "—" },
-    { label: "Итого", value: money(goodsTotal + delivery), strong: true },
-    {
-      label: "Курс",
-      value: tariffPerKg.value > 0 ? `${tariffPerKg.value.toFixed(2)} BYN/кг` : "—",
+  const remainingTotal = Array.from(balances.value.values()).reduce(
+    (sum, balance) => sum + balance.remaining,
+    0,
+  );
+  return {
+    remaining: {
+      label: remainingTotal > 0 ? "Должны" : "Оплачено",
+      value: money(remainingTotal),
+      warn: remainingTotal > 0,
     },
-    { label: "Остаток", value: money(remaining), warn: remaining > 0 },
-  ];
+    meta: [
+      { label: "Позиций", value: String(items.value.length) },
+      { label: "Вес коробки", value: boxWeight.value > 0 ? `${kg(boxWeight.value)} кг` : "—" },
+      { label: "Товары", value: money(goodsTotal) },
+      { label: "Доставка", value: delivery > 0 ? money(delivery) : "—" },
+      {
+        label: "Доставка / вес коробки",
+        value: tariffPerKg.value > 0 ? `${tariffPerKg.value.toFixed(2)} BYN/кг` : "—",
+      },
+    ],
+  };
 });
 
 function openShip(): void {
@@ -154,29 +198,56 @@ async function markDone(): Promise<void> {
 }
 
 async function toggleGoods(customerId: number, checked: boolean): Promise<void> {
-  if (!parcel.value) return;
-  await paymentService.setParcelPayment(
-    parcel.value.id,
-    customerId,
-    items.value.filter((item) => item.customerId === customerId).map((item) => item.id),
-    checked,
-    false,
-  );
-  refresh();
+  const current = parcel.value;
+  if (!current) return;
+  const itemIds = items.value
+    .filter((item) => item.customerId === customerId)
+    .map((item) => item.id);
+  previewPayment(customerId, itemIds, checked, false);
+  try {
+    await paymentService.setParcelPayment(current.id, customerId, itemIds, checked, false);
+    await load();
+  } catch (err) {
+    toastState.add({ message: "Не удалось изменить оплату", type: "error" });
+    console.error(err);
+  } finally {
+    clearPending();
+  }
 }
 
 async function toggleShipping(customerId: number): Promise<void> {
-  if (!settlement.value?.deliveryInvoiced || !parcel.value) return;
-  await paymentService.toggleShippingPayment(parcel.value.id, customerId);
-  refresh();
+  const current = parcel.value;
+  if (!settlement.value?.deliveryInvoiced || !current) return;
+  if ((balances.value.get(customerId)?.delivery.owed ?? 0) <= 0) return;
+  const next = !settlement.value.paidDelivery.has(customerId);
+  previewPayment(customerId, [], next, true);
+  try {
+    await paymentService.toggleShippingPayment(current.id, customerId);
+    await load();
+  } catch (err) {
+    toastState.add({ message: "Не удалось изменить оплату доставки", type: "error" });
+    console.error(err);
+  } finally {
+    clearPending();
+  }
 }
 
 async function toggleItemPayment(itemId: number): Promise<void> {
-  if (!parcel.value) return;
+  const current = parcel.value;
+  if (!current) return;
   const item = items.value.find((candidate) => candidate.id === itemId);
   if (!item) return;
-  await paymentService.toggleItemPayment(parcel.value.id, itemId, item.customerId);
-  refresh();
+  const next = !settlement.value?.paidItems.has(itemId);
+  previewPayment(item.customerId, [itemId], next ?? false, false);
+  try {
+    await paymentService.toggleItemPayment(current.id, itemId, item.customerId);
+    await load();
+  } catch (err) {
+    toastState.add({ message: "Не удалось изменить оплату товара", type: "error" });
+    console.error(err);
+  } finally {
+    clearPending();
+  }
 }
 
 function openWizard(itemId: number | null, step: ItemFormStep): void {
@@ -237,15 +308,21 @@ async function confirmDelete(): Promise<void> {
     </section>
 
     <div class="parcel-calc" aria-label="Расчёт по посылке">
-      <span
-        v-for="bullet in calculation"
-        :key="bullet.label"
-        class="parcel-calc__item"
-        :class="{ 'is-total': bullet.strong, 'is-warn': bullet.warn }"
-      >
-        <span class="parcel-calc__label">{{ bullet.label }}</span>
-        <b>{{ bullet.value }}</b>
-      </span>
+      <div class="parcel-calc__primary">
+        <div
+          class="parcel-calc__item parcel-calc__item--headline"
+          :class="{ 'is-warn': calculation.remaining.warn }"
+        >
+          <span class="parcel-calc__label">{{ calculation.remaining.label }}</span>
+          <b>{{ calculation.remaining.value }}</b>
+        </div>
+      </div>
+      <dl class="parcel-calc__meta">
+        <div v-for="bullet in calculation.meta" :key="bullet.label" class="parcel-calc__item">
+          <dt class="parcel-calc__label">{{ bullet.label }}</dt>
+          <dd><b>{{ bullet.value }}</b></dd>
+        </div>
+      </dl>
     </div>
 
     <div class="detail-action">

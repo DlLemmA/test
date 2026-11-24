@@ -1,26 +1,35 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onScopeDispose, ref, useTemplateRef } from "vue";
-import { StepperIndicator, StepperItem, StepperRoot, StepperTitle, StepperTrigger } from "reka-ui";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { toastState } from "@/core/state";
 import { money, t } from "@/core/utils";
-import { reconcileBatch, type BatchItemInput } from "./domain";
+import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
+import { parcelRepository } from "./infrastructure";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import WizardSteps from "@/features/shared/ui/WizardSteps.vue";
+import type { WizardStep } from "@/features/shared/ui/wizardSteps";
 import CustomerCombo from "./ui/CustomerCombo.vue";
 import { fromSelect, parseItems, type ItemRow, type ItemUiDraft } from "./ui/batchImport";
-import { ITEM_BARE_FORMS, unitLabel } from "./ui/ParcelPresentation";
+import { formatDateNumeric, ITEM_BARE_FORMS, unitLabel } from "./ui/ParcelPresentation";
+import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 
+const route = useRoute();
 const router = useRouter();
 
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
 const STEP_LABELS = ["Суммы заказа", "Товары", "Проверка"] as const;
+const STEP_IDS = ["sums", "items", "review"] as const;
 
 const step = ref(1);
 const loaded = ref(false);
+const drafts = ref<Parcel[]>([]);
+/** 0 — create a new parcel; otherwise append the batch to this draft.
+ * Defaults to the newest draft; new parcel is an explicit option. */
+const selectedParcelId = ref(0);
 const customers = ref<Customer[]>([]);
 const expectedRaw = ref("");
 const cnyRaw = ref("");
@@ -57,6 +66,18 @@ const currentBYN = computed(() => items.value.reduce((sum, item) => sum + item.p
 const remaining = computed(() => Math.max(0, totalCNY.value - currentCNY.value));
 const progress = computed(() =>
   Math.min(100, Math.round((currentCNY.value / (totalCNY.value || 1)) * 100)),
+);
+const steps = computed<WizardStep[]>(() =>
+  STEP_LABELS.map((label, index) => {
+    const number = index + 1;
+    return {
+      id: STEP_IDS[index]!,
+      label,
+      disabled: number > step.value,
+      title: number > step.value ? "Сначала заполните предыдущий шаг" : undefined,
+      backValue: number < step.value ? number : undefined,
+    };
+  }),
 );
 
 const review = computed(
@@ -103,12 +124,25 @@ const loadScope = new AbortController();
 onScopeDispose(() => loadScope.abort());
 
 async function load(): Promise<void> {
-  const foundCustomers = await customerRepository.findAll();
+  const [foundParcels, foundCustomers] = await Promise.all([
+    parcelRepository.findAll(),
+    customerRepository.findAll(),
+  ]);
   if (loadScope.signal.aborted) return;
 
+  drafts.value = foundParcels.filter((parcel) => parcel.status === "draft");
+  const latestDraftId = drafts.value[0]?.id ?? 0;
   if (!initialized) {
+    const preset = Number(route.params.parcelId);
+    selectedParcelId.value =
+      drafts.value.find((parcel) => parcel.id === preset)?.id ?? latestDraftId;
     selectedCustomerId.value = foundCustomers[0]?.id ?? null;
     initialized = true;
+  } else if (
+    selectedParcelId.value !== 0 &&
+    !drafts.value.some((parcel) => parcel.id === selectedParcelId.value)
+  ) {
+    selectedParcelId.value = latestDraftId;
   }
   customers.value = foundCustomers;
   loaded.value = true;
@@ -117,6 +151,13 @@ onMounted(load);
 
 function focusNext(selector: string): void {
   void nextTick(() => root.value?.querySelector<HTMLElement>(selector)?.focus());
+}
+
+function navigateStep(id: string): void {
+  const next = STEP_IDS.indexOf(id as (typeof STEP_IDS)[number]) + 1;
+  if (next <= 0 || next >= step.value) return;
+  step.value = next;
+  focusNext("[data-autofocus]");
 }
 
 function setFieldError(field: Field | null, invalid: boolean, message: string): boolean {
@@ -289,11 +330,13 @@ function goToReview(): void {
 async function saveBatch(): Promise<void> {
   saving.value = true;
   try {
-    const { createParcelBatch } = await import("@/features/shared/services");
-    await createParcelBatch(items.value, {
-      totalCNY: totalCNY.value,
-      totalBYN: totalBYN.value,
-    });
+    const services = await import("@/features/shared/services");
+    const totals = { totalCNY: totalCNY.value, totalBYN: totalBYN.value };
+    if (selectedParcelId.value === 0) {
+      await services.createParcelBatch(items.value, totals);
+    } else {
+      await services.addItemsToParcel(selectedParcelId.value, items.value, totals);
+    }
     toastState.add({
       message: `Партия сохранена (${t(ITEM_BARE_FORMS, items.value.length)})`,
       type: "success",
@@ -325,24 +368,12 @@ async function saveBatch(): Promise<void> {
         </p>
       </header>
 
-      <StepperRoot v-model="step" class="wizard-steps" aria-label="Этапы">
-        <StepperItem
-          v-for="(label, index) in STEP_LABELS"
-          :key="label"
-          as="template"
-          :step="index + 1"
-          :disabled="index + 1 > step"
-        >
-          <StepperTrigger
-            class="wizard-step"
-            :class="{ 'is-active': step === index + 1, 'is-done': index + 1 < step }"
-            :data-step-back="index + 1 < step ? index + 1 : undefined"
-          >
-            <StepperIndicator><i>{{ index + 1 }}</i></StepperIndicator>
-            <StepperTitle>{{ label }}</StepperTitle>
-          </StepperTrigger>
-        </StepperItem>
-      </StepperRoot>
+      <WizardSteps
+        :steps="steps"
+        :current="STEP_IDS[step - 1]!"
+        label="Этапы"
+        @navigate="navigateStep"
+      />
 
       <form
         v-if="step === 1"
@@ -354,6 +385,24 @@ async function saveBatch(): Promise<void> {
         @input="clearFieldError"
         @change="clearFieldError"
       >
+        <div class="field">
+          <label for="addParcelSelect">Добавить в посылку</label>
+          <div class="picker">
+            <select
+              id="addParcelSelect"
+              v-model.number="selectedParcelId"
+              class="picker__control"
+              name="parcelId"
+            >
+              <option :value="0">Новая посылка</option>
+              <option v-for="parcel in drafts" :key="parcel.id" :value="parcel.id">
+                Посылка №{{ parcel.id }} · {{ parcelStatusInfo(parcel.status).label }} ·
+                {{ formatDateNumeric(parcel.createdAt) }}
+              </option>
+            </select>
+            <span class="picker__caret" aria-hidden="true" />
+          </div>
+        </div>
         <div class="field">
           <label for="expectedItemsCount">Ожидаемое количество товаров</label>
           <span id="expectedItemsHint" class="small muted block mb-1">

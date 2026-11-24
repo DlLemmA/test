@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { kg, money, t } from "@/core/utils";
+import { money, t } from "@/core/utils";
 import type { CustomerBalance } from "@/features/balances/domain";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import { canPayDelivery } from "@/features/settlement/domain";
@@ -42,8 +42,12 @@ function canToggleGoods(group: ItemGroupView): boolean {
   return !group.customer?.isSelf && props.parcel.status !== "draft";
 }
 
+function hasDelivery(): boolean {
+  return props.settlement.deliveryInvoiced && props.balance.delivery.owed > 0;
+}
+
 function canPayShipping(group: ItemGroupView): boolean {
-  return canPayDelivery(props.parcel, group.customer?.isSelf || false);
+  return canPayDelivery(props.parcel, group.customer?.isSelf || false, props.balance.delivery.owed);
 }
 </script>
 
@@ -69,15 +73,16 @@ function canPayShipping(group: ItemGroupView): boolean {
             :class="props.balance.remaining > 0 ? 'state-warn' : 'state-good'"
           >
             {{
-              props.balance.remaining > 0 ? `Остаток ${money(props.balance.remaining)}` : "Оплачено"
+              props.balance.remaining > 0
+                ? `${props.group.customer?.isSelf ? "Остаток" : "Долг"} ${money(props.balance.remaining)}`
+                : "Оплачено"
             }}
           </span>
         </div>
         <div class="parcel-entry__hint">
           {{ t(ITEM_FORMS, props.group.rows.length) }} ·
-          {{ groupWeight(props.group) > 0 ? `${kg(groupWeight(props.group))} кг` : "вес —" }} ·
-          товары {{ money(groupTotal(props.group)) }} · доставка
-          {{ money(props.balance.delivery.owed) }} ·
+          {{ groupWeight(props.group) > 0 ? `${groupWeight(props.group)} г` : "вес —" }} · товары
+          {{ money(groupTotal(props.group)) }} · доставка {{ money(props.balance.delivery.owed) }} ·
           <span class="settle-entry__total">итого {{ money(props.balance.owed) }}</span>
         </div>
         <div class="settle-entry__checks" @click.stop>
@@ -106,7 +111,7 @@ function canPayShipping(group: ItemGroupView): boolean {
             <span>Товары: {{ goodsPaid(props.group) ? "оплачено" : "не оплачено" }}</span>
           </label>
           <label
-            v-if="props.settlement.deliveryInvoiced"
+            v-if="hasDelivery()"
             class="payment-bullet"
             :class="{
               'is-paid': props.settlement.paidDelivery.has(props.group.customerId),

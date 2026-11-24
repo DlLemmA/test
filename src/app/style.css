@@ -1,7 +1,145 @@
 /* Tailwind v4 */
 @import "tailwindcss";
 
+/* IBM Plex, woff2 only. Explicit ranges keep Latin and Cyrillic in one face. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-cyrillic-400-normal.woff2")
+    format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-cyrillic-500-normal.woff2")
+    format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-cyrillic-600-normal.woff2")
+    format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-700-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/ibm-plex-sans/files/ibm-plex-sans-cyrillic-700-normal.woff2")
+    format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-cyrillic-400-normal.woff2")
+    format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-cyrillic-600-normal.woff2")
+    format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-700-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-cyrillic-700-normal.woff2")
+    format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
 @theme {
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
   /* Neutral paper first. Pink is a signal color, never a page background. */
   --color-paper: #fdfbf6;
   --color-canvas: #f7f4ed;
@@ -60,7 +198,7 @@
     margin: 0;
     background-color: var(--color-canvas);
     color: var(--color-ink);
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: var(--font-sans);
     font-size: 15px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
@@ -89,9 +227,13 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
-  :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
     outline: 3px solid var(--color-accent);
     outline-offset: 2px;
+  }
+  :where(button, a, summary, [role="button"]) {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .icon {
     display: inline-block;
@@ -332,6 +474,139 @@
   }
 }
 
+/* === Interaction feedback — one physical response for every action === */
+@layer components {
+  :where(
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger,
+    .btn-danger-solid,
+    .btn-icon,
+    .text-btn,
+    .header-btn,
+    .bottombar-item,
+    .entry-menu__trigger,
+    .item-search__filter,
+    .payment-bullet,
+    .checkline,
+    .customer-combo__option,
+    .batch-add__mode,
+    .entry-menu__list button
+  ) {
+    transition:
+      background-color 150ms ease-out,
+      border-color 150ms ease-out,
+      color 150ms ease-out,
+      box-shadow 150ms ease-out,
+      scale 120ms ease-out;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent-strong);
+    box-shadow: 0 4px 12px rgb(216 27 96 / 0.18);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--color-accent-line);
+  }
+  .text-btn:hover,
+  .header-btn:hover {
+    background: var(--color-accent-wash);
+    color: var(--color-accent-strong);
+  }
+  .entry-menu__trigger:hover {
+    border-color: var(--color-accent-line);
+    background: var(--color-accent-wash);
+    color: var(--color-accent-strong);
+  }
+  .parcel-entry__actions > .btn-icon:hover {
+    background: var(--color-accent-soft);
+    box-shadow: 0 2px 8px rgb(216 27 96 / 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(button, a, [role="button"]):not(:disabled):active {
+    scale: 0.97;
+  }
+}
+
+/* === Route motion — the page moves, the header and dock stay put === */
+.view-panel {
+  view-transition-name: panel-root;
+}
+.auth-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  color: var(--color-muted);
+  background: var(--color-canvas);
+}
+
+::view-transition-group(panel-root),
+::view-transition-old(panel-root),
+::view-transition-new(panel-root),
+::view-transition-group(parcel-title),
+::view-transition-old(parcel-title),
+::view-transition-new(parcel-title),
+::view-transition-group(parcel-date),
+::view-transition-old(parcel-date),
+::view-transition-new(parcel-date),
+::view-transition-group(parcel-status),
+::view-transition-old(parcel-status),
+::view-transition-new(parcel-status),
+::view-transition-group(parcel-next),
+::view-transition-old(parcel-next),
+::view-transition-new(parcel-next) {
+  animation-duration: 260ms;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes panel-slide-out-left {
+  to {
+    transform: translateX(-14%);
+    opacity: 0;
+  }
+}
+@keyframes panel-slide-in-right {
+  from {
+    transform: translateX(14%);
+    opacity: 0;
+  }
+}
+@keyframes panel-slide-out-right {
+  to {
+    transform: translateX(14%);
+    opacity: 0;
+  }
+}
+@keyframes panel-slide-in-left {
+  from {
+    transform: translateX(-14%);
+    opacity: 0;
+  }
+}
+
+html:active-view-transition-type(forward)::view-transition-old(panel-root) {
+  animation-name: panel-slide-out-left;
+}
+html:active-view-transition-type(forward)::view-transition-new(panel-root) {
+  animation-name: panel-slide-in-right;
+}
+html:active-view-transition-type(backward)::view-transition-old(panel-root) {
+  animation-name: panel-slide-out-right;
+}
+html:active-view-transition-type(backward)::view-transition-new(panel-root) {
+  animation-name: panel-slide-in-left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 /* ============================================================
    PAGE SYSTEM — every screen has its own layout language.
    Neutral paper underneath; pink only marks status and action.
@@ -356,7 +631,7 @@
 }
 .page-head__count {
   color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
 }
 .page-head__note {
@@ -378,7 +653,7 @@
 }
 .register-line b {
   color: var(--color-ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 700;
 }
@@ -531,17 +806,143 @@
   gap: 2px;
 }
 .header-btn {
-  min-height: 32px;
-  padding: 5px 9px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 10px;
   background: transparent;
   color: var(--color-ink-soft);
   font-size: 12px;
   font-weight: 600;
 }
+.header-btn .icon {
+  width: 15px;
+  height: 15px;
+}
 .header-btn:active {
   background: var(--color-slate-100);
   color: var(--color-accent-strong);
+}
+
+/* === Sign-in — the same paper slip, no SaaS card === */
+.sign-in {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--color-canvas);
+}
+.sign-in__card {
+  width: min(100%, 420px);
+  padding: 28px;
+  border: 1px solid var(--color-line-strong);
+  border-top: 3px solid var(--color-accent);
+  border-radius: 12px;
+  background: var(--color-paper);
+  box-shadow: none;
+}
+.sign-in__mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 14px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 10px;
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+}
+.sign-in__mark .icon {
+  width: 20px;
+  height: 20px;
+}
+.sign-in__eyebrow {
+  margin: 0 0 4px;
+  color: var(--color-accent-strong);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sign-in h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: -0.03em;
+}
+.sign-in__lead {
+  margin: 6px 0 20px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+.sign-in__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sign-in__form label {
+  font-weight: 600;
+}
+.sign-in__form input {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--color-ink);
+  font-size: max(1rem, 1em);
+}
+.sign-in__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  margin-top: 4px;
+}
+.sign-in__dev {
+  display: grid;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--color-line-strong);
+}
+.sign-in__dev-label,
+.sign-in__dev-hint {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+.sign-in__dev-label {
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sign-in__dev-hint {
+  font-size: 12px;
+}
+.sign-in__test {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.sign-in__hint,
+.sign-in__status {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+.sign-in__status {
+  min-height: 1.25em;
+  margin-top: 10px;
+}
+.sign-in .is-success {
+  color: var(--color-positive);
+}
+.sign-in .is-error {
+  color: var(--color-negative);
 }
 
 /* === Bottom bar — floating glass dock ===
@@ -584,6 +985,37 @@
     inset 0 1px 0 rgb(255 255 255 / 0.95),
     inset 0 -1px 0 rgb(216 27 96 / 0.08);
 }
+/* One anchored pill slides between tabs instead of a background popping. */
+.bottombar::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  position-anchor: --bottombar-active;
+  inset-block: anchor(self-start) anchor(self-end);
+  inset-inline: anchor(self-start) anchor(self-end);
+  border-radius: 18px;
+  background: var(--color-accent-soft);
+  box-shadow:
+    inset 0 0 0 1px rgb(216 27 96 / 0.18),
+    0 1px 2px rgb(42 29 39 / 0.05);
+  pointer-events: none;
+}
+@supports not (position-anchor: --bottombar-active) {
+  .bottombar::before {
+    content: none;
+  }
+  .bottombar-item.active {
+    background: var(--color-accent-soft);
+    box-shadow:
+      inset 0 0 0 1px rgb(216 27 96 / 0.18),
+      0 1px 2px rgb(42 29 39 / 0.05);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bottombar::before {
+    transition: inset 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+}
 /* Opaque fallback where translucency is unavailable */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .bottombar {
@@ -597,6 +1029,7 @@
 
 .bottombar-item {
   position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -618,11 +1051,10 @@
 }
 /* Shape + surface, not color alone, marks the current tab */
 .bottombar-item.active {
+  anchor-name: --bottombar-active;
   color: var(--color-accent-strong);
-  background: var(--color-accent-soft);
-  box-shadow:
-    inset 0 0 0 1px rgb(216 27 96 / 0.18),
-    0 1px 2px rgb(42 29 39 / 0.05);
+  background: transparent;
+  box-shadow: none;
 }
 .bottombar-item.active .icon {
   color: var(--color-accent);
@@ -658,6 +1090,11 @@
     box-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+  .bottombar::before {
+    border: 2px solid Highlight;
+    background: transparent;
+    box-shadow: none;
   }
   .bottombar-item.active {
     outline: 2px solid Highlight;
@@ -722,6 +1159,18 @@
   background: var(--color-positive);
 }
 
+.toast__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 18px;
+  block-size: 18px;
+}
+.toast__icon .icon {
+  inline-size: 18px;
+  block-size: 18px;
+  vertical-align: middle;
+}
 .toast__message {
   min-width: 0;
 }
@@ -828,8 +1277,8 @@
 }
 .drawer-close {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -874,6 +1323,7 @@
    ============================================================ */
 /* --- Screen 1: parcel index — a warm paper ledger, date first --- */
 .page-parcels {
+  container: ledger / inline-size;
   padding: 4px 0 0;
 }
 .page-parcels .section.parcel-index {
@@ -903,7 +1353,7 @@
 }
 .parcel-entry__date b {
   color: var(--color-ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.05em;
@@ -935,6 +1385,26 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.parcel-entry.is-vt-source .parcel-entry__head > b,
+.page-parcel-detail .detail-hero h1 {
+  view-transition-name: parcel-title;
+  width: fit-content;
+}
+.parcel-entry.is-vt-source .parcel-entry__date,
+.page-parcel-detail .detail-hero__date {
+  view-transition-name: parcel-date;
+  width: fit-content;
+}
+.parcel-entry.is-vt-source .parcel-entry__state,
+.page-parcel-detail .detail-state {
+  view-transition-name: parcel-status;
+  width: fit-content;
+}
+.parcel-entry.is-vt-source .parcel-entry__hint,
+.page-parcel-detail .detail-hero__next {
+  view-transition-name: parcel-next;
+  width: fit-content;
+}
 .parcel-entry__state {
   position: relative;
   flex: none;
@@ -959,7 +1429,7 @@
   color: var(--color-warning);
 }
 .parcel-entry__state.state-info {
-  color: var(--color-accent-strong);
+  color: var(--color-ink-soft);
 }
 .parcel-entry__state.state-good {
   color: var(--color-positive);
@@ -979,8 +1449,8 @@
   gap: 4px;
 }
 .parcel-entry__actions > .btn-icon {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border-color: var(--color-accent-line);
   background: var(--color-accent-soft);
@@ -992,8 +1462,8 @@
 .entry-menu__trigger {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 10px;
@@ -1046,51 +1516,8 @@
 /* ============================================================
    From src/features/parcels/parcelAdd.css — parcel add
    ============================================================ */
-/* --- Screen 3: batch wizard — tabs and a plain calculation strip --- */
+/* --- One step navigation for the batch wizard and the item wizard --- */
 .wizard-steps {
-  display: flex;
-  gap: 20px;
-  border-bottom: 1px solid var(--color-line);
-}
-.wizard-step {
-  margin-bottom: -1px;
-  padding: 0 0 8px;
-  border-bottom: 2px solid transparent;
-  color: var(--color-muted);
-  font-size: 13px;
-}
-.page-batch .wizard-step {
-  appearance: none;
-  background: none;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-}
-.page-batch .wizard-step[data-step-back] {
-  cursor: pointer;
-}
-.page-batch .wizard-step[data-step-back]:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
-  border-radius: 2px;
-}
-.wizard-step i {
-  margin-right: 5px;
-  color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-style: normal;
-}
-.wizard-step.is-active {
-  border-bottom-color: var(--color-accent);
-  color: var(--color-ink);
-  font-weight: 650;
-}
-.wizard-step.is-active i {
-  color: var(--color-accent);
-}
-.item-wizard .wizard-steps {
   padding: 4px 0;
 }
 .item-wizard__steps {
@@ -1113,7 +1540,7 @@
   block-size: 1px;
   background: var(--color-line-strong);
 }
-.item-wizard .wizard-step {
+.wizard-step {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1127,6 +1554,10 @@
   cursor: pointer;
   font-size: 12px;
 }
+.wizard-step:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
 .wizard-step__dot {
   display: grid;
   place-items: center;
@@ -1135,32 +1566,33 @@
   border: 1px solid var(--color-line-strong);
   border-radius: 50%;
   color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
 }
-.item-wizard .wizard-step.is-active {
-  border-bottom: 0;
+.wizard-step.is-active {
   color: var(--color-ink);
   font-weight: 650;
 }
-.item-wizard .wizard-step.is-active .wizard-step__dot {
+.wizard-step.is-active .wizard-step__dot {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: #fff;
 }
-.item-wizard .wizard-step.is-done {
+.wizard-step.is-done {
   color: var(--color-ink-soft);
 }
-.item-wizard .wizard-step.is-done .wizard-step__dot {
+.wizard-step.is-done .wizard-step__dot {
   border-color: var(--color-accent);
   color: var(--color-accent-strong);
 }
-.item-wizard .wizard-step:disabled {
+.wizard-step:disabled,
+.wizard-step.is-locked {
   cursor: not-allowed;
   opacity: 0.55;
 }
-.item-wizard .wizard-step:disabled .wizard-step__dot {
+.wizard-step:disabled .wizard-step__dot,
+.wizard-step.is-locked .wizard-step__dot {
   border-style: dashed;
 }
 .item-track-row {
@@ -1232,7 +1664,7 @@
 .weight-row__code {
   overflow-wrap: anywhere;
   color: var(--color-ink-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 .item-wizard__panel {
@@ -1273,7 +1705,7 @@
   color: var(--color-muted);
 }
 @media (pointer: coarse) {
-  .item-wizard .wizard-step {
+  .wizard-step {
     min-block-size: 44px;
     min-inline-size: 44px;
   }
@@ -1528,7 +1960,7 @@ select.picker__control {
   font-size: 12px;
 }
 .rate-strip b {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
@@ -1584,6 +2016,7 @@ select.picker__control {
    ============================================================ */
 /* --- Screen 2: parcel detail — a waybill on the desk, not a dashboard --- */
 .page-parcel-detail {
+  container: ledger / inline-size;
   gap: 4px;
   padding-top: 4px;
 }
@@ -1592,10 +2025,10 @@ select.picker__control {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-block-size: 36px;
-  padding: 6px 8px;
+  min-block-size: 40px;
+  padding: 6px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--color-muted);
   font-size: 13px;
@@ -1614,8 +2047,8 @@ select.picker__control {
   padding: 0 4px 2px;
 }
 .detail-topbar .text-btn {
-  min-block-size: 28px;
-  padding: 2px 4px;
+  min-block-size: 36px;
+  padding: 4px 6px;
   font-size: 12px;
 }
 .detail-topbar__actions {
@@ -1624,7 +2057,7 @@ select.picker__control {
   gap: 4px;
 }
 .detail-topbar__actions .text-btn {
-  min-inline-size: 28px;
+  min-inline-size: 40px;
   justify-content: center;
 }
 .detail-topbar .text-btn svg {
@@ -1647,7 +2080,7 @@ select.picker__control {
 }
 .detail-hero__date b {
   color: var(--color-ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.06em;
@@ -1703,7 +2136,7 @@ select.picker__control {
 }
 .detail-state.state-info,
 .item-state.state-info {
-  color: var(--color-accent-strong);
+  color: var(--color-ink-soft);
 }
 .detail-state.state-good,
 .item-state.state-good {
@@ -1743,13 +2176,16 @@ select.picker__control {
   font-size: 14px;
 }
 
-/* Parcel calculation bullets */
+/* Parcel calculation — one actionable answer, bookkeeping behind it */
 .parcel-calc {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
+  display: grid;
+  gap: 6px;
   padding: 10px 0;
   border-bottom: 1px solid var(--color-line);
+}
+.parcel-calc__primary {
+  display: flex;
+  align-items: baseline;
 }
 .parcel-calc__item {
   display: inline-flex;
@@ -1759,6 +2195,32 @@ select.picker__control {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.parcel-calc__item--headline {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+.parcel-calc__item--headline b {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+.parcel-calc__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+}
+.parcel-calc__meta dd {
+  margin: 0;
+}
 .parcel-calc__label {
   color: var(--color-muted);
 }
@@ -1766,10 +2228,7 @@ select.picker__control {
   color: var(--color-ink-soft);
   font-weight: 650;
 }
-.parcel-calc__item.is-total b {
-  color: var(--color-ink);
-}
-.parcel-calc__item.is-warn b {
+.parcel-calc__item--headline.is-warn b {
   color: var(--color-warning);
 }
 
@@ -1788,7 +2247,7 @@ select.picker__control {
   border-radius: 8px;
   background: var(--color-slate-50);
   color: var(--color-ink-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre;
@@ -1835,7 +2294,8 @@ select.picker__control {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-block-size: 32px;
+  margin: 0;
+  min-block-size: 40px;
   padding: 3px 8px;
   border: 1px solid var(--color-line);
   border-radius: 999px;
@@ -1881,10 +2341,30 @@ select.picker__control {
   padding-block: 8px 10px;
   border-bottom: 1px solid var(--color-line);
 }
+.item-search__field {
+  position: relative;
+  display: flex;
+  flex: 1 1 220px;
+  align-items: center;
+  min-inline-size: 0;
+}
+.item-search__field > span {
+  position: absolute;
+  inset-inline-start: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+.item-search__field .icon {
+  inline-size: 18px;
+  block-size: 18px;
+}
 .item-search__input {
   flex: 1;
   min-inline-size: 0;
   min-block-size: 44px;
+  padding-inline-start: 38px;
   font-size: 16px;
 }
 /* Native clear of type="search" lives inside the input, so it never steals
@@ -1905,6 +2385,7 @@ select.picker__control {
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
+  min-block-size: 40px;
   padding: 6px 10px;
   border: 1px solid var(--color-line-strong);
   border-radius: 999px;
@@ -1969,12 +2450,23 @@ select.picker__control {
   gap: 10px;
   padding: 12px 0;
 }
+/* Settlement is money, not lifecycle: no status dot on the balance line. */
+.settle-entry .parcel-entry__state {
+  color: var(--color-ink-soft);
+  font-size: 12px;
+}
+.settle-entry .parcel-entry__state::before {
+  display: none;
+}
+.settle-entry .parcel-entry__state.state-good {
+  color: var(--color-positive);
+}
 .customer-mark {
   display: grid;
   place-items: center;
   border: 1px solid var(--color-line-strong);
   color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
 }
 .customer-mark--box {
@@ -2058,7 +2550,7 @@ select.picker__control {
 }
 .item-entry__index b {
   color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -2126,13 +2618,13 @@ select.picker__control {
   flex: none;
   width: 18px;
   color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 .track-code {
   flex: 1 1 140px;
   min-inline-size: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -2151,8 +2643,8 @@ select.picker__control {
   margin-top: 6px;
 }
 .page-parcel-detail .item-entry__track-controls .text-btn {
-  min-block-size: 28px;
-  padding: 2px 4px;
+  min-block-size: 36px;
+  padding: 4px 6px;
   color: var(--color-muted);
   font-size: 11px;
 }
@@ -2160,13 +2652,13 @@ select.picker__control {
   color: var(--color-accent-strong);
 }
 .page-parcel-detail .item-entry .parcel-entry__actions > .btn-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
 }
 .page-parcel-detail .item-entry .parcel-entry__actions > .btn-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 .page-parcel-detail .entry-menu__list [data-toggle-payment].is-paid {
   color: var(--color-positive);
@@ -2325,7 +2817,7 @@ select.picker__control {
   left: 12px;
   right: 12px;
   text-align: center;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: #f3ccdc;
   overflow-wrap: anywhere;
@@ -2413,7 +2905,7 @@ select.picker__control {
   border-radius: 10px;
   background: var(--color-accent-wash);
   color: var(--color-ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -2628,7 +3120,7 @@ select.picker__control {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--color-ink-soft);
 }
@@ -2941,7 +3433,7 @@ select.picker__control {
   line-height: 1.25;
 }
 .item-check__price {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
@@ -2955,5 +3447,30 @@ select.picker__control {
   }
   .parcel-entry__date b {
     font-size: 21px;
+  }
+}
+
+/* === Container-driven reflow — the ledger adapts to its own column === */
+@container ledger (max-width: 430px) {
+  .parcel-entry {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .parcel-entry__head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .parcel-entry__head > b {
+    overflow: visible;
+    line-height: 1.25;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .detail-hero {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+  .detail-hero__date b {
+    font-size: 25px;
   }
 }
