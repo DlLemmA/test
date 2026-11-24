@@ -1,7 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 5173;
-const baseURL = `http://127.0.0.1:${port}/test/`;
+const deployedURL = process.env.E2E_BASE_URL;
+const baseURL = deployedURL
+  ? new URL(deployedURL).href.replace(/\/?$/, "/")
+  : `http://127.0.0.1:${port}/test/`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -15,10 +18,14 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: `npm run dev -- --host 127.0.0.1 --port ${port}`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  ...(deployedURL
+    ? {}
+    : {
+        webServer: {
+          command: `npm run dev -- --host 127.0.0.1 --port ${port}`,
+          url: baseURL,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        },
+      }),
 });
