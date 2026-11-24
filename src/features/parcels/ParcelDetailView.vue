@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from "vue";
-import { useEventListener, useSupported } from "@vueuse/core";
+import { computed, onMounted, onScopeDispose, ref, shallowRef } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { toastState, uiState } from "@/core/state";
 import { kg, money } from "@/core/utils";
@@ -8,15 +7,16 @@ import { getParcelStatement, type ParcelStatement } from "@/features/statements/
 import { parcelCommands, paymentService } from "@/features/shared/wiring";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import ConfirmDrawer from "@/features/shared/ui/ConfirmDrawer.vue";
-import { itemsWithoutTracks, parcelReadiness, type Parcel } from "./domain";
+import { parcelReadiness, type Parcel } from "./domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { parcelDate } from "./ui/ParcelPresentation";
 import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/ReadinessCopy";
-import { buildItemGroups, itemSearchCountText } from "./ui/ItemGroups";
 import { openReceiveFlow } from "./ReceiveFlow";
 import { exportParcel } from "./ui/exportParcel";
-import ParcelItemGroups from "./ui/ParcelItemGroups.vue";
+import ParcelComment from "./ui/ParcelComment.vue";
+import ParcelItems from "./ui/ParcelItems.vue";
+import ParcelTrackCopy from "./ui/ParcelTrackCopy.vue";
 import ParcelItemWizard from "./ui/ParcelItemWizard.vue";
 import ParcelShipForm from "./ui/ParcelShipForm.vue";
 import ParcelEditForm from "./ui/ParcelEditForm.vue";
@@ -28,13 +28,6 @@ const route = useRoute();
 const router = useRouter();
 
 const statement = shallowRef<ParcelStatement | null>(null);
-const loadedParcelId = ref(0);
-const searchQuery = ref("");
-const missingTracksOnly = ref(false);
-const openGroups = ref<Set<number>>(new Set());
-const commentDraft = ref<string | null>(null);
-const commentFocused = ref(false);
-const countText = ref("");
 
 const shipOpen = ref(false);
 const editOpen = ref(false);
@@ -45,18 +38,8 @@ const wizardItemId = ref<number | null>(null);
 const wizardStep = ref<ItemFormStep>("main");
 const deleteTarget = ref<number | null>(null);
 
-const commentArea = useTemplateRef<HTMLTextAreaElement>("commentArea");
-const commentBlock = useTemplateRef<HTMLDivElement>("commentBlock");
-let countTimer: ReturnType<typeof setTimeout> | null = null;
-
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Ошибка";
-}
-
-function defaultItemStep(status: Parcel["status"]): ItemFormStep {
-  if (status === "draft" || status === "shipped") return "tracks";
-  if (status === "received") return "weights";
-  return "main";
 }
 
 const loadScope = new AbortController();
@@ -75,12 +58,6 @@ async function load(): Promise<void> {
     uiState.setCurrentParcelId(null);
     void router.push({ name: "parcels" });
     return;
-  }
-  if (loadedParcelId.value !== result.parcel.id) {
-    loadedParcelId.value = result.parcel.id;
-    searchQuery.value = "";
-    missingTracksOnly.value = false;
-    openGroups.value = new Set();
   }
   statement.value = result;
 }
@@ -101,9 +78,6 @@ const date = computed(() => (parcel.value ? parcelDate(parcel.value) : null));
 const status = computed(() => (parcel.value ? parcelStatusInfo(parcel.value.status) : null));
 const trackNumbers = computed(() =>
   items.value.flatMap((item) => item.trackNumbers.map((track) => track.trim()).filter(Boolean)),
-);
-const missingTracks = computed(() =>
-  parcel.value?.status === "draft" ? itemsWithoutTracks(items.value) : 0,
 );
 const boxWeight = computed(() => parcel.value?.boxWeightG || 0);
 const tariffPerKg = computed(() => {
@@ -127,133 +101,6 @@ const calculation = computed(() => {
     },
     { label: "Остаток", value: money(remaining), warn: remaining > 0 },
   ];
-});
-
-const itemGroups = computed(() =>
-  parcel.value
-    ? buildItemGroups(
-        items.value,
-        customers.value,
-        parcel.value.status,
-        searchQuery.value,
-        missingTracksOnly.value,
-      )
-    : { groups: [], result: { visible: 0, total: 0, queryLength: 0, missingOnly: false } },
-);
-const searching = computed(
-  () => itemGroups.value.result.queryLength > 0 || missingTracksOnly.value,
-);
-
-watch(
-  [searching, itemGroups],
-  ([active, groups]) => {
-    if (!active) return;
-    const next = new Set(openGroups.value);
-    let changed = false;
-    for (const group of groups.groups) {
-      if (group.visibleRows.length > 0 && !next.has(group.customerId)) {
-        next.add(group.customerId);
-        changed = true;
-      }
-    }
-    if (changed) openGroups.value = next;
-  },
-  { immediate: true },
-);
-const noResults = computed(() => searching.value && itemGroups.value.result.visible === 0);
-const showMissingFilter = computed(
-  () => parcel.value?.status === "draft" && (missingTracks.value > 0 || missingTracksOnly.value),
-);
-
-watch(
-  () => itemGroups.value.result,
-  (result) => {
-    if (countTimer) clearTimeout(countTimer);
-    countTimer = setTimeout(() => {
-      countText.value = itemSearchCountText(result);
-    }, 180);
-  },
-  { immediate: true },
-);
-
-const commentValue = computed(() => commentDraft.value ?? parcel.value?.comment ?? "");
-const commentRows = computed(() =>
-  commentFocused.value ? Math.min(16, Math.max(2, commentValue.value.split("\n").length)) : 1,
-);
-
-function resizeComment(): void {
-  const area = commentArea.value;
-  if (!area) return;
-  area.style.height = "auto";
-  area.style.height = `${area.scrollHeight}px`;
-}
-
-function expandComment(): void {
-  if (commentFocused.value) return;
-  commentFocused.value = true;
-  void resizeComment();
-}
-
-function collapseComment(): void {
-  commentFocused.value = false;
-  if (commentArea.value) commentArea.value.style.height = "";
-}
-
-function blurComment(): void {
-  collapseComment();
-  const next = (commentDraft.value ?? commentArea.value?.value ?? "").trim();
-  commentDraft.value = null;
-  if (!parcel.value || next === (parcel.value.comment ?? "")) return;
-  void parcelCommands
-    .updateParcel(parcel.value.id, { comment: next || null })
-    .then(() => toastState.add({ message: "Заметка сохранена", type: "success" }))
-    .catch((err) => {
-      toastState.add({ message: "Не удалось сохранить заметку", type: "error" });
-      console.error(err);
-    });
-}
-
-function clearSearch(): void {
-  searchQuery.value = "";
-  missingTracksOnly.value = false;
-}
-
-async function copyTracks(button: HTMLElement, source: HTMLElement): Promise<void> {
-  const text = source instanceof HTMLTextAreaElement ? source.value : source.innerText.trim();
-  if (!text) {
-    toastState.add({ message: "В посылке нет трек-номеров", type: "warn" });
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    toastState.add({ message: "Трек-номера скопированы", type: "success" });
-  } catch {
-    toastState.add({ message: "Не удалось скопировать трек-номера", type: "error" });
-  }
-}
-
-function onCopyCommand(event: Event): void {
-  const commandEvent = event as Event & { command?: string; source?: HTMLElement };
-  if (commandEvent.command !== "--copy-tracks") return;
-  const source = commandEvent.target as HTMLElement | null;
-  if (source) void copyTracks(commandEvent.source as HTMLElement, source);
-}
-
-function onCopyFallback(event: MouseEvent): void {
-  const button = (event.target as Element | null)?.closest<HTMLButtonElement>(
-    'button[command="--copy-tracks"]',
-  );
-  if (!button) return;
-  const source = document.getElementById(button.getAttribute("commandfor") || "");
-  if (source) void copyTracks(button, source);
-}
-
-const hasCommandEvent = useSupported(() => "CommandEvent" in window);
-const copyFallbackTarget = computed(() => (hasCommandEvent.value ? null : document));
-useEventListener(document, "command", onCopyCommand, { capture: true });
-useEventListener(copyFallbackTarget, "click", onCopyFallback);
-onScopeDispose(() => {
-  if (countTimer) clearTimeout(countTimer);
 });
 
 function openShip(): void {
@@ -306,21 +153,6 @@ async function markDone(): Promise<void> {
   }
 }
 
-/** `toggle` also fires when Vue sets `open`; set the reported state instead of flipping it. */
-function toggleGroup(customerId: number, open: boolean): void {
-  const next = new Set(openGroups.value);
-  if (open === next.has(customerId)) return;
-  if (open) next.add(customerId);
-  else next.delete(customerId);
-  openGroups.value = next;
-}
-
-function closeGroup(customerId: number): void {
-  const next = new Set(openGroups.value);
-  if (!next.delete(customerId)) return;
-  openGroups.value = next;
-}
-
 async function toggleGoods(customerId: number, checked: boolean): Promise<void> {
   if (!parcel.value) return;
   await paymentService.setParcelPayment(
@@ -347,21 +179,18 @@ async function toggleItemPayment(itemId: number): Promise<void> {
   refresh();
 }
 
-function openWizard(itemId: number | null, customerId: number, step: ItemFormStep): void {
-  closeGroup(customerId);
+function openWizard(itemId: number | null, step: ItemFormStep): void {
   wizardItemId.value = itemId;
   wizardStep.value = step;
   wizardOpen.value = true;
 }
 
-function openMove(itemId: number, customerId: number): void {
-  closeGroup(customerId);
+function openMove(itemId: number): void {
   moveItemId.value = itemId;
   moveOpen.value = true;
 }
 
-function openDelete(itemId: number, customerId: number): void {
-  closeGroup(customerId);
+function openDelete(itemId: number): void {
   deleteTarget.value = itemId;
 }
 
@@ -386,29 +215,12 @@ async function confirmDelete(): Promise<void> {
         <AppIcon name="chevronLeft" /> Все посылки
       </RouterLink>
       <div class="detail-topbar__actions">
-        <button
-          type="button"
-          class="text-btn"
-          id="copyParcelTracks"
-          command="--copy-tracks"
-          commandfor="parcelTracksSource"
-        >
-          <span class="sr-only">Скопировать трек-номера</span>
-          <span aria-hidden="true"><AppIcon name="copy" /> Трек-номера</span>
-        </button>
+        <ParcelTrackCopy :track-numbers="trackNumbers" />
         <button type="button" class="text-btn" id="editParcel" @click="editOpen = true">
           <AppIcon name="pencil" /> Изменить
         </button>
       </div>
     </div>
-    <textarea
-      id="parcelTracksSource"
-      class="sr-only"
-      readonly
-      tabindex="-1"
-      aria-hidden="true"
-      :value="trackNumbers.join('\n')"
-    />
 
     <section class="detail-hero" :data-status="parcel.status">
       <div class="detail-hero__date" :title="date.title">
@@ -474,115 +286,23 @@ async function confirmDelete(): Promise<void> {
       </button>
     </div>
 
-    <div id="parcelCommentBlock" class="parcel-comment" :class="{ 'is-expanded': commentFocused }">
-      <textarea
-        id="parcelCommentText"
-        ref="commentArea"
-        :value="commentValue"
-        class="parcel-comment__text"
-        :rows="commentRows"
-        placeholder="Заметка о посылке…"
-        aria-label="Заметка о посылке"
-        @focus="expandComment"
-        @click="expandComment"
-        @input="
-          commentDraft = ($event.target as HTMLTextAreaElement).value;
-          resizeComment();
-        "
-        @keydown.esc="($event.target as HTMLTextAreaElement).blur()"
-        @blur="blurComment"
-      />
-    </div>
+    <ParcelComment :parcel-id="parcel.id" :comment="parcel.comment" />
 
-    <div
-      v-if="items.length > 0"
-      class="item-search"
-      role="search"
-      aria-label="Поиск товаров в посылке"
-    >
-      <label class="sr-only" for="parcelItemSearch">Поиск товаров</label>
-      <input
-        id="parcelItemSearch"
-        v-model="searchQuery"
-        type="search"
-        class="item-search__input"
-        name="itemSearch"
-        placeholder="Название, заказчик или трек"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="none"
-        spellcheck="false"
-        enterkeyhint="search"
-        @keydown.esc.prevent="clearSearch"
-      />
-      <button
-        v-if="showMissingFilter"
-        type="button"
-        id="missingTracksFilter"
-        class="item-search__filter"
-        :class="{ 'is-active': missingTracksOnly }"
-        :aria-pressed="missingTracksOnly"
-        :title="missingTracksOnly ? 'Снять фильтр «Без треков»' : 'Показать товары без треков'"
-        @click="missingTracksOnly = !missingTracksOnly"
-      >
-        Без треков <b>{{ missingTracks }}</b
-        ><span class="item-search__filter-x" aria-hidden="true">×</span>
-      </button>
-      <span
-        id="parcelItemSearchCount"
-        class="item-search__count"
-        role="status"
-        aria-live="polite"
-        :hidden="countText.length === 0"
-        >{{ countText }}</span
-      >
-    </div>
-
-    <section class="section">
-      <header class="section-title with-action">
-        <h2>Товары</h2>
-        <button
-          v-if="parcel.status === 'draft'"
-          type="button"
-          class="text-btn"
-          id="addItem"
-          @click="openWizard(null, 0, 'main')"
-        >
-          <AppIcon name="plus" /> Добавить
-        </button>
-      </header>
-      <div id="parcelItemsList">
-        <ParcelItemGroups
-          :groups="itemGroups.groups"
-          :searching="searching"
-          :parcel="parcel"
-          :balances="balances"
-          :delivery-by-item="deliveryByItem"
-          :settlement="settlement"
-          :open-customer-groups="openGroups"
-          @toggle-group="toggleGroup"
-          @close-group="closeGroup"
-          @toggle-goods="toggleGoods"
-          @toggle-shipping="toggleShipping"
-          @edit-item="
-            (itemId, customerId) =>
-              openWizard(itemId, customerId, defaultItemStep(parcel?.status ?? 'draft'))
-          "
-          @move-item="(itemId, customerId) => openMove(itemId, customerId)"
-          @delete-item="(itemId, customerId) => openDelete(itemId, customerId)"
-          @add-track="(itemId, customerId) => openWizard(itemId, customerId, 'tracks')"
-          @toggle-item-payment="toggleItemPayment"
-        />
-        <p
-          v-if="items.length > 0"
-          id="parcelItemNoResults"
-          class="empty item-search__empty"
-          :hidden="!noResults"
-        >
-          Ничего не найдено. Измените запрос.
-        </p>
-      </div>
-    </section>
+    <ParcelItems
+      :items="items"
+      :customers="customers"
+      :parcel="parcel"
+      :balances="balances"
+      :delivery-by-item="deliveryByItem"
+      :settlement="settlement"
+      @add-item="openWizard(null, 'main')"
+      @edit-item="openWizard"
+      @move-item="openMove"
+      @delete-item="openDelete"
+      @toggle-goods="(customerId, checked) => toggleGoods(customerId, checked)"
+      @toggle-shipping="toggleShipping"
+      @toggle-item-payment="toggleItemPayment"
+    />
 
     <ParcelShipForm v-model:open="shipOpen" :parcel="parcel" @shipped="refresh" />
     <ParcelEditForm v-model:open="editOpen" :parcel="parcel" @saved="refresh" />

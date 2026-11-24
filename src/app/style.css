@@ -989,11 +989,12 @@
 .entry-menu {
   position: relative;
 }
-.entry-menu summary {
+.entry-menu__trigger {
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
+  padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 10px;
   background: transparent;
@@ -1002,16 +1003,9 @@
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 1px;
-  list-style: none;
-}
-.entry-menu summary::-webkit-details-marker {
-  display: none;
 }
 .entry-menu__list {
-  position: absolute;
   z-index: 20;
-  top: calc(100% + 6px);
-  right: 0;
   min-width: 172px;
   padding: 6px;
   border: 1px solid var(--color-line);
@@ -1033,8 +1027,13 @@
   font-size: 13px;
   text-align: left;
 }
-.entry-menu__list button:hover {
+.entry-menu__list button:hover:not(:disabled),
+.entry-menu__list button[data-highlighted]:not(:disabled) {
   background: var(--color-slate-100);
+}
+.entry-menu__list button:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 .entry-menu__list button svg {
   width: 16px;

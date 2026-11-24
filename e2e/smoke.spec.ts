@@ -7,12 +7,11 @@ test.beforeEach(async ({ page }) => {
 
 /** Item groups and their action menus are collapsed until a user opens them. */
 async function openKatyaItemMenu(page: import("@playwright/test").Page): Promise<void> {
-  await page.locator('details[data-item-group][data-customer="2"] > summary').click();
-  await page
-    .locator("details.entry-menu")
-    .filter({ has: page.locator('[data-toggle-payment="11"]') })
-    .locator("summary")
-    .click();
+  const group = page.locator('details[data-item-group][data-customer="2"]');
+  if (!(await group.evaluate((el) => (el as HTMLDetailsElement).open))) {
+    await group.locator("summary").click();
+  }
+  await page.locator('.item-entry:has([data-edit="11"]) .entry-menu__trigger').click();
 }
 
 test("opens a parcel from the list", async ({ page }) => {
@@ -77,15 +76,15 @@ test("delivery follows one fact on both screens when weight is missing", async (
 test("payment toggle persists and self stays paid", async ({ page }) => {
   await page.goto("/#/parcel/2");
   await openKatyaItemMenu(page);
-  await page.locator('[data-toggle-payment="11"]').click();
+  await page.locator('.entry-menu__list [data-toggle-payment="11"]').click();
 
-  await expect(page.locator('[data-toggle-payment="11"]')).toHaveClass(/is-paid/);
-  await expect(page.locator('[data-toggle-payment="11"]')).toBeDisabled();
-  await expect(page.locator('[data-toggle-payment="10"]')).toBeDisabled();
+  await openKatyaItemMenu(page);
+  await expect(page.locator('.entry-menu__list [data-toggle-payment="11"]')).toBeDisabled();
+  await expect(page.locator('.entry-menu__list [data-toggle-payment="11"]')).toHaveClass(/is-paid/);
 
   await page.reload();
   await openKatyaItemMenu(page);
-  await expect(page.locator('[data-toggle-payment="11"]')).toHaveClass(/is-paid/);
+  await expect(page.locator('.entry-menu__list [data-toggle-payment="11"]')).toBeDisabled();
 
   const paid = await page.evaluate(async () => {
     const payments = await (window as unknown as { appDb: AppDb }).appDb.payments.toArray();
@@ -373,8 +372,8 @@ test("drawer keeps its sheet chrome and action buttons", async ({ page }) => {
   await expect(page.locator(".page-parcels")).toBeVisible();
 
   const entry = page.locator(".parcel-entry").filter({ hasText: "Посылка №1" });
-  await entry.locator("details.entry-menu > summary").click();
-  await entry.locator("[data-del]").click();
+  await entry.locator(".entry-menu__trigger").click();
+  await page.locator(".entry-menu__list [data-del]").click();
   await expect(page.locator(".drawer-content .notice")).toBeVisible();
 
   const chrome = await page.evaluate(() => {
@@ -419,6 +418,25 @@ test("drawer keeps its sheet chrome and action buttons", async ({ page }) => {
   expect(chrome.actions.display).toBe("flex");
 });
 
+test("header owns backup and demo drawers", async ({ page }) => {
+  await page.goto("/#/parcels");
+  await expect(page.locator(".page-parcels")).toBeVisible();
+
+  await page.locator("#backupBtn").click();
+  await expect(page.getByText("База / резерв")).toBeVisible();
+  await expect(page.locator("#dbFile")).toBeAttached();
+  await page.locator(".drawer-close").click();
+  await expect(page.getByText("База / резерв")).toBeHidden();
+
+  await page.locator("#demoBtn").click();
+  await expect(page.getByText("Загрузить демо-данные")).toBeVisible();
+  await expect(
+    page.getByText("Это заменит ВСЕ текущие данные (заказчики, посылки, товары). Продолжить?"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Отмена" }).click();
+  await expect(page.getByText("Загрузить демо-данные")).toBeHidden();
+});
+
 test("shared parcel-entry styles load on every route", async ({ page }) => {
   async function expectParcelEntryStyles(route: string): Promise<void> {
     await page.goto(route);
@@ -459,8 +477,8 @@ test("parcel deletion drawer cancels and confirms", async ({ page }) => {
 
   async function openDeleteDrawer(): Promise<void> {
     const entry = page.locator(".parcel-entry").filter({ hasText: "Посылка №1" });
-    await entry.locator("details.entry-menu > summary").click();
-    await entry.locator("[data-del]").click();
+    await entry.locator(".entry-menu__trigger").click();
+    await page.locator(".entry-menu__list [data-del]").click();
   }
 
   await openDeleteDrawer();
