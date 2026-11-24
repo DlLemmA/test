@@ -394,7 +394,7 @@ test("drawer keeps its sheet chrome and action buttons", async ({ page }) => {
 });
 
 test("shared parcel-entry styles load on every route", async ({ page }) => {
-  for (const route of ["/#/customer/2", "/#/parcel/2", "/#/parcels"]) {
+  async function expectParcelEntryStyles(route: string): Promise<void> {
     await page.goto(route);
     await page.reload();
 
@@ -421,6 +421,10 @@ test("shared parcel-entry styles load on every route", async ({ page }) => {
     expect(stateStyle.padding).toBe("9px");
     expect(stateStyle.dot).toBe("5px");
   }
+
+  await expectParcelEntryStyles("/#/customer/2");
+  await expectParcelEntryStyles("/#/parcel/2");
+  await expectParcelEntryStyles("/#/parcels");
 });
 
 test("parcel deletion drawer cancels and confirms", async ({ page }) => {

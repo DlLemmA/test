@@ -1,8 +1,6 @@
 <script setup lang="ts">
 // Vue adapter for the app-level sheet contract: title + content + close.
-// core/drawer.ts is the DOM adapter for callers that still build HTML strings.
-// Reka owns focus, Escape, outside-press, scroll lock and swipe here; the
-// sheet module owns the same behaviour for the HTML-string adapter.
+// Reka owns focus, Escape, outside-press, scroll lock and swipe.
 import {
   DrawerClose,
   DrawerContent,

@@ -75,11 +75,10 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
   let state = initialReceivingState(parcel, items, customers);
   const facts = () => receivingFacts(state);
 
-  const document_ = document;
-  document_.getElementById("receiveFlow")?.remove();
+  document.getElementById("receiveFlow")?.remove();
 
   const isRescan = facts().isRescan;
-  const dialog = document_.createElement("dialog");
+  const dialog = document.createElement("dialog");
   dialog.id = "receiveFlow";
   dialog.className = "rf-dialog";
   dialog.setAttribute("aria-labelledby", "rfTitle");
@@ -103,7 +102,7 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       <section class="rf-sheet" id="rfSheet"></section>
     </div>
   `;
-  document_.body.appendChild(dialog);
+  document.body.appendChild(dialog);
   dialog.showModal();
 
   const sheet = dialog.querySelector<HTMLElement>("#rfSheet")!;
@@ -435,6 +434,8 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
     }
 
     dispatch({ type: "manualWeights", values });
+    // Each save dispatches `itemSaved`; keep those reducer updates ordered.
+    // oxlint-disable-next-line no-await-in-loop
     for (const itemId of changedItems) await persistWeights(itemId);
     toastState.add({ message: "Веса сохранены", type: "success" });
   }
@@ -443,6 +444,8 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
     if (state.saving) return;
     dispatch({ type: "commitStart" });
     try {
+      // Finish commits one item at a time so a failure leaves earlier items saved.
+      // oxlint-disable-next-line no-await-in-loop
       for (const item of itemsToFinish(state)) await deps.store.finishItem(item.id);
       dispatch({ type: "commitDone" });
       dialog.close();

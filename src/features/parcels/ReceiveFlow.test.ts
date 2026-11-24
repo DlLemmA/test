@@ -78,15 +78,19 @@ function submit(id: string): void {
     .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 }
 
+function showModal(this: HTMLDialogElement): void {
+  this.open = true;
+}
+
+function close(this: HTMLDialogElement): void {
+  this.open = false;
+  this.dispatchEvent(new Event("close"));
+}
+
 beforeEach(() => {
   document.body.innerHTML = "";
-  HTMLDialogElement.prototype.showModal = function showModal() {
-    this.open = true;
-  };
-  HTMLDialogElement.prototype.close = function close() {
-    this.open = false;
-    this.dispatchEvent(new Event("close"));
-  };
+  HTMLDialogElement.prototype.showModal = showModal;
+  HTMLDialogElement.prototype.close = close;
 });
 
 describe("receiving flow without a camera", () => {

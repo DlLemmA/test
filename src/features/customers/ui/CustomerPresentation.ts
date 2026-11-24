@@ -64,9 +64,13 @@ function matchScore(customer: CustomerLike, key: string): number {
 /** Best matches first; ties keep the original customer order. */
 export function rankCustomers<T extends CustomerLike>(customers: T[], query: string): T[] {
   const key = customerKey(query);
-  return customers
-    .map((customer, index) => ({ customer, index, score: matchScore(customer, key) }))
-    .filter(({ score }) => score !== NO_MATCH)
-    .sort((a, b) => a.score - b.score || a.index - b.index)
-    .map(({ customer }) => customer);
+  return (
+    customers
+      .map((customer, index) => ({ customer, index, score: matchScore(customer, key) }))
+      .filter(({ score }) => score !== NO_MATCH)
+      // Sorts the freshly mapped array; callers' input keeps its order.
+      // oxlint-disable-next-line unicorn/no-array-sort
+      .sort((a, b) => a.score - b.score || a.index - b.index)
+      .map(({ customer }) => customer)
+  );
 }

@@ -19,7 +19,7 @@ export async function addItemsToParcel(
   totals?: BatchTotals,
 ): Promise<ParcelItem[]> {
   const finalItems = totals ? reconcileBatch(items, totals).items : items;
-  const itemsWithParcelId = finalItems.map((item) => ({ ...item, parcelId }));
+  const itemsWithParcelId = finalItems.map((item) => Object.assign({}, item, { parcelId }));
   const createdItems = await parcelCommands.commitBatch(parcelId, itemsWithParcelId);
   await paymentService.markSelfItemsPaid(parcelId, createdItems);
   return createdItems;

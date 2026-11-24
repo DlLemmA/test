@@ -15,6 +15,8 @@ import {
 
 export class DexieParcelRepository implements ParcelRepository {
   async findAll(): Promise<Parcel[]> {
+    // Dexie's Collection#reverse(), not Array#reverse.
+    // oxlint-disable-next-line unicorn/no-array-reverse
     const rows = await db.parcels.orderBy("createdAt").reverse().toArray();
     return rows.map(Parcel.fromPersistence);
   }
@@ -95,13 +97,13 @@ export class DexieParcelWriteStore implements ParcelWriteStore {
 
   async addItems(items: ParcelItem[]): Promise<ParcelItem[]> {
     return db.transaction("rw", db.parcelItems, async () => {
-      const saved: ParcelItem[] = [];
-      for (const item of items) {
-        const data = item.toPersistence();
-        const id = await db.parcelItems.add(data as any);
-        saved.push(ParcelItem.fromPersistence({ ...data, id }));
-      }
-      return saved;
+      return Promise.all(
+        items.map(async (item) => {
+          const data = item.toPersistence();
+          const id = await db.parcelItems.add(data as any);
+          return ParcelItem.fromPersistence({ ...data, id });
+        }),
+      );
     });
   }
 

@@ -19,6 +19,8 @@ const parcels = shallowRef<Parcel[]>([]);
 const deleteTarget = shallowRef<number | null>(null);
 
 const ordered = computed(() =>
+  // Sorts a copy so the source ref stays in insertion order.
+  // oxlint-disable-next-line unicorn/no-array-sort
   [...parcels.value].sort((a, b) => {
     const ad = a.shippedAt ? Date.parse(a.shippedAt) : 0;
     const bd = b.shippedAt ? Date.parse(b.shippedAt) : 0;

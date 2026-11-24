@@ -72,21 +72,20 @@ export class PaymentService {
   ): Promise<Payment[]> {
     const selfCustomerId = await this.selfCustomerId();
     const payments = await this.paymentRepo.findByParcelAndCustomer(parcelId, customerId);
-    const changed: Payment[] = [];
+    const effective = effectivePaid(customerId, selfCustomerId, paid);
+    const itemPayment = (itemId: number) =>
+      payments.find((p) => p.type === "item" && p.itemId === itemId);
 
-    for (const itemId of itemIds) {
-      const current = payments.find((p) => p.type === "item" && p.itemId === itemId);
-      if ((current?.paid ?? false) === effectivePaid(customerId, selfCustomerId, paid)) {
-        continue;
-      }
-      changed.push(
-        await this.saveItem(current, parcelId, itemId, customerId, paid, selfCustomerId),
-      );
-    }
+    const pending = itemIds.filter((itemId) => (itemPayment(itemId)?.paid ?? false) !== effective);
+    const changed = await Promise.all(
+      pending.map((itemId) =>
+        this.saveItem(itemPayment(itemId), parcelId, itemId, customerId, paid, selfCustomerId),
+      ),
+    );
 
     if (shipping) {
       const current = payments.find((p) => p.type === "shipping");
-      if ((current?.paid ?? false) !== effectivePaid(customerId, selfCustomerId, paid)) {
+      if ((current?.paid ?? false) !== effective) {
         changed.push(await this.saveShipping(current, parcelId, customerId, paid, selfCustomerId));
       }
     }
