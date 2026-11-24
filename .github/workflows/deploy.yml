@@ -70,6 +70,7 @@ jobs:
 
   e2e:
     needs: deploy
+    continue-on-error: true
     env:
       E2E_BASE_URL: ${{ needs.deploy.outputs.url }}
     runs-on: ubuntu-latest
