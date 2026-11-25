@@ -13,7 +13,7 @@ import ScreenState from "@/features/shared/ui/ScreenState.vue";
 import WizardSteps from "@/features/shared/ui/WizardSteps.vue";
 import type { WizardStep } from "@/features/shared/ui/wizardSteps";
 import CustomerCombo from "./ui/CustomerCombo.vue";
-import { fromSelect, parseItems, type ItemRow, type ItemUiDraft } from "./ui/batchImport";
+import { fromSelect, previewImport, type ItemRow, type ItemUiDraft } from "./ui/batchImport";
 import { formatDateNumeric, ITEM_BARE_FORMS, unitLabel } from "./ui/ParcelPresentation";
 import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 
@@ -44,6 +44,7 @@ const csvMode = ref<"plain" | "ui">("plain");
 const csvText = ref("");
 const csvFileName = ref("");
 const csvUiDraft = ref<ItemUiDraft>({ name: "", priceCNY: "", quantity: "1", unit: "pcs" });
+const csvPreview = computed(() => (csvText.value.trim() ? previewImport(csvText.value) : null));
 const saving = ref(false);
 const formError = ref("");
 const saveError = ref("");
@@ -280,17 +281,17 @@ async function addPlainBatch(): Promise<void> {
     csvTextArea.value?.focus();
     return;
   }
-  const parsed = parseItems(csvText.value);
-  if (parsed.error) {
-    setFieldError(csvTextArea.value, true, parsed.error);
-    formError.value = parsed.error;
+  const preview = previewImport(csvText.value);
+  if (preview.error) {
+    setFieldError(csvTextArea.value, true, preview.error);
+    formError.value = preview.error;
     csvTextArea.value?.focus();
     return;
   }
-  appendRows(parsed.rows);
+  appendRows(preview.rows);
   csvText.value = "";
   csvFileName.value = "";
-  toastState.add({ message: `Добавлено в партию: ${parsed.rows.length}`, type: "success" });
+  toastState.add({ message: `Добавлено в партию: ${preview.rows.length}`, type: "success" });
   focusNext("[data-autofocus]");
 }
 
@@ -572,7 +573,7 @@ async function saveBatch(): Promise<void> {
 
           <template v-if="csvMode === 'plain'">
             <div class="batch-add__group">
-              <p class="batch-add__label">Строки или файл</p>
+              <p class="batch-add__label">Строки или файл .csv/.txt</p>
               <p class="small muted">
                 Формат строки: название, количество, единица (шт/уп/пар), цена CNY. Например: «Носки
                 1 шт 22,35».
@@ -614,6 +615,28 @@ async function saveBatch(): Promise<void> {
                 enterkeyhint="enter"
                 placeholder="Носки 1 шт 22,35&#10;Кроссовки беговые 2 уп 45.50"
               />
+              <div v-if="csvPreview" class="import-preview" aria-live="polite">
+                <p class="import-preview__title">Проверка строк</p>
+                <ol class="import-preview__lines">
+                  <li
+                    v-for="line in csvPreview.lines"
+                    :key="line.number"
+                    class="import-preview__line"
+                    :class="{ 'is-error': Boolean(line.error) }"
+                    :data-line="line.number"
+                  >
+                    <span class="import-preview__num">{{ line.number }}</span>
+                    <span class="import-preview__raw">{{ line.raw }}</span>
+                    <span v-if="line.error" class="import-preview__error">
+                      Строка {{ line.number }}: {{ line.error }}
+                    </span>
+                    <span v-else-if="line.row" class="import-preview__ok">
+                      {{ line.row.name }} · {{ line.row.quantity }} ×
+                      {{ money(line.row.priceCNY) }} CNY
+                    </span>
+                  </li>
+                </ol>
+              </div>
             </div>
             <div class="form-actions">
               <button

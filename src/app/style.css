@@ -1892,6 +1892,54 @@
 .csv-file-row .btn-secondary {
   min-height: 44px;
 }
+.import-preview {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-paper);
+}
+.import-preview__title {
+  margin: 0 0 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.import-preview__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.import-preview__line {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 0 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--color-line);
+  font-size: 12px;
+}
+.import-preview__line:first-child {
+  border-top: 0;
+}
+.import-preview__num {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.import-preview__raw {
+  overflow-wrap: anywhere;
+}
+.import-preview__ok,
+.import-preview__error {
+  grid-column: 2;
+  font-size: 11px;
+}
+.import-preview__ok {
+  color: var(--color-positive);
+}
+.import-preview__error {
+  color: var(--color-negative);
+}
 .csv-ui-form {
   padding-top: 10px;
   border-top: 1px solid var(--color-line);
