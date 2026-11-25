@@ -80,6 +80,9 @@ test("presentation vocabulary stays consistent across screens", async ({ page })
   await expect(
     page.locator(".item-entry").filter({ hasText: "Товар Кати" }).locator(".parcel-entry__hint"),
   ).toContainText("1 шт");
+  await expect(
+    page.locator(".item-entry").filter({ hasText: "Товар Кати" }).locator(".parcel-entry__hint"),
+  ).not.toContainText("Катя");
 });
 
 test("amounts agree between the parcel and customer screens", async ({ page }) => {
@@ -115,12 +118,15 @@ test("unpaid items warn without blocking finish", async ({ page }) => {
   await expect(page.locator("#exportParcel")).toBeVisible();
 });
 
-test("draft rows offer a direct track action; received rows show weights", async ({ page }) => {
+test("draft rows offer tracks and payment; received rows show weight", async ({ page }) => {
   await page.goto("/#/parcel/2");
   const receivedRow = page.locator('.item-entry:has([data-edit="11"])');
   await expect(receivedRow.locator('[data-add-track="11"]')).toHaveCount(0);
   await expect(receivedRow.locator(".track-weight")).toHaveText("200 г");
   await expect(receivedRow.locator(".track-code")).toHaveText("KAT-1");
+  await expect(receivedRow.locator('[data-toggle-payment="11"]')).toBeVisible();
+  await expect(receivedRow.locator(".item-entry__index")).toHaveCount(0);
+  await expect(receivedRow.locator(".parcel-entry__state")).toHaveCount(0);
   await expect(receivedRow.locator(".entry-menu__trigger")).toHaveCount(0);
 
   await receivedRow.locator("[data-edit]").click();
@@ -134,37 +140,38 @@ test("draft rows offer a direct track action; received rows show weights", async
   });
   await page.reload();
   const draftRow = page.locator('.item-entry:has([data-edit="11"])');
-  await expect(draftRow.locator('[data-add-track="11"]')).toBeVisible();
+  await expect(draftRow.locator('.item-row__tracks [data-add-track="11"]')).toBeVisible();
+  await expect(draftRow.locator('[data-toggle-payment="11"]')).toBeVisible();
   await expect(draftRow.locator(".track-weight")).toHaveCount(0);
   await expect(draftRow.locator(".track-code")).toHaveText("KAT-1");
 
-  await draftRow.locator("[data-edit]").click();
+  await draftRow.locator('[data-toggle-payment="11"]').check();
+  await expect(draftRow.locator('[data-toggle-payment="11"]')).toBeChecked();
+
+  await page.locator('.item-entry:has([data-edit="11"]) [data-edit="11"]').click();
   await expect(page.locator("[data-panel='tracks']")).toBeVisible();
 });
 
 test("item rows use the ledger line treatment", async ({ page }) => {
   await page.goto("/#/parcel/2");
   const row = page.locator('.item-entry:has([data-edit="11"])');
-  await expect(row.locator(".item-entry__side")).toBeVisible();
+  await expect(row.locator(".item-pay-summary")).toBeVisible();
   await expect(row.locator(".item-entry__price")).toBeVisible();
-  await expect(row.locator(".pay-check")).toBeVisible();
+  await expect(row.locator(".item-pay-summary")).toBeVisible();
   await expect(row.locator(".track-value-row")).toHaveCount(1);
+  await expect(row.locator(".item-entry__index")).toHaveCount(0);
+  await expect(row.locator(".parcel-entry__head .parcel-entry__actions [data-edit]")).toBeVisible();
+  await expect(row.locator(".parcel-entry__hint")).not.toContainText("Катя");
   await expect(
     page.locator('[data-item-group][data-customer="2"] .customer-items-fold > summary'),
-  ).toContainText("Товары");
+  ).toContainText("1 товар");
 
-  const trackRadius = await row
-    .locator(".track-value-row")
-    .evaluate((el) => getComputedStyle(el).borderRadius);
-  const payRadius = await row
-    .locator(".pay-check")
-    .evaluate((el) => getComputedStyle(el).borderRadius);
-  const editBackground = await row
-    .locator(".parcel-entry__actions > .btn-icon")
-    .evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(trackRadius).toBe("6px");
-  expect(payRadius).toBe("999px");
-  expect(editBackground).toBe("rgba(0, 0, 0, 0)");
+  await page.locator("#markAsDone").click();
+  await expect(page.locator('.detail-hero[data-status="done"]')).toBeVisible();
+  const doneRow = page.locator(".item-entry", { hasText: "Товар Кати" });
+  await expect(doneRow.locator(".item-entry__weight")).toHaveText("вес 200 г");
+  await expect(doneRow.locator(".track-value-row")).toHaveCount(0);
+  await expect(doneRow.locator(".pay-summary__label")).toHaveText("Оплачено");
 });
 
 test("delivery follows one fact on both screens when weight is missing", async ({ page }) => {
@@ -238,20 +245,20 @@ test("paid goods without delivery are not shown as paid", async ({ page }) => {
 
 test("payment toggle sits with the price and self stays paid", async ({ page }) => {
   await page.goto("/#/parcel/2");
-  await expect(page.locator('[data-toggle-payment="10"]')).toHaveCount(0);
+  await expect(page.locator('[data-toggle-payment="10"]')).toBeDisabled();
 
+  const row = page.locator(".item-entry", { hasText: "Товар Кати" });
   const pay = page.locator('[data-toggle-payment="11"]');
-  const payLabel = page.locator('.pay-check:has([data-toggle-payment="11"]) .pay-check__label');
+  const paySummary = row.locator(".item-pay-summary");
   await expect(pay).not.toBeChecked();
-  await expect(payLabel).toHaveText("Оплатить");
+  await expect(paySummary).toContainText("Оплачено");
+  await expect(paySummary.locator(".pay-summary__amount")).toContainText("BYN");
   await pay.check();
   await expect(pay).toBeChecked();
-  await expect(payLabel).toHaveText("Оплачено");
 
   // A mistaken payment can be unchecked from the same spot.
   await pay.uncheck();
   await expect(pay).not.toBeChecked();
-  await expect(payLabel).toHaveText("Оплатить");
   await pay.check();
   await expect(pay).toBeChecked();
 

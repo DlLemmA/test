@@ -26,7 +26,7 @@ test.describe("ReceiveParcel", () => {
     await expect(page.locator(".detail-hero__next")).toHaveText("Ждёт распределения");
     const row = page.locator(".item-entry").filter({ hasText: "Товар на приёмку" });
     await expect(row).toContainText("150 г");
-    await expect(row).toContainText("Получен");
+    await expect(row.locator(".parcel-entry__state")).toHaveCount(0);
   });
 
   test("marks a missing item as lost from the list without scanning", async ({ page }) => {

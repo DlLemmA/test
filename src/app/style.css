@@ -488,7 +488,6 @@
     .entry-menu__trigger,
     .item-search__filter,
     .payment-bullet,
-    .pay-check__input,
     .checkline,
     .customer-combo__option,
     .batch-add__mode,
@@ -2488,37 +2487,18 @@ select.picker__control {
   accent-color: var(--color-positive);
 }
 .item-entry {
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 10px;
+  gap: 6px 10px;
   padding: 11px 0 10px;
 }
-.item-entry__index {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding-top: 1px;
-  line-height: 1;
-}
-.item-entry__index b {
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-}
-.item-entry__index span {
-  margin-top: 3px;
-  color: var(--color-muted);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
 .item-entry .parcel-entry__head {
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
 }
 .item-entry .parcel-entry__head b {
+  flex: 1;
+  min-width: 0;
   overflow: visible;
   font-size: 14px;
   line-height: 1.35;
@@ -2526,8 +2506,15 @@ select.picker__control {
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.item-entry .parcel-entry__head .parcel-entry__actions {
+  flex: none;
+  margin-inline-start: auto;
+}
 .item-entry .parcel-entry__state {
   font-size: 10px;
+}
+.item-entry .parcel-entry__state.state-bad {
+  color: var(--color-danger);
 }
 .item-entry .parcel-entry__hint {
   margin-top: 2px;
@@ -2536,20 +2523,6 @@ select.picker__control {
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.item-entry__side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-  min-inline-size: 0;
-}
-.item-entry__pay {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  white-space: nowrap;
-}
 .item-entry__price {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -2557,70 +2530,23 @@ select.picker__control {
   font-variant-numeric: tabular-nums;
 }
 .item-entry__price.is-paid {
-  color: var(--color-accent-strong);
+  color: var(--color-positive);
 }
-.pay-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-block-size: 22px;
-  padding: 2px 6px;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  color: var(--color-muted);
-  cursor: pointer;
-  font-size: 10px;
-  white-space: nowrap;
-}
-.pay-check.is-paid {
-  border-color: var(--color-accent-line);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-strong);
-  cursor: default;
-}
-label.pay-check:hover {
-  border-color: var(--color-accent-line);
-  background: var(--color-accent-wash);
-  color: var(--color-accent-strong);
-}
-.pay-check__input,
-.pay-check__box {
-  display: grid;
-  place-content: center;
-  inline-size: 14px;
-  block-size: 14px;
-  margin: 0;
+.item-pay-summary.pay-summary {
+  min-block-size: 0;
   padding: 0;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 4px;
-  background: var(--color-paper);
+  border-bottom: 0;
+  gap: 8px;
+  grid-template-columns: 16px auto auto;
+  justify-self: start;
 }
-.pay-check__input {
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: pointer;
+.item-pay-summary .pay-summary__label,
+.item-pay-summary .pay-summary__amount {
+  font-size: 12px;
 }
-.pay-check__input::before,
-.pay-check__box::before {
-  content: "";
-  inline-size: 7px;
-  block-size: 4px;
-  border-inline-start: 1.5px solid var(--color-paper);
-  border-block-end: 1.5px solid var(--color-paper);
-  transform: rotate(-45deg) scale(0);
-}
-.pay-check__input:checked,
-.pay-check.is-paid .pay-check__box {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-}
-.pay-check__input:checked::before,
-.pay-check__box::before {
-  transform: rotate(-45deg) scale(1);
-}
-.pay-check__input:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+.item-pay-summary.is-locked {
+  cursor: default;
+  color: var(--color-muted);
 }
 .item-entry__without-delivery,
 .item-check__without-delivery {
@@ -2628,6 +2554,13 @@ label.pay-check:hover {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.item-entry__weight {
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 .item-row__tracks {
   display: flex;
@@ -2640,7 +2573,6 @@ label.pay-check:hover {
   color: var(--color-muted);
   font-size: 11px;
 }
-.item-entry.is-missing-tracks .item-entry__index b,
 .item-entry.is-missing-tracks .item-entry__no-tracks {
   color: var(--color-warning);
 }
@@ -2678,20 +2610,13 @@ label.pay-check:hover {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.item-entry__track-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 5px;
-}
-.page-parcel-detail .item-entry__track-controls .text-btn {
+.item-row__tracks .text-btn {
   min-block-size: 22px;
   padding: 1px 4px;
   color: var(--color-muted);
   font-size: 10px;
 }
-.page-parcel-detail .item-entry__track-controls .text-btn.is-primary {
+.item-row__tracks .text-btn.is-primary {
   color: var(--color-accent-strong);
 }
 .page-parcel-detail .item-entry .parcel-entry__actions > .btn-icon {
@@ -2721,26 +2646,13 @@ label.pay-check:hover {
   .page-parcel-detail .item-entry .parcel-entry__actions > .btn-icon {
     min-inline-size: 44px;
   }
-  .page-parcel-detail .pay-check {
-    min-block-size: 44px;
-  }
   .page-parcel-detail .checkline {
     min-block-size: 44px;
   }
 }
 @media (max-width: 480px) {
   .item-entry {
-    grid-template-columns: 26px minmax(0, 1fr);
-  }
-  .item-entry__side {
-    grid-column: 2;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-start;
-  }
-  .page-parcel-detail .item-entry .parcel-entry__actions {
-    margin-inline-start: auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 360px) {
@@ -3747,6 +3659,9 @@ label.pay-check:hover {
     grid-template-columns: 40px minmax(0, 1fr) auto;
     gap: 8px;
   }
+  .item-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .parcel-entry__date b {
     font-size: 21px;
   }
@@ -3757,6 +3672,9 @@ label.pay-check:hover {
   .parcel-entry {
     grid-template-columns: 40px minmax(0, 1fr) auto;
     gap: 8px;
+  }
+  .item-entry {
+    grid-template-columns: minmax(0, 1fr);
   }
   .parcel-entry__head {
     flex-wrap: wrap;

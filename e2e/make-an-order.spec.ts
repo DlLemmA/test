@@ -56,7 +56,8 @@ test.describe("MakeAnOrder", () => {
     await page.locator('[data-open="1"]').click();
     const selfGroup = page.locator('[data-item-group][data-customer="1"]');
     await expect(selfGroup).toContainText("Товар Я из партии");
-    await expect(selfGroup.locator(".pay-check.is-paid")).toContainText("Оплачено");
+    await expect(selfGroup.locator("[data-toggle-payment]").first()).toBeChecked();
+    await expect(selfGroup.locator(".item-pay-summary")).toContainText("Оплачено");
   });
 
   test("adds a batch to the preselected draft", async ({ page }) => {
@@ -189,6 +190,6 @@ test.describe("MakeAnOrder", () => {
     await page.locator("[data-panel='tracks'] button[type='submit']").click();
 
     await expect(page.locator("#toastContainer")).toContainText("Товар сохранён");
-    await expect(row).toContainText("Треки готовы");
+    await expect(row).toContainText("TRACK-NEW");
   });
 });

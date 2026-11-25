@@ -31,7 +31,7 @@ test.describe("SendAParcel", () => {
   test("blocks an item with no tracks", async ({ page }) => {
     await seedShipFixture(page, "untracked");
     await page.goto("/#/parcel/1");
-    await expect(page.locator(".page-parcel-detail").getByText("Нет треков")).toBeVisible();
+    await expect(page.locator(".item-entry__no-tracks")).toHaveText("Треков пока нет");
 
     await page.locator("#shipParcel").click();
     await expect(

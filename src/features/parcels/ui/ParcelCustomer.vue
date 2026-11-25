@@ -41,7 +41,7 @@ function partiallyPaid(group: ItemGroupView): boolean {
 }
 
 function canToggleGoods(group: ItemGroupView): boolean {
-  return !group.customer?.isSelf && props.parcel.status !== "draft";
+  return !group.customer?.isSelf;
 }
 
 function hasDelivery(): boolean {
@@ -182,7 +182,7 @@ function onFoldToggle(event: Event): void {
     <details class="customer-items-fold" :open="props.foldOpen" @toggle="onFoldToggle">
       <summary class="customer-items-fold__summary" @click="onFoldClick">
         <AppIcon name="chevronRight" />
-        <span>Товары · {{ t(ITEM_FORMS, props.group.visibleRows.length) }}</span>
+        <span>{{ t(ITEM_FORMS, props.group.visibleRows.length) }}</span>
         <span class="customer-items-fold__meta">
           {{ groupWeight(props.group) > 0 ? `${groupWeight(props.group)} г` : "вес —" }} ·
           {{ money(groupTotal(props.group)) }}

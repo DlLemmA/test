@@ -378,15 +378,18 @@ async function submit(): Promise<void> {
             <AppIcon name="plus" /> Добавить трек
           </button>
         </fieldset>
-        <label class="checkline item-wizard__complete">
+        <label class="pay-summary item-wizard__complete">
           <input
             ref="completeCheckbox"
             v-model="tracksCompleted"
             type="checkbox"
+            class="pay-summary__input"
             name="tracksCompleted"
             @change="onCompleteChange"
           />
-          <span>Треки заполнены</span>
+          <span class="pay-summary__body">
+            <span class="pay-summary__label">Треки заполнены</span>
+          </span>
         </label>
         <div class="item-wizard__actions">
           <button type="button" class="text-btn" data-goto="main" @click="goTo('main')">

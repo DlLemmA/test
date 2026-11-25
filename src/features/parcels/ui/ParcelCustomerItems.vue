@@ -4,16 +4,14 @@ import type { SettlementFacts } from "@/features/settlement/domain";
 import AppDropdownMenu from "@/features/shared/ui/AppDropdownMenu.vue";
 import AppDropdownMenuItem from "@/features/shared/ui/AppDropdownMenuItem.vue";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
-import { itemTrackState, type Parcel } from "../domain";
-import { ITEM_FORMS, TRACK_FORMS, unitLabel } from "./ParcelPresentation";
-import { parcelItemStatusInfo } from "./ParcelStatusInfo";
-import { itemTrackBadge } from "./ReadinessCopy";
+import type { Parcel } from "../domain";
+import { itemRowFacts } from "./ItemRowFacts";
+import { TRACK_FORMS, unitLabel } from "./ParcelPresentation";
 import type { ItemRowView } from "./ItemGroups";
 
 const props = defineProps<{
   rows: ItemRowView[];
   customerId: number;
-  groupLabel: string;
   isSelf: boolean;
   parcel: Parcel;
   deliveryByItem: Map<number, number>;
@@ -28,25 +26,17 @@ const emit = defineEmits<{
   toggleItemPayment: [itemId: number];
 }>();
 
-function badge(row: ItemRowView): { label: string; class: string; title: string } {
-  const status = parcelItemStatusInfo(row.item.status);
-  if (props.parcel.status === "draft" && row.item.status !== "lost") {
-    return itemTrackBadge(itemTrackState(row.item));
-  }
-  return { label: status.label, class: status.class, title: "" };
+function facts(row: ItemRowView) {
+  return itemRowFacts(props.parcel.status, row.item, props.isSelf);
 }
 
-function showWeights(): boolean {
-  return props.parcel.status === "received" || props.parcel.status === "done";
+function badgeClass(row: ItemRowView): string {
+  const badge = facts(row).badge;
+  return badge ? `state-${badge.class}` : "";
 }
 
 function itemPaid(itemId: number): boolean {
   return props.settlement.paidItems.has(itemId);
-}
-
-/** Payment lives with the price; self items are paid by policy, not by a button. */
-function canTogglePayment(): boolean {
-  return !props.isSelf && ["shipped", "received", "done"].includes(props.parcel.status);
 }
 </script>
 
@@ -60,23 +50,48 @@ function canTogglePayment(): boolean {
     :data-search="row.searchText"
     :data-needs-tracks="String(row.needsTracks)"
   >
-    <div class="item-entry__index" aria-hidden="true">
-      <b>{{ String(row.position + 1).padStart(2, "0") }}</b>
-      <span>поз.</span>
-    </div>
     <div class="parcel-entry__body min-w-0">
       <div class="parcel-entry__head">
         <b :title="row.item.name">{{ row.item.name }}</b>
-        <span
-          class="parcel-entry__state"
-          :class="`state-${badge(row).class}`"
-          :title="badge(row).title"
-        >
-          {{ badge(row).label }}
+        <span v-if="facts(row).badge" class="parcel-entry__state" :class="badgeClass(row)">
+          {{ facts(row).badge?.label }}
         </span>
+        <div class="parcel-entry__actions">
+          <button
+            v-if="props.parcel.status !== 'done'"
+            type="button"
+            class="btn-icon btn-primary"
+            :data-edit="row.item.id"
+            @click="emit('editItem', row.item.id, props.customerId)"
+          >
+            <span class="sr-only">Изменить товар «{{ row.item.name }}»</span>
+            <AppIcon name="pencil" />
+          </button>
+          <AppDropdownMenu
+            v-if="props.parcel.status === 'draft'"
+            :label="`Действия с товаром «${row.item.name}»`"
+            :title="`Действия с товаром «${row.item.name}»`"
+          >
+            <AppDropdownMenuItem
+              :data-move="row.item.id"
+              :aria-label="`Переместить товар «${row.item.name}»`"
+              @select="emit('moveItem', row.item.id, props.customerId)"
+            >
+              <AppIcon name="arrowRight" /> Переместить
+            </AppDropdownMenuItem>
+            <AppDropdownMenuItem
+              class="is-danger"
+              :data-delete="row.item.id"
+              :aria-label="`Удалить товар «${row.item.name}»`"
+              @select="emit('deleteItem', row.item.id, props.customerId)"
+            >
+              <AppIcon name="trash" /> Удалить
+            </AppDropdownMenuItem>
+          </AppDropdownMenu>
+        </div>
       </div>
       <div class="parcel-entry__hint">
-        {{ props.groupLabel }} · {{ row.item.quantity }} {{ unitLabel(row.item.unit)
+        {{ row.item.quantity }} {{ unitLabel(row.item.unit)
         }}{{
           row.item.trackNumbers.length ? ` · ${t(TRACK_FORMS, row.item.trackNumbers.length)}` : ""
         }}
@@ -87,11 +102,11 @@ function canTogglePayment(): boolean {
           · без доставки {{ money(row.item.totalPriceBYN) }}
         </span>
       </div>
-      <div class="item-row__tracks">
+      <div v-if="facts(row).showTracks" class="item-row__tracks">
         <div v-for="(track, idx) in row.item.trackNumbers" :key="idx" class="track-value-row">
           <span class="track-index" aria-hidden="true">{{ idx + 1 }}</span>
           <span class="track-code">{{ track || "—" }}</span>
-          <span v-if="showWeights()" class="track-weight">
+          <span v-if="facts(row).showTrackWeights" class="track-weight">
             {{ (row.item.weightsG[idx] || 0) > 0 ? `${row.item.weightsG[idx]} г` : "вес не задан" }}
           </span>
         </div>
@@ -101,9 +116,8 @@ function canTogglePayment(): boolean {
         >
           Треков пока нет
         </div>
-      </div>
-      <div v-if="props.parcel.status === 'draft'" class="item-entry__track-controls">
         <button
+          v-if="props.parcel.status === 'draft'"
           type="button"
           class="text-btn"
           :data-add-track="row.item.id"
@@ -112,67 +126,32 @@ function canTogglePayment(): boolean {
           <AppIcon name="plus" /> Добавить трек
         </button>
       </div>
-    </div>
-    <div class="item-entry__side">
-      <span class="item-entry__pay">
-        <span class="item-entry__price" :class="{ 'is-paid': itemPaid(row.item.id) }">
-          {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
-        </span>
-        <label
-          v-if="canTogglePayment()"
-          class="pay-check"
-          :class="{ 'is-paid': itemPaid(row.item.id) }"
-        >
-          <input
-            type="checkbox"
-            class="pay-check__input"
-            :name="`itemPaid-${row.item.id}`"
-            :data-toggle-payment="row.item.id"
-            :checked="itemPaid(row.item.id)"
-            @change="emit('toggleItemPayment', row.item.id)"
-          />
-          <span class="pay-check__label">
-            {{ itemPaid(row.item.id) ? "Оплачено" : "Оплатить" }}
-          </span>
-        </label>
-        <span v-else-if="itemPaid(row.item.id)" class="pay-check is-paid">
-          <span class="pay-check__box" aria-hidden="true" />
-          <span class="pay-check__label">Оплачено</span>
-        </span>
-      </span>
-      <div class="parcel-entry__actions">
-        <button
-          v-if="props.parcel.status !== 'done'"
-          type="button"
-          class="btn-icon btn-primary"
-          :data-edit="row.item.id"
-          @click="emit('editItem', row.item.id, props.customerId)"
-        >
-          <span class="sr-only">Изменить товар «{{ row.item.name }}»</span>
-          <AppIcon name="pencil" />
-        </button>
-        <AppDropdownMenu
-          v-if="props.parcel.status === 'draft'"
-          :label="`Действия с товаром «${row.item.name}»`"
-          :title="`Действия с товаром «${row.item.name}»`"
-        >
-          <AppDropdownMenuItem
-            :data-move="row.item.id"
-            :aria-label="`Переместить товар «${row.item.name}»`"
-            @select="emit('moveItem', row.item.id, props.customerId)"
-          >
-            <AppIcon name="arrowRight" /> Переместить
-          </AppDropdownMenuItem>
-          <AppDropdownMenuItem
-            class="is-danger"
-            :data-delete="row.item.id"
-            :aria-label="`Удалить товар «${row.item.name}»`"
-            @select="emit('deleteItem', row.item.id, props.customerId)"
-          >
-            <AppIcon name="trash" /> Удалить
-          </AppDropdownMenuItem>
-        </AppDropdownMenu>
+      <div v-if="facts(row).compactWeight" class="item-entry__weight">
+        {{ facts(row).compactWeight }}
       </div>
     </div>
+    <label
+      class="pay-summary item-pay-summary"
+      :class="{ 'is-paid': itemPaid(row.item.id), 'is-locked': !facts(row).canPay }"
+    >
+      <input
+        type="checkbox"
+        class="pay-summary__input"
+        :name="`itemPaid-${row.item.id}`"
+        :data-toggle-payment="row.item.id"
+        :checked="itemPaid(row.item.id)"
+        :disabled="!facts(row).canPay"
+        @change="emit('toggleItemPayment', row.item.id)"
+      />
+      <span class="pay-summary__body">
+        <span class="pay-summary__label">Оплачено</span>
+      </span>
+      <span
+        class="pay-summary__amount item-entry__price"
+        :class="{ 'is-paid': itemPaid(row.item.id) }"
+      >
+        {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
+      </span>
+    </label>
   </div>
 </template>
