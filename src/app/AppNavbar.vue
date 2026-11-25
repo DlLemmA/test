@@ -11,10 +11,6 @@ const activeRoute = computed<AppRoute>(() => {
   if (name === "customer") return "people";
   return name ?? "parcels";
 });
-
-function onTabClick(): void {
-  navigator.vibrate?.(10);
-}
 </script>
 
 <template>
@@ -26,7 +22,6 @@ function onTabClick(): void {
         :class="{ active: activeRoute === 'parcels' }"
         :to="{ name: 'parcels' }"
         :aria-current="activeRoute === 'parcels' ? 'page' : undefined"
-        @click="onTabClick"
       >
         <AppIcon name="package" />
         <span>Посылки</span>
@@ -36,7 +31,6 @@ function onTabClick(): void {
         :class="{ active: activeRoute === 'add' }"
         :to="{ name: 'add' }"
         :aria-current="activeRoute === 'add' ? 'page' : undefined"
-        @click="onTabClick"
       >
         <AppIcon name="plus" />
         <span>Создать</span>
@@ -46,7 +40,6 @@ function onTabClick(): void {
         :class="{ active: activeRoute === 'people' }"
         :to="{ name: 'people' }"
         :aria-current="activeRoute === 'people' ? 'page' : undefined"
-        @click="onTabClick"
       >
         <AppIcon name="users" />
         <span>Заказчики</span>

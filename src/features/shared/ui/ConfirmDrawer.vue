@@ -6,7 +6,13 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
 </script>
 
 <template>
-  <AppDrawer :open="open" :title="title" @update:open="emit('update:open', $event)">
+  <AppDrawer
+    :open="open"
+    :title="title"
+    role="alertdialog"
+    initial-focus=".drawer-actions .btn-secondary"
+    @update:open="emit('update:open', $event)"
+  >
     <div class="notice">{{ message }}</div>
     <div class="drawer-actions">
       <button type="button" class="btn-secondary" @click="emit('update:open', false)">

@@ -89,8 +89,6 @@ test.describe("ReceiveParcel", () => {
     await expect(page.locator(".detail-action__hint").first()).toContainText("Взвесьте все треки");
 
     await page.locator("#markAsDone").click();
-    await expect(
-      page.locator("#toastContainer .toast__message", { hasText: "не взвешены" }),
-    ).toBeVisible();
+    await expect(page.locator(".inline-error")).toContainText("не взвешены");
   });
 });

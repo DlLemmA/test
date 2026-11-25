@@ -155,11 +155,9 @@ test.describe("MakeAnOrder", () => {
     await enterSums(page, "10", "1.3");
 
     await page.locator("#checkStepBtn").click();
-    await expect(
-      page.locator("#toastContainer .toast__message", {
-        hasText: "Добавьте хотя бы один товар в партию",
-      }),
-    ).toBeVisible();
+    await expect(page.locator(".field-error")).toContainText(
+      "Добавьте хотя бы один товар в партию",
+    );
     await expect(page.locator(".page-head h1")).toHaveText("Товары партии");
 
     await enterPlainBatch(page, "Катя", "2", "Товар 1 шт 10");

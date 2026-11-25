@@ -9,6 +9,7 @@ import { money, t } from "@/core/utils";
 import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
 import { parcelRepository } from "./infrastructure";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import ScreenState from "@/features/shared/ui/ScreenState.vue";
 import WizardSteps from "@/features/shared/ui/WizardSteps.vue";
 import type { WizardStep } from "@/features/shared/ui/wizardSteps";
 import CustomerCombo from "./ui/CustomerCombo.vue";
@@ -25,7 +26,7 @@ const STEP_LABELS = ["Суммы заказа", "Товары", "Проверк�
 const STEP_IDS = ["sums", "items", "review"] as const;
 
 const step = ref(1);
-const loaded = ref(false);
+const phase = ref<"loading" | "ready" | "error">("loading");
 const drafts = ref<Parcel[]>([]);
 /** 0 — create a new parcel; otherwise append the batch to this draft.
  * Defaults to the newest draft; new parcel is an explicit option. */
@@ -44,6 +45,9 @@ const csvText = ref("");
 const csvFileName = ref("");
 const csvUiDraft = ref<ItemUiDraft>({ name: "", priceCNY: "", quantity: "1", unit: "pcs" });
 const saving = ref(false);
+const formError = ref("");
+const saveError = ref("");
+const saveErrorEl = useTemplateRef<HTMLDivElement>("saveErrorEl");
 
 const root = useTemplateRef<HTMLElement>("root");
 const stage1Form = useTemplateRef<HTMLFormElement>("stage1Form");
@@ -124,30 +128,40 @@ const loadScope = new AbortController();
 onScopeDispose(() => loadScope.abort());
 
 async function load(): Promise<void> {
-  const [foundParcels, foundCustomers] = await Promise.all([
-    parcelRepository.findAll(),
-    customerRepository.findAll(),
-  ]);
-  if (loadScope.signal.aborted) return;
+  phase.value = "loading";
+  try {
+    const [foundParcels, foundCustomers] = await Promise.all([
+      parcelRepository.findAll(),
+      customerRepository.findAll(),
+    ]);
+    if (loadScope.signal.aborted) return;
 
-  drafts.value = foundParcels.filter((parcel) => parcel.status === "draft");
-  const latestDraftId = drafts.value[0]?.id ?? 0;
-  if (!initialized) {
-    const preset = Number(route.params.parcelId);
-    selectedParcelId.value =
-      drafts.value.find((parcel) => parcel.id === preset)?.id ?? latestDraftId;
-    selectedCustomerId.value = foundCustomers[0]?.id ?? null;
-    initialized = true;
-  } else if (
-    selectedParcelId.value !== 0 &&
-    !drafts.value.some((parcel) => parcel.id === selectedParcelId.value)
-  ) {
-    selectedParcelId.value = latestDraftId;
+    drafts.value = foundParcels.filter((parcel) => parcel.status === "draft");
+    const latestDraftId = drafts.value[0]?.id ?? 0;
+    if (!initialized) {
+      const preset = Number(route.params.parcelId);
+      selectedParcelId.value =
+        drafts.value.find((parcel) => parcel.id === preset)?.id ?? latestDraftId;
+      selectedCustomerId.value = foundCustomers[0]?.id ?? null;
+      initialized = true;
+    } else if (
+      selectedParcelId.value !== 0 &&
+      !drafts.value.some((parcel) => parcel.id === selectedParcelId.value)
+    ) {
+      selectedParcelId.value = latestDraftId;
+    }
+    customers.value = foundCustomers;
+    phase.value = "ready";
+  } catch (error) {
+    if (!loadScope.signal.aborted) phase.value = "error";
+    console.error(error);
   }
-  customers.value = foundCustomers;
-  loaded.value = true;
 }
 onMounted(load);
+
+function refresh(): void {
+  void load();
+}
 
 function focusNext(selector: string): void {
   void nextTick(() => root.value?.querySelector<HTMLElement>(selector)?.focus());
@@ -172,6 +186,8 @@ function clearFieldError(event: Event): void {
   if (!field || typeof field.setCustomValidity !== "function") return;
   field.setCustomValidity("");
   field.removeAttribute("aria-invalid");
+  formError.value = "";
+  saveError.value = "";
 }
 
 function submitStep1(): void {
@@ -194,10 +210,11 @@ function submitStep1(): void {
     "Укажите сумму заказа в BYN",
   );
   if (!expectedValid || !cnyValid || !bynValid) {
-    stage1Form.value?.reportValidity();
+    formError.value = "Проверьте выделенные поля";
     (!expectedValid ? expectedInput.value : !cnyValid ? cnyInput.value : bynInput.value)?.focus();
     return;
   }
+  formError.value = "";
 
   expectedCount.value = expectedValue;
   totalCNY.value = cnyValue;
@@ -219,7 +236,7 @@ async function checkCustomer(): Promise<boolean> {
   let selected = syncCustomer();
   if (!selected) {
     if (!(await combo.value?.commit())) {
-      toastState.add({ message: "Укажите заказчика для партии", type: "error" });
+      formError.value = "Укажите заказчика для партии";
       combo.value?.focus();
       return false;
     }
@@ -249,23 +266,25 @@ async function onCsvFileChange(event: Event): Promise<void> {
     clearFieldError({ target: csvTextArea.value } as unknown as Event);
     toastState.add({ message: `Файл выбран: ${file.name}`, type: "success" });
   } catch {
-    toastState.add({ message: "Не удалось прочитать файл", type: "error" });
+    formError.value = "Не удалось прочитать файл. Попробуйте выбрать его ещё раз.";
+    csvTextArea.value?.focus();
   }
 }
 
 async function addPlainBatch(): Promise<void> {
+  // iOS only opens the keyboard inside the tap gesture, before any await.
+  csvTextArea.value?.focus();
   if (!(await checkCustomer())) return;
   if (!csvText.value.trim()) {
-    toastState.add({ message: "Вставьте строки или выберите файл", type: "error" });
+    formError.value = "Вставьте строки или выберите файл";
     csvTextArea.value?.focus();
     return;
   }
   const parsed = parseItems(csvText.value);
   if (parsed.error) {
     setFieldError(csvTextArea.value, true, parsed.error);
-    csvTextArea.value?.reportValidity();
+    formError.value = parsed.error;
     csvTextArea.value?.focus();
-    toastState.add({ message: parsed.error, type: "error" });
     return;
   }
   appendRows(parsed.rows);
@@ -276,6 +295,7 @@ async function addPlainBatch(): Promise<void> {
 }
 
 async function submitUiItem(): Promise<void> {
+  uiNameInput.value?.focus();
   if (!(await checkCustomer())) return;
   const price = Number(csvUiDraft.value.priceCNY);
   const qty = Number(csvUiDraft.value.quantity);
@@ -295,10 +315,11 @@ async function submitUiItem(): Promise<void> {
     "Укажите количество от 1",
   );
   if (!nameValid || !priceValid || !qtyValid) {
-    uiForm.value?.reportValidity();
+    formError.value = "Проверьте выделенные поля";
     (!nameValid ? uiNameInput.value : !priceValid ? uiPriceInput.value : uiQtyInput.value)?.focus();
     return;
   }
+  formError.value = "";
 
   const unit = fromSelect(csvUiDraft.value.unit);
   appendRows([{ name: csvUiDraft.value.name.trim(), priceCNY: price, quantity: qty, unit }]);
@@ -319,16 +340,19 @@ function removeItem(index: number): void {
 
 function goToReview(): void {
   if (items.value.length === 0) {
-    toastState.add({ message: "Добавьте хотя бы один товар в партию", type: "error" });
+    formError.value = "Добавьте хотя бы один товар в партию";
     focusNext(csvMode.value === "ui" ? "[data-csv-ui-name]" : "#csvText");
     return;
   }
+  formError.value = "";
   step.value = 3;
   focusNext("[data-autofocus]");
 }
 
 async function saveBatch(): Promise<void> {
+  if (saving.value) return;
   saving.value = true;
+  saveError.value = "";
   try {
     const services = await import("@/features/shared/services");
     const totals = { totalCNY: totalCNY.value, totalBYN: totalBYN.value };
@@ -344,7 +368,8 @@ async function saveBatch(): Promise<void> {
     void router.push({ name: "parcels" });
   } catch (error) {
     saving.value = false;
-    toastState.add({ message: "Не удалось сохранить партию", type: "error" });
+    saveError.value = "Не удалось сохранить партию. Проверьте соединение и попробуйте ещё раз.";
+    void nextTick(() => saveErrorEl.value?.focus());
     console.error(error);
   }
 }
@@ -352,7 +377,15 @@ async function saveBatch(): Promise<void> {
 
 <template>
   <div ref="root" class="page page-batch">
-    <template v-if="loaded">
+    <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем партию…" />
+    <ScreenState
+      v-else-if="phase === 'error'"
+      kind="error"
+      message="Не удалось загрузить данные для партии. Проверьте соединение и попробуйте ещё раз."
+      action-label="Повторить"
+      @action="refresh"
+    />
+    <template v-else>
       <header class="page-head">
         <h1>
           {{ step === 1 ? "Новая партия" : step === 2 ? "Товары партии" : "Проверка партии" }}
@@ -385,6 +418,7 @@ async function saveBatch(): Promise<void> {
         @input="clearFieldError"
         @change="clearFieldError"
       >
+        <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
         <div class="field">
           <label for="addParcelSelect">Добавить в посылку</label>
           <div class="picker">
@@ -473,6 +507,7 @@ async function saveBatch(): Promise<void> {
           </div>
         </div>
         <p class="small muted">{{ money(currentBYN) }} из {{ money(totalBYN) }}</p>
+        <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
 
         <div id="batchItemsList" class="batch-items">
           <template v-if="items.length">
@@ -548,7 +583,7 @@ async function saveBatch(): Promise<void> {
                   ref="csvFileInput"
                   class="sr-only"
                   type="file"
-                  accept=".txt,text/plain"
+                  accept=".csv,.txt,text/csv,text/plain"
                   tabindex="-1"
                   aria-label="Файл со строками"
                   @change="onCsvFileChange"
@@ -572,6 +607,11 @@ async function saveBatch(): Promise<void> {
                 v-model="csvText"
                 rows="5"
                 data-autofocus
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                enterkeyhint="enter"
                 placeholder="Носки 1 шт 22,35&#10;Кроссовки беговые 2 уп 45.50"
               />
             </div>
@@ -600,6 +640,7 @@ async function saveBatch(): Promise<void> {
                 @input="clearFieldError"
                 @change="clearFieldError"
               >
+                <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
                 <div class="field">
                   <label for="csvUiName">Название *</label>
                   <input
@@ -611,6 +652,9 @@ async function saveBatch(): Promise<void> {
                     type="text"
                     required
                     autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="sentences"
+                    spellcheck="false"
                     enterkeyhint="next"
                     placeholder="Например, Носки спортивные"
                   />
@@ -704,6 +748,10 @@ async function saveBatch(): Promise<void> {
         </p>
         <p class="check-notice" :class="{ 'is-ok': !hasDiff }" id="checkNotice">{{ notice }}</p>
 
+        <div v-if="saveError" ref="saveErrorEl" class="inline-error" role="alert" tabindex="-1">
+          <span>{{ saveError }}</span>
+          <button type="button" class="text-btn" @click="saveBatch">Повторить</button>
+        </div>
         <div class="form-actions form-actions--final">
           <button
             type="button"
@@ -713,7 +761,14 @@ async function saveBatch(): Promise<void> {
             :aria-describedby="countMismatch ? 'checkNotice itemsCountNotice' : 'checkNotice'"
             @click="saveBatch"
           >
-            <AppIcon name="check" /> Сохранить партию ({{ items.length }})
+            <AppIcon name="check" />
+            {{
+              saving
+                ? "Сохраняем…"
+                : countMismatch
+                  ? "Проверьте количество товаров"
+                  : `Сохранить партию (${items.length})`
+            }}
           </button>
         </div>
       </template>

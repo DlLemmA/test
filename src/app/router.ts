@@ -5,6 +5,7 @@
 
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router";
 import { authSession } from "@/core/auth";
+import { clearMainScroll, mainScrollTarget, takeMainScroll } from "./scroll";
 import SignInView from "./SignInView.vue";
 import { runViewTransition } from "./viewTransitions";
 
@@ -48,6 +49,16 @@ const routes: RouteRecordRaw[] = [
 export const appRouter = createRouter({
   history: createWebHashHistory(),
   routes,
+  scrollBehavior(to, _from, savedPosition) {
+    // Auth screens render outside the shell; asking Vue Router to scroll a
+    // missing selector logs a warning on every sign-in redirect.
+    if (!document.getElementById("main-content")) return false;
+    // A real history back restores the row list the user came from. Pushes and
+    // dock taps open the next screen at its top, never at a stale offset.
+    if (savedPosition) return mainScrollTarget(takeMainScroll(to.fullPath));
+    clearMainScroll(to.fullPath);
+    return mainScrollTarget();
+  },
 });
 
 appRouter.beforeEach((to, from) => {

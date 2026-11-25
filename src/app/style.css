@@ -525,8 +525,8 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  :where(button, a, [role="button"]):not(:disabled):active {
-    scale: 0.97;
+  :where(.btn-primary, .btn-secondary, .btn-icon):not(:disabled):active {
+    scale: 0.98;
   }
 }
 
@@ -567,43 +567,8 @@
   animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-@keyframes panel-slide-out-left {
-  to {
-    transform: translateX(-14%);
-    opacity: 0;
-  }
-}
-@keyframes panel-slide-in-right {
-  from {
-    transform: translateX(14%);
-    opacity: 0;
-  }
-}
-@keyframes panel-slide-out-right {
-  to {
-    transform: translateX(14%);
-    opacity: 0;
-  }
-}
-@keyframes panel-slide-in-left {
-  from {
-    transform: translateX(-14%);
-    opacity: 0;
-  }
-}
-
-html:active-view-transition-type(forward)::view-transition-old(panel-root) {
-  animation-name: panel-slide-out-left;
-}
-html:active-view-transition-type(forward)::view-transition-new(panel-root) {
-  animation-name: panel-slide-in-right;
-}
-html:active-view-transition-type(backward)::view-transition-old(panel-root) {
-  animation-name: panel-slide-out-right;
-}
-html:active-view-transition-type(backward)::view-transition-new(panel-root) {
-  animation-name: panel-slide-in-left;
-}
+/* The panel cross-fades; only the marked row/hero elements morph. Directional
+   slide animations fought the shared-element transition on mobile Safari. */
 
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
@@ -743,6 +708,93 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
   background: var(--color-slate-50);
 }
 
+/* One loading / confirmed-empty / retryable-error contract for every screen. */
+.screen-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 180px;
+  padding: 28px 20px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: 14px;
+  background: var(--color-slate-50);
+  text-align: center;
+}
+.screen-state[data-kind="error"] {
+  border-color: var(--color-negative);
+  background: var(--color-red-50);
+}
+.screen-state__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  color: var(--color-muted);
+}
+.screen-state[data-kind="error"] .screen-state__icon {
+  color: var(--color-negative);
+}
+.screen-state__icon .icon {
+  inline-size: 28px;
+  block-size: 28px;
+}
+.screen-state__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.screen-state__message {
+  max-inline-size: 28rem;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+.screen-state[data-kind="loading"] .screen-state__title {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+.screen-state__line {
+  inline-size: 75%;
+  block-size: 10px;
+  border-radius: 999px;
+  background: var(--color-slate-200);
+}
+.screen-state__line.is-long {
+  inline-size: 92%;
+}
+.screen-state__line.is-short {
+  inline-size: 58%;
+}
+
+/* Errors live next to the field or action that caused them. */
+.field-error,
+.inline-error {
+  color: var(--color-negative);
+  font-size: 13px;
+  font-weight: 600;
+}
+.inline-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-negative);
+  border-radius: 10px;
+  background: var(--color-red-50);
+}
+.inline-error .text-btn {
+  min-block-size: 44px;
+  color: var(--color-negative);
+}
+.inline-error:focus-visible,
+.field-error:focus-visible,
+.rf-flow-error:focus-visible {
+  outline: 2px solid var(--color-negative);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    From src/app/app.css — app shell
    ============================================================ */
@@ -750,10 +802,25 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
 .app-shell {
   max-width: 42rem;
   margin-inline: auto;
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--color-canvas);
+}
+/* The routed screens never scroll the body. Keeping one scroller lets the
+   router restore a deliberate position and keeps the dock out of focused inputs. */
+.app-main {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-inline: 1rem;
+  padding-bottom: 7rem;
+  scroll-padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 .app-header {
   position: sticky;
@@ -815,7 +882,7 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 10px;
   border-radius: 10px;
   background: transparent;
@@ -991,36 +1058,13 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
     inset 0 1px 0 rgb(255 255 255 / 0.95),
     inset 0 -1px 0 rgb(216 27 96 / 0.08);
 }
-/* One anchored pill slides between tabs instead of a background popping. */
-.bottombar::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  position-anchor: --bottombar-active;
-  inset-block: anchor(self-start) anchor(self-end);
-  inset-inline: anchor(self-start) anchor(self-end);
-  border-radius: 18px;
+/* The active tab is a static pill. Animating anchor `inset` repaints every
+   frame on iOS; a transform would fight the dock's own compositing layer. */
+.bottombar-item.active {
   background: var(--color-accent-soft);
   box-shadow:
     inset 0 0 0 1px rgb(216 27 96 / 0.18),
     0 1px 2px rgb(42 29 39 / 0.05);
-  pointer-events: none;
-}
-@supports not (position-anchor: --bottombar-active) {
-  .bottombar::before {
-    content: none;
-  }
-  .bottombar-item.active {
-    background: var(--color-accent-soft);
-    box-shadow:
-      inset 0 0 0 1px rgb(216 27 96 / 0.18),
-      0 1px 2px rgb(42 29 39 / 0.05);
-  }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .bottombar::before {
-    transition: inset 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
-  }
 }
 /* Opaque fallback where translucency is unavailable */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -1028,11 +1072,6 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
     background: var(--color-paper);
   }
 }
-/* Focused controls must not disappear under the floating dock */
-#main-content {
-  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
-}
-
 .bottombar-item {
   position: relative;
   z-index: 1;
@@ -1057,10 +1096,7 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
 }
 /* Shape + surface, not color alone, marks the current tab */
 .bottombar-item.active {
-  anchor-name: --bottombar-active;
   color: var(--color-accent-strong);
-  background: transparent;
-  box-shadow: none;
 }
 .bottombar-item.active .icon {
   color: var(--color-accent);
@@ -1113,23 +1149,25 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
 /* ============================================================
    From src/app/toast.css — toasts
    ============================================================ */
+/* Above the dock, never over the masthead or Dynamic Island. */
 #toastContainer {
   position: fixed;
-  top: calc(12px + env(safe-area-inset-top));
-  right: 12px;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   z-index: 60;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  justify-content: center;
   pointer-events: none;
-  max-width: calc(100vw - 24px);
 }
 
 .toast-viewport {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
+  width: 100%;
+  max-width: 360px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1140,7 +1178,7 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  max-width: 360px;
+  width: 100%;
   padding: 0.625rem 1rem;
   border-left: 4px solid rgb(255 255 255 / 0.35);
   border-radius: 0.75rem;
@@ -1149,7 +1187,7 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
   font-size: 14px;
   font-weight: 500;
   pointer-events: auto;
-  animation: toast-slide-in 0.2s ease-out;
+  animation: toast-slide-in 180ms ease-out;
 }
 
 .toast[data-toast-type="error"] {
@@ -1183,23 +1221,30 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
 
 .toast-action {
   flex: none;
-  padding: 0.15rem 0.4rem;
+  min-block-size: 44px;
+  padding: 8px 12px;
   border: 1px solid rgb(255 255 255 / 0.5);
-  border-radius: 0.4rem;
+  border-radius: 10px;
   background: transparent;
   color: inherit;
   font: inherit;
+  font-weight: 700;
   cursor: pointer;
 }
 
 @keyframes toast-slide-in {
   from {
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
   }
 }
 
@@ -1283,8 +1328,8 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
 }
 .drawer-close {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1450,8 +1495,8 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
   gap: 4px;
 }
 .parcel-entry__actions > .btn-icon {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border-color: var(--color-accent-line);
   background: var(--color-accent-soft);
@@ -1463,8 +1508,8 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
 .entry-menu__trigger {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 10px;
@@ -1489,7 +1534,8 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 9px 10px;
+  min-block-size: 44px;
+  padding: 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -1749,7 +1795,7 @@ html:active-view-transition-type(backward)::view-transition-new(panel-root) {
 }
 .batch-add__mode {
   min-width: 44px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 2px 8px;
   border: 0;
   border-radius: 0;
@@ -2040,7 +2086,7 @@ select.picker__control {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-block-size: 40px;
+  min-block-size: 44px;
   padding: 6px 10px;
   border: 0;
   border-radius: 10px;
@@ -2062,9 +2108,9 @@ select.picker__control {
   padding: 0 4px 2px;
 }
 .detail-topbar .text-btn {
-  min-block-size: 36px;
-  padding: 4px 6px;
-  font-size: 12px;
+  min-block-size: 44px;
+  padding: 8px;
+  font-size: 13px;
 }
 .detail-topbar__actions {
   display: flex;
@@ -2072,7 +2118,7 @@ select.picker__control {
   gap: 4px;
 }
 .detail-topbar__actions .text-btn {
-  min-inline-size: 40px;
+  min-inline-size: 44px;
   justify-content: center;
 }
 .detail-topbar .text-btn svg {
@@ -2269,12 +2315,24 @@ select.picker__control {
   background: var(--color-slate-50);
   color: var(--color-ink-soft);
   font-family: var(--font-mono);
-  font-size: 12px;
+  /* 16px keeps iOS Safari from zooming the page on focus. */
+  font-size: 16px;
   line-height: 1.5;
   white-space: pre;
   overflow: hidden;
   resize: none;
   cursor: text;
+}
+.parcel-comment__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-block: 4px 8px;
+}
+.parcel-comment__footer .btn-secondary {
+  flex: none;
+  min-block-size: 44px;
 }
 .parcel-comment__text::placeholder {
   color: var(--color-muted);
@@ -2737,9 +2795,9 @@ select.picker__control {
   background: rgb(27 15 25 / 0.8);
 }
 .rf-icon-btn {
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -2764,8 +2822,8 @@ select.picker__control {
 }
 .rf-top-action {
   flex: none;
-  min-height: 40px;
-  padding: 8px 4px;
+  min-height: 44px;
+  padding: 10px 8px;
   background: transparent;
   color: var(--color-accent-soft);
   font-size: 13px;
@@ -2781,6 +2839,30 @@ select.picker__control {
   width: 0;
   background: var(--color-accent);
   box-shadow: 0 0 10px rgb(216 27 96 / 0.7);
+}
+.rf-flow-error {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--color-negative);
+  color: #fff;
+  font-size: 13px;
+}
+.rf-flow-error button {
+  min-block-size: 44px;
+  padding: 8px 10px;
+  border: 1px solid rgb(255 255 255 / 0.6);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+.rf-flow-error[hidden] {
+  display: none;
 }
 .rf-camera {
   position: relative;
@@ -2799,7 +2881,9 @@ select.picker__control {
 }
 .rf-reticle {
   position: absolute;
-  width: min(72vw, 300px);
+  /* Sized so the whole frame stays visible above the sheet on a 390pt phone. */
+  width: min(62vw, 240px);
+  max-width: calc(100% - 24px);
   aspect-ratio: 1;
   border: 2px solid rgb(255 228 239 / 0.92);
   border-radius: 24px;
@@ -2834,9 +2918,44 @@ select.picker__control {
   overflow-wrap: anywhere;
   pointer-events: none;
 }
+/* Scan feedback is visible and audible — navigator.vibrate is a no-op on iOS. */
+.rf-flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: rgb(15 123 90 / 0.38);
+}
+.rf-flash.is-unknown {
+  background: rgb(180 35 24 / 0.32);
+}
+.rf-flash.is-found {
+  animation: rf-scan-flash 320ms ease-out;
+}
+.rf-flash.is-unknown {
+  animation: rf-scan-flash 320ms ease-out;
+}
+@keyframes rf-scan-flash {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rf-flash.is-found,
+  .rf-flash.is-unknown {
+    animation-duration: 1ms;
+  }
+}
+
 .rf-sheet {
   flex: 0 1 auto;
-  max-height: min(64dvh, 560px);
+  max-height: min(45dvh, 420px);
   overflow-y: auto;
   overscroll-behavior: contain;
   display: flex;
@@ -2929,7 +3048,7 @@ select.picker__control {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 10px;
   border-radius: 999px;
   background: var(--color-paper);
@@ -3149,12 +3268,12 @@ select.picker__control {
 .rf-manual-actions {
   display: flex;
   justify-content: flex-end;
-  min-height: 32px;
+  min-height: 44px;
 }
 .rf-manual-actions .rf-link {
-  min-height: 32px;
-  padding: 4px;
-  font-size: 12px;
+  min-height: 44px;
+  padding: 8px;
+  font-size: 13px;
 }
 .rf-lost-check {
   display: flex;
@@ -3350,8 +3469,8 @@ select.picker__control {
   gap: 6px;
 }
 .page-customers .customer-actions > .btn-icon {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border-color: var(--color-accent-line);
   background: var(--color-accent-soft);
@@ -3443,8 +3562,8 @@ select.picker__control {
 }
 .parcel-line .btn-icon {
   align-self: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border-color: var(--color-accent-line);
   background: var(--color-accent-soft);
@@ -3546,7 +3665,7 @@ select.picker__control {
 }
 .settle-entry__checks .pay-summary {
   gap: 6px;
-  min-block-size: 42px;
+  min-block-size: 44px;
   padding: 5px 0;
 }
 .settle-entry__checks .pay-summary__label,
@@ -3645,8 +3764,8 @@ select.picker__control {
   grid-template-columns: 16px auto;
   justify-self: auto;
   gap: 6px;
-  min-block-size: 24px;
-  padding: 0;
+  min-block-size: 44px;
+  padding: 4px 0;
   border-bottom: 0;
 }
 .item-flag .pay-summary__label {
@@ -3700,7 +3819,7 @@ select.picker__control {
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 7px 2px;
   border-bottom: 1px solid var(--color-line);
   color: var(--color-ink);
@@ -3806,5 +3925,20 @@ select.picker__control {
   }
   .pay-summary-row > .pay-summary:last-child {
     padding-left: 2px;
+  }
+}
+
+/* iOS Safari zooms the viewport when a focused control is under 16px. Keep
+   every text-entry control at least 16px on touch devices, even where the
+   ledger's compact density sets a smaller type size. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+  .wizard-step {
+    min-block-size: 44px;
+    padding-inline: 10px;
   }
 }

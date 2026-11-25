@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onScopeDispose, shallowRef } from "vue";
+import { computed, nextTick, onMounted, onScopeDispose, shallowRef, useTemplateRef } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { emptyCustomerBalance } from "@/features/balances/domain";
 import { toastState } from "@/core/state";
@@ -13,12 +13,17 @@ import { parcelDebtClass, parcelDebtLabel } from "@/features/parcels/ui/ParcelDe
 import { paymentService } from "@/features/shared/wiring";
 import { broughtWeight, customerLabel } from "./ui/CustomerPresentation";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import ScreenState from "@/features/shared/ui/ScreenState.vue";
 import CustomerMark from "./ui/CustomerMark.vue";
 
 const route = useRoute();
 const router = useRouter();
 const statement = shallowRef<CustomerStatement | null>(null);
+const phase = shallowRef<"loading" | "ready" | "error">("loading");
 const missing = shallowRef(false);
+const actionError = shallowRef("");
+const retryAction = shallowRef<(() => void) | null>(null);
+const actionErrorEl = useTemplateRef<HTMLDivElement>("actionErrorEl");
 const totalBroughtWeight = computed(() =>
   statement.value ? broughtWeight(statement.value.items) : null,
 );
@@ -32,10 +37,17 @@ async function load(): Promise<void> {
     void router.push({ name: "people" });
     return;
   }
-  const facts = await getCustomerStatement(customerId);
-  if (loadScope.signal.aborted) return;
-  missing.value = !facts;
-  statement.value = facts;
+  phase.value = "loading";
+  try {
+    const facts = await getCustomerStatement(customerId);
+    if (loadScope.signal.aborted) return;
+    missing.value = !facts;
+    statement.value = facts;
+    phase.value = "ready";
+  } catch (error) {
+    if (!loadScope.signal.aborted) phase.value = "error";
+    console.error(error);
+  }
 }
 onMounted(load);
 
@@ -84,8 +96,15 @@ function debtFacts(entry: CustomerParcelStatement, customer: CustomerStatement["
   };
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Ошибка";
+function fail(message: string, retry?: () => void): void {
+  actionError.value = message;
+  retryAction.value = retry ?? null;
+  void nextTick(() => actionErrorEl.value?.focus());
+}
+
+function retryFailed(): void {
+  actionError.value = "";
+  retryAction.value?.();
 }
 
 async function togglePayment(event: Event, entry: CustomerParcelStatement, itemId: number) {
@@ -102,7 +121,8 @@ async function togglePayment(event: Event, entry: CustomerParcelStatement, itemI
     refresh();
   } catch (error) {
     input.checked = !checked;
-    toastState.add({ message: errorMessage(error), type: "error" });
+    fail("Не удалось изменить оплату товара", () => void load());
+    console.error(error);
   }
 }
 
@@ -126,7 +146,8 @@ async function toggleGoods(event: Event, entry: CustomerParcelStatement) {
     refresh();
   } catch (error) {
     input.checked = !checked;
-    toastState.add({ message: errorMessage(error), type: "error" });
+    fail("Не удалось изменить оплату товаров", () => void load());
+    console.error(error);
   }
 }
 
@@ -144,13 +165,22 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
     refresh();
   } catch (error) {
     input.checked = !checked;
-    toastState.add({ message: errorMessage(error), type: "error" });
+    fail("Не удалось изменить оплату доставки", () => void load());
+    console.error(error);
   }
 }
 </script>
 
 <template>
-  <div v-if="missing" class="empty">Заказчик не найден</div>
+  <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем заказчика…" />
+  <ScreenState
+    v-else-if="phase === 'error'"
+    kind="error"
+    message="Не удалось загрузить заказчика. Проверьте соединение и попробуйте ещё раз."
+    action-label="Повторить"
+    @action="refresh"
+  />
+  <ScreenState v-else-if="missing" kind="empty" title="Заказчик не найден" />
   <div v-else-if="statement" class="page page-customer-detail">
     <div class="detail-topbar">
       <RouterLink class="text-btn" id="backToCustomers" :to="{ name: 'people' }">
@@ -174,6 +204,13 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
         </p>
       </div>
     </section>
+
+    <div v-if="actionError" ref="actionErrorEl" class="inline-error" role="alert" tabindex="-1">
+      <span>{{ actionError }}</span>
+      <button v-if="retryAction" type="button" class="text-btn" @click="retryFailed">
+        Повторить
+      </button>
+    </div>
 
     <div class="check-list customer-summary">
       <div class="check-row"><span>Оплачено</span><b>{{ money(statement.balance.paid) }}</b></div>
@@ -208,8 +245,8 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
           </div>
           <div class="parcel-entry__body min-w-0">
             <div class="parcel-entry__head">
-              <b :title="entry.parcel.name || `Посылка #${entry.parcel.id}`">{{
-                entry.parcel.name || `Посылка #${entry.parcel.id}`
+              <b :title="entry.parcel.name || `Посылка №${entry.parcel.id}`">{{
+                entry.parcel.name || `Посылка №${entry.parcel.id}`
               }}</b>
             </div>
             <div class="parcel-entry__hint customer-parcel-hint">
@@ -226,7 +263,7 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
           <RouterLink
             class="btn-icon btn-primary"
             :data-open-parcel="entry.parcel.id"
-            :aria-label="`Открыть посылку ${entry.parcel.name || `Посылка #${entry.parcel.id}`}`"
+            :aria-label="`Открыть посылку ${entry.parcel.name || `Посылка №${entry.parcel.id}`}`"
             :to="{ name: 'parcel', params: { parcelId: String(entry.parcel.id) } }"
           >
             <AppIcon name="arrowRight" />
@@ -269,7 +306,7 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
             <span class="pay-summary__note">
               {{
                 statement.customer.isSelf
-                  ? "у «Я» всегда оплачено"
+                  ? "учтено в общем остатке"
                   : deliveryPayable(entry, statement.customer.id)
                     ? "включена в цены товаров"
                     : "цена не задана"
@@ -321,6 +358,6 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
         </details>
       </section>
     </template>
-    <div v-else class="empty">Товаров пока нет</div>
+    <div v-else class="empty">Посылок пока нет</div>
   </div>
 </template>

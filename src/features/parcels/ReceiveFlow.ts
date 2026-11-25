@@ -101,11 +101,17 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
         <button type="button" class="rf-top-action" id="rfHeaderDone">${isRescan ? "Сохранить" : "Принять товары"}</button>
       </header>
       <div class="rf-progress-track" aria-hidden="true"><div id="rfProgressBar"></div></div>
+      <div class="rf-flow-error" id="rfFlowError" role="alert" tabindex="-1" hidden>
+        <span id="rfFlowErrorText"></span>
+        <button type="button" id="rfFlowRetry">Повторить</button>
+      </div>
       <div class="rf-camera">
         <video id="rfVideo" muted playsinline autoplay></video>
         <div class="rf-reticle" aria-hidden="true"></div>
+        <div class="rf-flash" id="rfFlash" aria-hidden="true"></div>
         <p class="rf-hint" id="rfHint">Сканируйте трек-номер</p>
-        <div class="rf-last" id="rfLast" aria-live="polite"></div>
+        <div class="rf-last" id="rfLast" aria-hidden="true"></div>
+        <p class="visually-hidden" id="rfAnnouncement" aria-live="polite" aria-atomic="true"></p>
       </div>
       <section class="rf-sheet" id="rfSheet"></section>
     </div>
@@ -122,6 +128,60 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
 
   function q<T extends HTMLElement = HTMLElement>(id: string): T | null {
     return dialog.querySelector<T>(`#${id}`);
+  }
+
+  const flash = dialog.querySelector<HTMLElement>("#rfFlash")!;
+  const announcement = dialog.querySelector<HTMLElement>("#rfAnnouncement")!;
+  const flowError = dialog.querySelector<HTMLElement>("#rfFlowError")!;
+  const flowErrorText = dialog.querySelector<HTMLElement>("#rfFlowErrorText")!;
+  const flowErrorAction = dialog.querySelector<HTMLButtonElement>("#rfFlowRetry")!;
+  let retry: (() => void) | null = null;
+  let audio: AudioContext | null = null;
+
+  /** Web Audio needs a user gesture; arm it on the first sheet tap or submit. */
+  function primeAudio(): void {
+    if (typeof AudioContext === "undefined") return;
+    audio ??= new AudioContext();
+    if (audio.state === "suspended") void audio.resume();
+  }
+
+  function playScanTone(found: boolean): void {
+    if (!audio || audio.state !== "running") return;
+    const now = audio.currentTime;
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(found ? 880 : 220, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.06, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.13);
+  }
+
+  function flashScan(found: boolean): void {
+    flash.classList.remove("is-found", "is-unknown");
+    // Reading layout restarts the animation for a rapid second scan.
+    void flash.offsetWidth;
+    flash.classList.add(found ? "is-found" : "is-unknown");
+  }
+
+  function announce(message: string): void {
+    announcement.textContent = message;
+  }
+
+  function showFlowError(message: string, label: string, action: () => void): void {
+    flowErrorText.textContent = message;
+    flowErrorAction.textContent = label;
+    retry = action;
+    flowError.hidden = false;
+    flowError.focus();
+  }
+
+  function hideFlowError(): void {
+    flowError.hidden = true;
+    retry = null;
   }
 
   // Camera and the manual search box are view details, not flow facts.
@@ -141,10 +201,17 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
         .start(video, (code) => {
           if (cameraOn) handleCode(code);
         })
+        .then(() => {
+          if (cameraOn) hideFlowError();
+        })
         .catch(() => {
           cameraOn = false;
           cameraWanted = false;
           hint.textContent = "Камера недоступна — введите трек вручную";
+          showFlowError("Камера недоступна — введите трек вручную", "Списком", () => {
+            hideFlowError();
+            dispatch({ type: "startManual" });
+          });
           updateCameraToggle();
         });
     } else if (!shouldRun && cameraOn) {
@@ -160,12 +227,11 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
   }
 
   function focusField(id: string, select = false): void {
-    requestAnimationFrame(() => {
-      const el = q<HTMLInputElement>(id);
-      if (!el) return;
-      el.focus({ preventScroll: true });
-      if (select) el.select();
-    });
+    // Keep focus inside the same user gesture so iOS opens the keyboard.
+    const el = q<HTMLInputElement>(id);
+    if (!el) return;
+    el.focus();
+    if (select) el.select();
   }
 
   function dispatch(event: ReceivingEvent): void {
@@ -261,7 +327,10 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       <p class="rf-sub rf-shipping">Вес всей посылки ${kg(state.parcel.boxWeightG ?? 0)} кг · доставка ${money(state.parcel.shippingCostBYN ?? 0)}</p>
       ${current.remaining ? `<div class="rf-warn">Не обработано ${t(TRACK_FORMS, current.remaining)} — ${isRescan ? "веса можно сохранить позже" : "можно принять и без них"}.</div>` : ""}
       ${hasShippingInfo ? "" : '<div class="rf-warn">Вес посылки и доставка вводятся при отправке. Заполните их в редактировании посылки.</div>'}
-      <p class="rf-error" id="rfFinishError" role="alert" ${state.error ? "" : "hidden"}>${esc(state.error ?? "")}</p>
+      <div class="rf-finish-error">
+        <p class="rf-error" id="rfFinishError" role="alert" ${state.error ? "" : "hidden"}>${esc(state.error ?? "")}</p>
+        ${state.error ? '<button type="button" class="rf-link" id="rfCommitRetry" data-action="confirm">Повторить</button>' : ""}
+      </div>
       <button type="button" class="rf-primary" id="rfConfirm" data-action="confirm" ${hasShippingInfo && !state.saving ? "" : "disabled"}>${I.check} ${isRescan ? "Сохранить веса" : "Принять товары"}</button>
       <button type="button" class="rf-link" id="rfBackTracks" data-action="back">← Вернуться к трекам</button>
     `;
@@ -373,6 +442,7 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
           <label class="visually-hidden" for="rfSearch">Поиск товара или трека</label>
           <input type="search" id="rfSearch" class="rf-search" placeholder="Найти товар или трек" value="${esc(search)}">
           <form id="rfManualForm" class="rf-manual-form">
+            <p class="rf-error" id="rfManualError" role="alert" hidden></p>
             ${rows || '<p class="rf-sub">В этой посылке нет треков.</p>'}
             <button type="submit" class="rf-primary" id="rfSaveAll">${I.check} Сохранить веса</button>
           </form>
@@ -396,28 +466,36 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
     if (!code) return;
     last.textContent = code;
     dispatch({ type: "scan", code });
-    if (state.step === "unknown") {
-      navigator.vibrate?.([20, 50, 20]);
-      hint.textContent = "Трек не найден в этой посылке";
-    } else {
-      navigator.vibrate?.(15);
-      hint.textContent = "Трек найден";
-    }
+    const found = state.step !== "unknown";
+    flashScan(found);
+    playScanTone(found);
+    announce(found ? `Трек ${code} найден` : `Трек ${code} не найден в посылке №${parcel.id}`);
+    hint.textContent = found ? "Трек найден" : "Трек не найден в этой посылке";
   }
 
-  async function persistWeights(itemId: number): Promise<void> {
+  async function persistWeights(itemId: number): Promise<boolean> {
     try {
       const saved = await deps.store.saveWeights(itemId, weightsForItem(state, itemId));
       dispatch({ type: "itemSaved", item: saved });
+      hideFlowError();
+      return true;
     } catch (err) {
       console.error(err);
+      showFlowError(
+        "Не удалось сохранить вес. Проверьте соединение и попробуйте ещё раз.",
+        "Повторить",
+        () => {
+          void persistWeights(itemId);
+        },
+      );
+      return false;
     }
   }
 
   async function saveWeight(unit: ReceivingUnit, grams: number): Promise<void> {
     dispatch({ type: "weight", key: unit.key, grams });
-    await persistWeights(unit.itemId);
-    navigator.vibrate?.(18);
+    if (!(await persistWeights(unit.itemId))) return;
+    playScanTone(true);
     toastState.add({
       message: `${state.items.find((item) => item.id === unit.itemId)?.name ?? "Товар"} · трек ${unit.idx + 1} · ${grams} г сохранено`,
       type: "success",
@@ -431,9 +509,13 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       const saved = await deps.store.markLost(itemId);
       dispatch({ type: "lost", itemId });
       dispatch({ type: "itemSaved", item: saved });
+      hideFlowError();
       toastState.add({ message: `${item.name} — потерян`, type: "warn" });
     } catch (err) {
       console.error(err);
+      showFlowError("Не удалось отметить потерю. Попробуйте ещё раз.", "Повторить", () => {
+        void markLost(itemId);
+      });
     }
   }
 
@@ -444,9 +526,13 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       const saved = await deps.store.restoreItem(itemId);
       dispatch({ type: "restore", itemId });
       dispatch({ type: "itemSaved", item: saved });
+      hideFlowError();
       toastState.add({ message: `${item.name} — не потерян`, type: "info" });
     } catch (err) {
       console.error(err);
+      showFlowError("Не удалось вернуть товар. Попробуйте ещё раз.", "Повторить", () => {
+        void restoreLost(itemId);
+      });
     }
   }
 
@@ -472,16 +558,25 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       if (unit) changedItems.add(unit.itemId);
     });
 
+    const manualError = q("rfManualError");
     if (invalid) {
-      toastState.add({ message: "Проверьте выделенные веса", type: "error" });
+      if (manualError) {
+        manualError.textContent = "Проверьте выделенные веса — число от 0 граммов.";
+        manualError.hidden = false;
+      }
       return;
     }
+    if (manualError) manualError.hidden = true;
 
     dispatch({ type: "manualWeights", values });
     // Each save dispatches `itemSaved`; keep those reducer updates ordered.
-    // oxlint-disable-next-line no-await-in-loop
-    for (const itemId of changedItems) await persistWeights(itemId);
-    toastState.add({ message: "Веса сохранены", type: "success" });
+    let allSaved = true;
+    for (const itemId of changedItems) {
+      // oxlint-disable-next-line no-await-in-loop
+      const saved = await persistWeights(itemId);
+      allSaved = allSaved && saved;
+    }
+    if (allSaved) toastState.add({ message: "Веса сохранены", type: "success" });
   }
 
   async function commit(): Promise<void> {
@@ -615,14 +710,25 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       if (error) error.hidden = true;
       target.removeAttribute("aria-invalid");
     }
+    if (target instanceof HTMLInputElement && target.dataset.weightKey) {
+      const error = q("rfManualError");
+      if (error) error.hidden = true;
+      target.removeAttribute("aria-invalid");
+    }
   });
 
+  flowErrorAction.addEventListener("click", () => retry?.());
+  // iOS unlocks Web Audio only inside a user gesture. The first tap on the
+  // sheet or a form submit is enough; later scans can then make a sound.
+  dialog.addEventListener("pointerdown", primeAudio, { once: true, passive: true });
+  dialog.addEventListener("submit", primeAudio, { once: true });
   q("rfClose")?.addEventListener("click", () => dialog.close());
   q("rfHeaderDone")?.addEventListener("click", () => dispatch({ type: "finish" }));
   dialog.addEventListener("cancel", () => deps.scanner.stop());
   dialog.addEventListener("close", () => {
     closed = true;
     deps.scanner.stop();
+    if (audio) void audio.close();
     dialog.remove();
   });
 

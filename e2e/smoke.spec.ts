@@ -285,7 +285,7 @@ test("a zero delivery share cannot be paid on either screen", async ({ page }) =
 test("paid goods without delivery are not shown as paid", async ({ page }) => {
   await seedPaidDraftFixture(page);
   await page.goto("/#/customer/2");
-  const draft = page.locator(".customer-statement").filter({ hasText: "Посылка #1" });
+  const draft = page.locator(".customer-statement").filter({ hasText: "Посылка №1" });
   const pill = draft.locator(".parcel-debt");
 
   await expect(draft.locator(".parcel-entry__head .parcel-debt")).toHaveCount(0);
@@ -621,7 +621,7 @@ test("shared parcel-entry styles load on every route", async ({ page }) => {
   expect(arrowStyle).toEqual({
     bg: "rgb(255, 228, 239)",
     color: "rgb(157, 20, 80)",
-    width: "40px",
+    width: "44px",
   });
 });
 

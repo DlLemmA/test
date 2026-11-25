@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, useTemplateRef, watch } from "vue";
+import { nextTick, ref, useTemplateRef, watch } from "vue";
 import { toastState } from "@/core/state";
 import { parcelCommands } from "@/features/shared/wiring";
 import AppDrawer from "@/features/shared/ui/AppDrawer.vue";
@@ -9,11 +9,13 @@ import type { Parcel } from "../domain";
 const props = defineProps<{ open: boolean; parcel: Parcel }>();
 const emit = defineEmits<{ "update:open": [value: boolean]; shipped: [] }>();
 
-const form = useTemplateRef<HTMLFormElement>("form");
 const weightInput = useTemplateRef<HTMLInputElement>("weightInput");
 const amountInput = useTemplateRef<HTMLInputElement>("amountInput");
 const boxWeightG = ref("");
 const shippingCostBYN = ref("");
+const saving = ref(false);
+const error = ref("");
+const errorEl = useTemplateRef<HTMLDivElement>("errorEl");
 
 watch(
   () => props.open,
@@ -24,6 +26,7 @@ watch(
       props.parcel.shippingCostBYN == null ? "" : String(props.parcel.shippingCostBYN);
     weightInput.value?.setCustomValidity("");
     amountInput.value?.setCustomValidity("");
+    error.value = "";
   },
   { immediate: true },
 );
@@ -31,6 +34,7 @@ watch(
 function clearValidity(input: HTMLInputElement | null): void {
   input?.setCustomValidity("");
   input?.removeAttribute("aria-invalid");
+  error.value = "";
 }
 
 // Vue coerces v-model on type="number" to a number once the user types.
@@ -38,36 +42,56 @@ const text = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value);
 
 async function submit(): Promise<void> {
-  const currentForm = form.value;
-  if (!currentForm) return;
+  if (saving.value) return;
   const weight = Number(boxWeightG.value);
   const amount = Number(shippingCostBYN.value);
   const invalidWeight =
     text(boxWeightG.value).trim() === "" || !Number.isFinite(weight) || weight <= 0;
   const invalidAmount =
     text(shippingCostBYN.value).trim() === "" || !Number.isFinite(amount) || amount <= 0;
+  // Keep the field's validationMessage in Russian for assistive tech; the form
+  // is novalidate, so no native bubble is shown.
   weightInput.value?.setCustomValidity(invalidWeight ? "Укажите вес посылки" : "");
   amountInput.value?.setCustomValidity(invalidAmount ? "Укажите сумму доставки" : "");
   weightInput.value?.setAttribute("aria-invalid", String(invalidWeight));
   amountInput.value?.setAttribute("aria-invalid", String(invalidAmount));
   if (invalidWeight || invalidAmount) {
-    currentForm.reportValidity();
+    error.value = invalidWeight ? "Укажите вес посылки" : "Укажите сумму доставки";
     (invalidWeight ? weightInput.value : amountInput.value)?.focus();
     return;
   }
-  await parcelCommands.shipParcel(props.parcel.id, weight, amount);
-  emit("update:open", false);
-  emit("shipped");
-  toastState.add({ message: "Посылка отправлена", type: "success" });
+
+  saving.value = true;
+  error.value = "";
+  try {
+    await parcelCommands.shipParcel(props.parcel.id, weight, amount);
+    emit("update:open", false);
+    emit("shipped");
+    toastState.add({ message: "Посылка отправлена", type: "success" });
+  } catch {
+    error.value = "Не удалось отправить посылку. Проверьте соединение и попробуйте ещё раз.";
+    void nextTick(() => errorEl.value?.focus());
+  } finally {
+    saving.value = false;
+  }
 }
 </script>
 
 <template>
-  <AppDrawer :open="open" title="Отправить посылку" @update:open="emit('update:open', $event)">
-    <form ref="form" id="shipForm" novalidate @submit.prevent="submit">
+  <AppDrawer
+    :open="open"
+    title="Отправить посылку"
+    initial-focus="#shipBoxWeight"
+    @update:open="emit('update:open', $event)"
+  >
+    <form id="shipForm" novalidate @submit.prevent="submit">
       <p class="small muted">
         Вес и сумма доставки относятся ко всей посылке. Их можно уточнить при получении.
       </p>
+      <div v-if="error" ref="errorEl" class="inline-error" role="alert" tabindex="-1">
+        <span>{{ error }}</span>
+        <button type="button" class="text-btn" :disabled="saving" @click="submit">Повторить</button>
+      </div>
       <div class="field">
         <label for="shipBoxWeight">Вес посылки, г *</label>
         <input
@@ -80,6 +104,11 @@ async function submit(): Promise<void> {
           min="1"
           step="1"
           required
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          enterkeyhint="next"
           placeholder="Например, 600"
           @input="clearValidity(weightInput)"
         />
@@ -96,13 +125,18 @@ async function submit(): Promise<void> {
           min="0.01"
           step="0.01"
           required
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          enterkeyhint="done"
           placeholder="Например, 12.50"
           @input="clearValidity(amountInput)"
         />
       </div>
       <div class="actions">
-        <button type="submit" class="btn-primary w-full">
-          <AppIcon name="package" /> Отправить
+        <button type="submit" class="btn-primary w-full" :disabled="saving">
+          <AppIcon name="package" /> {{ saving ? "Отправляем…" : "Отправить" }}
         </button>
       </div>
     </form>

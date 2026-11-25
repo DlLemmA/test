@@ -29,9 +29,10 @@ async function submit(): Promise<void> {
   error.value = "";
   try {
     await sendMagicLink(email.value.trim());
-    message.value = "Проверьте почту — отправили ссылку для входа.";
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Не удалось отправить ссылку";
+    message.value =
+      "Проверьте почту — отправили ссылку для входа. После перехода вернитесь в приложение на главном экране.";
+  } catch {
+    error.value = "Не удалось отправить ссылку. Проверьте адрес и попробуйте ещё раз.";
   } finally {
     sending.value = false;
   }
@@ -44,7 +45,6 @@ async function submit(): Promise<void> {
       <span class="sign-in__mark" aria-hidden="true">
         <AppIcon name="package" />
       </span>
-      <p class="sign-in__eyebrow">Общий журнал · вход для двоих</p>
       <h1 id="signInTitle">Pindoчет</h1>
       <p class="sign-in__lead">Посылки, товары и расчёты — в одном журнале и без лишних полей.</p>
 
@@ -55,13 +55,14 @@ async function submit(): Promise<void> {
           v-model="email"
           type="email"
           name="email"
-          autocomplete="username"
+          autocomplete="email"
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
           enterkeyhint="done"
           placeholder="you@example.com"
           aria-describedby="signInHint signInStatus"
+          autofocus
           required
         />
         <p id="signInHint" class="sign-in__hint">
@@ -74,7 +75,7 @@ async function submit(): Promise<void> {
           :disabled="sending"
         >
           <AppIcon name="mail" />
-          {{ sending ? "Отправляем…" : "Отправить ссылку" }}
+          {{ sending ? "Отправляем…" : message ? "Отправить ещё раз" : "Отправить ссылку" }}
         </button>
       </form>
 

@@ -24,6 +24,8 @@ const ROUTE_DEPTH: Record<string, number> = {
   customer: 1,
 };
 
+let activeTransition: Promise<void> | null = null;
+
 function depthOf(route: RouteLocationNormalized): number {
   return ROUTE_DEPTH[String(route.name)] ?? 0;
 }
@@ -33,6 +35,10 @@ function hasViewTransitions(): boolean {
     typeof (document as Document & { startViewTransition?: unknown }).startViewTransition ===
     "function"
   );
+}
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
 
 function startTransition(options: {
@@ -70,7 +76,38 @@ export function clearRowTransition(): void {
 }
 
 function focusPanel(): void {
-  document.getElementById("panel-container")?.focus({ preventScroll: true });
+  // No preventScroll: on a forward navigation the scroller is already at the
+  // top, and focusing the panel keeps keyboard users oriented. Back skips
+  // this so the restored list offset survives.
+  document.getElementById("panel-container")?.focus();
+}
+
+/**
+ * Wait for the router to commit the new route without an `afterEach` listener.
+ * A cancelled navigation simply falls through after a bounded number of paints,
+ * so a rapid second tap can never leave the guard pending.
+ */
+async function waitForNewRoute(router: Router, to: RouteLocationNormalized): Promise<boolean> {
+  const committed = () => router.currentRoute.value.fullPath === to.fullPath;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    // oxlint-disable-next-line no-await-in-loop
+    await nextTick();
+    if (committed()) return true;
+  }
+  for (let frame = 0; frame < 6; frame += 1) {
+    // A cancelled or hidden-page navigation may never paint; the timer keeps
+    // the View Transition update callback from timing out at the browser level.
+    // oxlint-disable-next-line no-await-in-loop
+    await new Promise<void>((resolve) => {
+      const timer = window.setTimeout(resolve, 50);
+      requestAnimationFrame(() => {
+        window.clearTimeout(timer);
+        resolve();
+      });
+    });
+    if (committed()) return true;
+  }
+  return false;
 }
 
 export function runViewTransition(
@@ -79,6 +116,8 @@ export function runViewTransition(
   from: RouteLocationNormalized,
 ): Promise<boolean> {
   if (
+    activeTransition ||
+    prefersReducedMotion() ||
     !hasViewTransitions() ||
     !from.name ||
     to.fullPath === from.fullPath ||
@@ -97,30 +136,34 @@ export function runViewTransition(
   }
 
   return new Promise<boolean>((resolve) => {
-    const transition = startTransition({
-      types: [direction],
-      update: async () => {
-        // Let the guard continue only after the old snapshot is captured.
-        resolve(true);
-        await new Promise<void>((done) => {
-          const stop = router.afterEach(() => {
-            stop();
-            done();
-          });
-        });
-        await nextTick();
-        if (from.name === "parcel" && to.name === "parcels") {
-          markParcelTransition(Number(from.params.parcelId));
-        }
-        if (from.name === "customer" && to.name === "people") {
-          markCustomerTransition(Number(from.params.customerId));
-        }
-      },
-    });
-
-    void transition.finished.finally(() => {
+    let transition: TypedViewTransition;
+    try {
+      transition = startTransition({
+        types: [direction],
+        update: async () => {
+          // Let the guard continue only after the old snapshot is captured.
+          resolve(true);
+          if (!(await waitForNewRoute(router, to))) return;
+          if (from.name === "parcel" && to.name === "parcels") {
+            markParcelTransition(Number(from.params.parcelId));
+          }
+          if (from.name === "customer" && to.name === "people") {
+            markCustomerTransition(Number(from.params.customerId));
+          }
+        },
+      });
+    } catch {
       clearRowTransition();
-      focusPanel();
-    });
+      resolve(true);
+      return;
+    }
+
+    activeTransition = transition.finished
+      .catch(() => undefined)
+      .then(() => {
+        clearRowTransition();
+        if (direction === "forward") focusPanel();
+        activeTransition = null;
+      });
   });
 }

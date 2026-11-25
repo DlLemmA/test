@@ -26,8 +26,8 @@ const props = defineProps<{
 const emit = defineEmits<{ "update:open": [value: boolean]; saved: [] }>();
 
 const form = useTemplateRef<HTMLFormElement>("form");
-const completeCheckbox = useTemplateRef<HTMLInputElement>("completeCheckbox");
 const trackInputs = useTemplateRef<HTMLInputElement[]>("trackInputs");
+const errorEl = useTemplateRef<HTMLDivElement>("errorEl");
 
 const item = ref<ParcelItem | null>(null);
 const customers = ref<Customer[]>([]);
@@ -43,6 +43,8 @@ const unit = ref<UnitValue>("pcs");
 const tracks = ref<string[]>([""]);
 const weights = ref<Record<string, string>>({});
 const tracksCompleted = ref(false);
+const saving = ref(false);
+const error = ref("");
 
 /** Tracks are entry data: editable while awaiting distribution or receipt. */
 const canEditTracks = computed(
@@ -83,10 +85,6 @@ const steps = computed<WizardStep[]>(() => {
   ];
 });
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Ошибка";
-}
-
 function defaultStep(): ItemFormStep {
   if (isNew.value) return "main";
   if (props.initialStep === "tracks" && !canViewTracks.value) return "main";
@@ -124,6 +122,7 @@ watch(
       );
       tracksCompleted.value = loadedItem?.tracksCompleted ?? false;
       step.value = defaultStep();
+      error.value = "";
       await nextTick();
       focusStepPanel();
     } finally {
@@ -141,11 +140,51 @@ function focusStepPanel(): void {
     ?.focus();
 }
 
+function validateMain(): boolean {
+  const issues: string[] = [];
+  if (!name.value.trim()) issues.push("Укажите название товара");
+  if (!customerId.value) issues.push("Выберите заказчика");
+  if (!(Number(priceCNY.value) > 0)) issues.push("Укажите цену в CNY");
+  if (!(Number(priceBYN.value) > 0)) issues.push("Укажите цену в BYN");
+  if (!(Number(quantity.value) >= 1)) issues.push("Укажите количество от 1");
+  if (issues.length === 0) return true;
+  error.value = `${issues.join(". ")}.`;
+  form.value?.querySelector<HTMLElement>('[data-panel="main"] input')?.focus();
+  return false;
+}
+
+function validateTracks(): boolean {
+  if (!canEditTracks.value || !tracksCompleted.value) return true;
+  const emptyIndex = tracks.value.findIndex((track) => !track.trim());
+  if (emptyIndex < 0) return true;
+  error.value = `Заполните трек-номер ${emptyIndex + 1}.`;
+  trackInputs.value?.[emptyIndex]?.focus();
+  return false;
+}
+
+function validateWeights(): boolean {
+  if (!canEditWeights.value) return true;
+  const bad = Object.entries(weights.value).find(
+    ([, value]) => value.trim() !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0),
+  );
+  if (!bad) return true;
+  error.value = "Вес трека — число от 0 граммов.";
+  form.value
+    ?.querySelector<HTMLElement>(`[data-panel="weights"] [data-track="${bad[0]}"] input`)
+    ?.focus();
+  return false;
+}
+
+function validate(): boolean {
+  error.value = "";
+  return validateMain() && validateTracks() && validateWeights();
+}
+
 function goTo(next: ItemFormStep): void {
   if (next === "tracks" && !canViewTracks.value) return;
   if (next === "weights" && !canEditWeights.value) return;
-  if (next === "tracks" && canEditTracks.value && form.value && !form.value.reportValidity())
-    return;
+  if (next !== "main" && !validateMain()) return;
+  if (next === "weights" && !validateTracks()) return;
   step.value = next;
   void nextTick(focusStepPanel);
 }
@@ -164,29 +203,17 @@ function removeTrackRow(index: number): void {
   else tracks.value[index] = "";
 }
 
-function setCompleteValidity(message: string): void {
-  completeCheckbox.value?.setCustomValidity(message);
-  if (message) completeCheckbox.value?.setAttribute("aria-invalid", "true");
-  else completeCheckbox.value?.removeAttribute("aria-invalid");
-}
-
 function onTracksInput(): void {
-  setCompleteValidity("");
+  error.value = "";
 }
 
 function onCompleteChange(): void {
-  if (!tracksCompleted.value) {
-    setCompleteValidity("");
-    return;
-  }
-  const hasEmpty = tracks.value.some((track) => !track.trim());
-  setCompleteValidity(hasEmpty ? "Заполните все трек-номера" : "");
-  if (hasEmpty) completeCheckbox.value?.reportValidity();
+  error.value = "";
+  validateTracks();
 }
 
 async function submit(): Promise<void> {
-  const currentForm = form.value;
-  if (!currentForm || !currentForm.reportValidity()) return;
+  if (saving.value || loading.value || !validate()) return;
 
   const rawData = {
     parcelId: props.parcelId,
@@ -199,13 +226,7 @@ async function submit(): Promise<void> {
   };
   const data: ParcelItemUpdateInput = { ...rawData };
   const cleanTracks = tracks.value.map((track) => track.trim()).filter(Boolean);
-  const hasEmptyTrack = tracks.value.some((track) => !track.trim());
 
-  if (canEditTracks.value && tracksCompleted.value && hasEmptyTrack) {
-    setCompleteValidity("Заполните все трек-номера");
-    completeCheckbox.value?.reportValidity();
-    return;
-  }
   if (
     canEditTracks.value &&
     (cleanTracks.length > 0 || (item.value?.trackNumbers.length ?? 0) > 0)
@@ -216,6 +237,7 @@ async function submit(): Promise<void> {
     data.weightsG = item.value.trackNumbers.map((track) => Number(weights.value[track] ?? 0) || 0);
   }
 
+  saving.value = true;
   try {
     if (isNew.value) {
       await parcelCommands.commitBatch(props.parcelId, [rawData]);
@@ -231,8 +253,11 @@ async function submit(): Promise<void> {
     emit("update:open", false);
     emit("saved");
     toastState.add({ message: "Товар сохранён", type: "success" });
-  } catch (err) {
-    toastState.add({ message: errorMessage(err), type: "error" });
+  } catch {
+    error.value = "Не удалось сохранить товар. Проверьте соединение и попробуйте ещё раз.";
+    void nextTick(() => errorEl.value?.focus());
+  } finally {
+    saving.value = false;
   }
 }
 </script>
@@ -241,16 +266,22 @@ async function submit(): Promise<void> {
   <AppDrawer
     :open="open"
     :title="isNew ? 'Новый товар' : 'Редактировать товар'"
+    initial-focus="#itemName"
     @update:open="emit('update:open', $event)"
   >
     <form
-      v-if="!loading"
       ref="form"
       id="itemForm"
       class="item-wizard"
       novalidate
+      :aria-busy="loading || saving"
       @submit.prevent="submit"
+      @input="error = ''"
     >
+      <div v-if="error" ref="errorEl" class="inline-error" role="alert" tabindex="-1">
+        <span>{{ error }}</span>
+        <button type="button" class="text-btn" @click="submit">Повторить</button>
+      </div>
       <WizardSteps
         v-if="steps.length > 1"
         :steps="steps"
@@ -266,7 +297,18 @@ async function submit(): Promise<void> {
       >
         <div class="field col-span-2">
           <label for="itemName">Название *</label>
-          <input id="itemName" v-model="name" name="name" required autocomplete="off" />
+          <input
+            id="itemName"
+            v-model="name"
+            name="name"
+            required
+            data-wizard-autofocus
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="sentences"
+            spellcheck="false"
+            enterkeyhint="next"
+          />
         </div>
         <div class="field col-span-2">
           <label for="itemCustomer">Заказчик *</label>
@@ -292,8 +334,12 @@ async function submit(): Promise<void> {
             v-model="priceCNY"
             name="priceCNY"
             type="number"
+            inputmode="decimal"
             step="0.01"
+            min="0.01"
             required
+            autocomplete="off"
+            enterkeyhint="next"
           />
         </div>
         <div class="field">
@@ -303,8 +349,12 @@ async function submit(): Promise<void> {
             v-model="priceBYN"
             name="priceBYN"
             type="number"
+            inputmode="decimal"
             step="0.01"
+            min="0.01"
             required
+            autocomplete="off"
+            enterkeyhint="next"
           />
         </div>
         <div class="field">
@@ -314,9 +364,12 @@ async function submit(): Promise<void> {
             v-model="quantity"
             name="quantity"
             type="number"
+            inputmode="numeric"
             step="1"
             min="1"
             required
+            autocomplete="off"
+            enterkeyhint="next"
           />
         </div>
         <div class="field">
@@ -353,8 +406,13 @@ async function submit(): Promise<void> {
           >
             Далее: веса
           </button>
-          <button type="submit" class="btn-primary" enterkeyhint="done">
-            {{ isNew ? "Добавить" : "Сохранить" }}
+          <button
+            type="submit"
+            class="btn-primary"
+            enterkeyhint="done"
+            :disabled="loading || saving"
+          >
+            {{ saving ? "Сохраняем…" : isNew ? "Добавить" : "Сохранить" }}
           </button>
         </div>
       </div>
@@ -409,7 +467,6 @@ async function submit(): Promise<void> {
         </fieldset>
         <label class="pay-summary item-wizard__complete" :class="{ 'is-locked': !canEditTracks }">
           <input
-            ref="completeCheckbox"
             v-model="tracksCompleted"
             type="checkbox"
             class="pay-summary__input"
@@ -425,7 +482,14 @@ async function submit(): Promise<void> {
           <button type="button" class="text-btn" data-goto="main" @click="goTo('main')">
             Назад
           </button>
-          <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
+          <button
+            type="submit"
+            class="btn-primary"
+            enterkeyhint="done"
+            :disabled="loading || saving"
+          >
+            {{ saving ? "Сохраняем…" : "Сохранить" }}
+          </button>
         </div>
       </div>
 
@@ -468,7 +532,14 @@ async function submit(): Promise<void> {
           <button type="button" class="text-btn" data-goto="main" @click="goTo('main')">
             Назад
           </button>
-          <button type="submit" class="btn-primary" enterkeyhint="done">Сохранить</button>
+          <button
+            type="submit"
+            class="btn-primary"
+            enterkeyhint="done"
+            :disabled="loading || saving"
+          >
+            {{ saving ? "Сохраняем…" : "Сохранить" }}
+          </button>
         </div>
       </div>
     </form>

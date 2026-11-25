@@ -3,8 +3,7 @@
 // reducer decides what it means. Camera and scripted scanners are adapters.
 // ============================================
 
-import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+import type { IScannerControls } from "@zxing/browser";
 
 export interface Scanner {
   start(video: HTMLVideoElement, onCode: (code: string) => void): Promise<void>;
@@ -12,12 +11,17 @@ export interface Scanner {
 }
 
 export function cameraScanner(): Scanner {
-  let reader: BrowserMultiFormatReader | null = null;
+  let reader: import("@zxing/browser").BrowserMultiFormatReader | null = null;
   let controls: IScannerControls | null = null;
 
   return {
     async start(video, onCode) {
       if (!reader) {
+        // ZXing is ~120 kB gzipped. Load it when the camera starts, not when
+        // the parcel detail screen is opened: most sessions never scan.
+        const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all(
+          [import("@zxing/browser"), import("@zxing/library")],
+        );
         const hints = new Map();
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [
           BarcodeFormat.CODE_128,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch } from "vue";
+import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import AppDrawer from "@/features/shared/ui/AppDrawer.vue";
 import { customerService } from "@/features/shared/wiring";
 import type { Customer } from "../domain";
@@ -11,7 +11,9 @@ const title = computed(() => (props.isNew ? "Новый заказчик" : "Р�
 const name = ref("");
 const isSelf = ref(false);
 const error = ref("");
+const saving = ref(false);
 const nameInput = useTemplateRef<HTMLInputElement>("nameInput");
+const errorEl = useTemplateRef<HTMLDivElement>("errorEl");
 
 // One component instance serves "add" and every "edit", so its draft has to
 // be reset from the current props each time the drawer opens.
@@ -22,29 +24,34 @@ watch(
     name.value = props.customer?.name ?? "";
     isSelf.value = props.customer?.isSelf ?? false;
     error.value = "";
-    nameInput.value?.setCustomValidity("");
   },
   { immediate: true },
 );
 
 function showError(message: string): void {
   error.value = message;
-  nameInput.value?.setCustomValidity(message);
   nameInput.value?.focus();
 }
 
 function clearError(): void {
   error.value = "";
-  nameInput.value?.setCustomValidity("");
+}
+
+function showSaveError(message: string): void {
+  error.value = message;
+  void nextTick(() => errorEl.value?.focus());
 }
 
 async function submit(): Promise<void> {
+  if (saving.value) return;
   const trimmed = name.value.trim();
   if (!trimmed) {
     showError("Укажите имя заказчика");
     return;
   }
 
+  saving.value = true;
+  error.value = "";
   try {
     if (props.isNew) {
       await customerService.createCustomer({ name: trimmed, isSelf: isSelf.value });
@@ -55,14 +62,21 @@ async function submit(): Promise<void> {
       });
     }
     emit("saved");
-  } catch (caught) {
-    showError(caught instanceof Error ? caught.message : "Не удалось сохранить заказчика");
+  } catch {
+    showSaveError("Не удалось сохранить заказчика. Проверьте соединение и попробуйте ещё раз.");
+  } finally {
+    saving.value = false;
   }
 }
 </script>
 
 <template>
-  <AppDrawer :open="open" :title="title" @update:open="emit('update:open', $event)">
+  <AppDrawer
+    :open="open"
+    :title="title"
+    initial-focus="#customerName"
+    @update:open="emit('update:open', $event)"
+  >
     <form
       id="customerForm"
       novalidate
@@ -88,15 +102,32 @@ async function submit(): Promise<void> {
           @input="clearError"
           @change="clearError"
         />
-        <span id="customerNameError" class="field-error" :hidden="!error">{{ error }}</span>
+        <span
+          id="customerNameError"
+          class="field-error"
+          :hidden="!error || error !== 'Укажите имя заказчика'"
+          >{{ error }}</span
+        >
+        <div
+          v-if="error && error !== 'Укажите имя заказчика'"
+          ref="errorEl"
+          class="inline-error"
+          role="alert"
+          tabindex="-1"
+        >
+          <span>{{ error }}</span>
+          <button type="button" class="text-btn" :disabled="saving" @click="submit">
+            Повторить
+          </button>
+        </div>
       </div>
       <div class="field field-check">
         <input id="customerSelf" v-model="isSelf" name="is_self" type="checkbox" />
         <label for="customerSelf">Это я</label>
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn-primary w-full">
-          {{ isNew ? "Добавить" : "Сохранить" }}
+        <button type="submit" class="btn-primary w-full" :disabled="saving">
+          {{ saving ? "Сохраняем…" : isNew ? "Добавить" : "Сохранить" }}
         </button>
       </div>
     </form>

@@ -32,6 +32,10 @@ coverage/
 test-results/
 playwright-report/
 
+# Local visual review artifacts
+iphone-screens/
+capture-iphone-shots.mjs
+
 # Misc
 *.local
 

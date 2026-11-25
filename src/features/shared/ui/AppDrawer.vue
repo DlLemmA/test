@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Vue adapter for the app-level sheet contract: title + content + close.
 // Reka owns focus, Escape, outside-press, scroll lock and swipe.
+import { useTemplateRef } from "vue";
 import {
   DrawerClose,
   DrawerContent,
@@ -12,15 +13,34 @@ import {
 } from "reka-ui";
 import AppIcon from "./AppIcon.vue";
 
-defineProps<{ open: boolean; title: string }>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    title: string;
+    /** Scoped selector for the field that should open the iOS keyboard. */
+    initialFocus?: string;
+    role?: "dialog" | "alertdialog";
+  }>(),
+  { initialFocus: undefined, role: "dialog" },
+);
 const emit = defineEmits<{ "update:open": [value: boolean] }>();
+const content = useTemplateRef<HTMLElement>("content");
+
+/** Reka's default focus lands on the close button; focus the first field instead. */
+function onOpenAutoFocus(event: Event): void {
+  if (!props.initialFocus) return;
+  const target = content.value?.querySelector<HTMLElement>(props.initialFocus);
+  if (!target) return;
+  event.preventDefault();
+  target.focus();
+}
 </script>
 
 <template>
   <DrawerRoot :open="open" @update:open="emit('update:open', $event)">
     <DrawerPortal>
       <DrawerOverlay class="app-drawer-overlay" />
-      <DrawerContent class="app-drawer-content">
+      <DrawerContent class="app-drawer-content" :role="role" @open-auto-focus="onOpenAutoFocus">
         <DrawerHandle class="drawer-handle" />
         <div class="drawer-header">
           <DrawerTitle>{{ title }}</DrawerTitle>
@@ -28,7 +48,7 @@ const emit = defineEmits<{ "update:open": [value: boolean] }>();
             <AppIcon name="x" />
           </DrawerClose>
         </div>
-        <div class="drawer-content">
+        <div ref="content" class="drawer-content">
           <slot />
         </div>
       </DrawerContent>
@@ -106,6 +126,14 @@ const emit = defineEmits<{ "update:open": [value: boolean] }>();
 @keyframes app-drawer-slide-out {
   to {
     translate: 0 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-drawer-overlay,
+  .app-drawer-content {
+    animation: none;
+    transition: none;
   }
 }
 </style>

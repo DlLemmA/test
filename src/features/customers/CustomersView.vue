@@ -8,12 +8,14 @@ import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPrese
 import { getCustomerStatements } from "@/features/statements/service";
 import type { CustomerStatement } from "@/features/statements/service";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
+import ScreenState from "@/features/shared/ui/ScreenState.vue";
 import CustomerForm from "./ui/CustomerForm.vue";
 import { broughtWeight, SELF_SUFFIX } from "./ui/CustomerPresentation";
 import CustomerMark from "./ui/CustomerMark.vue";
 
 const statements = shallowRef<CustomerStatement[]>([]);
 const formTarget = shallowRef<number | "new" | null>(null);
+const phase = shallowRef<"loading" | "ready" | "error">("loading");
 
 const formOpen = computed({
   get: () => formTarget.value !== null,
@@ -29,8 +31,17 @@ const loadScope = new AbortController();
 onScopeDispose(() => loadScope.abort());
 
 async function load(): Promise<void> {
-  const facts = await getCustomerStatements();
-  if (!loadScope.signal.aborted) statements.value = facts;
+  phase.value = "loading";
+  try {
+    const facts = await getCustomerStatements();
+    if (!loadScope.signal.aborted) {
+      statements.value = facts;
+      phase.value = "ready";
+    }
+  } catch (error) {
+    if (!loadScope.signal.aborted) phase.value = "error";
+    console.error(error);
+  }
 }
 onMounted(load);
 
@@ -68,7 +79,15 @@ function onOpen(event: MouseEvent, customerId: number): void {
       <p class="page-head__note">Товары, посылки и остатки по каждому человеку</p>
     </header>
 
-    <ul v-if="statements.length" class="customer-index">
+    <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем заказчиков…" />
+    <ScreenState
+      v-else-if="phase === 'error'"
+      kind="error"
+      message="Не удалось загрузить заказчиков. Проверьте соединение и попробуйте ещё раз."
+      action-label="Повторить"
+      @action="refresh"
+    />
+    <ul v-else-if="statements.length" class="customer-index">
       <li v-for="statement in statements" :key="statement.customer.id">
         <div class="customer-line">
           <div class="customer-row">
@@ -117,7 +136,14 @@ function onOpen(event: MouseEvent, customerId: number): void {
         </div>
       </li>
     </ul>
-    <div v-else class="empty">Нет заказчиков. Нажмите «Добавить заказчика», чтобы начать.</div>
+    <ScreenState
+      v-else
+      kind="empty"
+      title="Заказчиков пока нет"
+      message="Добавьте первого заказчика, чтобы вести по нему товары и расчёты."
+      action-label="Добавить заказчика"
+      @action="formTarget = 'new'"
+    />
 
     <div class="form-actions form-actions--final">
       <button type="button" class="btn-primary w-full" id="addCustomer" @click="formTarget = 'new'">

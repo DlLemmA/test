@@ -7,11 +7,7 @@ test.describe("SendAParcel", () => {
     await page.goto("/#/parcel/1");
     await page.locator("#shipParcel").click();
 
-    await expect(
-      page.locator("#toastContainer .toast__message", {
-        hasText: /Нельзя отправить пустую посылку/,
-      }),
-    ).toBeVisible();
+    await expect(page.locator(".inline-error")).toContainText("Нельзя отправить пустую посылку");
     await expect(page.locator("#shipForm")).toHaveCount(0);
   });
 
@@ -20,11 +16,7 @@ test.describe("SendAParcel", () => {
     await page.goto("/#/parcel/1");
 
     await page.locator("#shipParcel").click();
-    await expect(
-      page.locator("#toastContainer .toast__message", {
-        hasText: /не отмечены «Треки заполнены»/,
-      }),
-    ).toBeVisible();
+    await expect(page.locator(".inline-error")).toContainText("не отмечены «Треки заполнены»");
     await expect(page.locator("#shipForm")).toHaveCount(0);
   });
 
@@ -34,9 +26,7 @@ test.describe("SendAParcel", () => {
     await expect(page.locator(".item-entry__no-tracks")).toHaveText("Треков пока нет");
 
     await page.locator("#shipParcel").click();
-    await expect(
-      page.locator("#toastContainer .toast__message", { hasText: /не отмечены/ }),
-    ).toBeVisible();
+    await expect(page.locator(".inline-error")).toContainText("не отмечены");
     await expect(page.locator("#shipForm")).toHaveCount(0);
   });
 
