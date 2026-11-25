@@ -493,12 +493,27 @@ test("customer row parts morph into the detail hero", async ({ page }) => {
   });
 });
 
-test("bottom dock keeps its own compositing layer", async ({ page }) => {
+test("bottom dock keeps its own compositing layer and a layered active pill", async ({ page }) => {
   await page.goto("/#/parcels");
   const wrap = page.locator(".bottombar-wrap");
+  const indicator = page.locator(".bottombar-active");
   await expect(wrap).toBeVisible();
   expect(await wrap.evaluate((el) => getComputedStyle(el).willChange)).toBe("transform");
+  expect(await indicator.evaluate((el) => getComputedStyle(el).zIndex)).toBe("0");
+  expect(
+    await indicator.evaluate((el) =>
+      getComputedStyle(el).getPropertyValue("--active-index").trim(),
+    ),
+  ).toBe("0");
   await expect(page.locator("#bottombar a")).toHaveCount(3);
+
+  await page.locator('#bottombar a[href="#/add"]').click();
+  await expect(page).toHaveURL(/#\/add$/);
+  expect(
+    await indicator.evaluate((el) =>
+      getComputedStyle(el).getPropertyValue("--active-index").trim(),
+    ),
+  ).toBe("1");
 });
 
 test("search filters items without toggling a group", async ({ page }) => {

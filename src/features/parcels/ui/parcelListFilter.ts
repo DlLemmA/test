@@ -24,12 +24,6 @@ export interface ParcelListRow {
   remaining: number;
 }
 
-export interface ParcelAttention {
-  drafts: number;
-  awaitingShipment: number;
-  debt: number;
-}
-
 export function toParcelListRows(statements: ParcelStatement[]): ParcelListRow[] {
   return statements.map((statement) => ({
     parcel: statement.parcel,
@@ -39,14 +33,6 @@ export function toParcelListRows(statements: ParcelStatement[]): ParcelListRow[]
       .map((customer) => customer.name),
     remaining: statement.balance.totals.remaining,
   }));
-}
-
-export function parcelAttention(rows: ParcelListRow[]): ParcelAttention {
-  return {
-    drafts: rows.filter((row) => row.parcel.status === "draft").length,
-    awaitingShipment: rows.filter((row) => row.parcel.status === "shipped").length,
-    debt: rows.filter((row) => row.remaining > 0).length,
-  };
 }
 
 function matchesFilter(row: ParcelListRow, filter: ParcelFilter): boolean {

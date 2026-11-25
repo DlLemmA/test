@@ -12,7 +12,6 @@ import { confirmDeleteParcel } from "./ui/deleteParcelCopy";
 import {
   filterParcelRows,
   PARCEL_FILTERS,
-  parcelAttention,
   toParcelListRows,
   type ParcelFilter,
   type ParcelListRow,
@@ -36,7 +35,6 @@ const ordered = computed(() =>
   }),
 );
 const visible = computed(() => filterParcelRows(ordered.value, filter.value, query.value));
-const attention = computed(() => parcelAttention(rows.value));
 const deleteOpen = computed({
   get: () => deleteTarget.value !== null,
   set: (open: boolean) => {
@@ -120,7 +118,12 @@ async function confirmDelete(): Promise<void> {
       <p class="page-head__note">Сначала свежие — черновики в конце</p>
     </header>
 
-    <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем посылки…" />
+    <ScreenState
+      v-if="phase === 'loading'"
+      kind="loading"
+      skeleton="list"
+      title="Загружаем посылки…"
+    />
     <ScreenState
       v-else-if="phase === 'error'"
       kind="error"
@@ -155,19 +158,6 @@ async function confirmDelete(): Promise<void> {
             {{ chip.label }}
           </button>
         </div>
-      </div>
-
-      <div v-if="rows.length" class="attention-line register-line" aria-label="Требует внимания">
-        <span>Требует внимания</span>
-        <button type="button" data-attention="draft" @click="filter = 'draft'">
-          Черновики: <b>{{ attention.drafts }}</b>
-        </button>
-        <button type="button" data-attention="shipped" @click="filter = 'to-ship'">
-          К отправке: <b>{{ attention.awaitingShipment }}</b>
-        </button>
-        <button type="button" data-attention="debt" @click="filter = 'debt'">
-          С долгом: <b>{{ attention.debt }}</b>
-        </button>
       </div>
 
       <section v-if="visible.length" class="section parcel-index">

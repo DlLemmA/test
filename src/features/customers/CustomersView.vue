@@ -79,7 +79,12 @@ function onOpen(event: MouseEvent, customerId: number): void {
       <p class="page-head__note">Товары, посылки и остатки по каждому человеку</p>
     </header>
 
-    <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем заказчиков…" />
+    <ScreenState
+      v-if="phase === 'loading'"
+      kind="loading"
+      skeleton="list"
+      title="Загружаем заказчиков…"
+    />
     <ScreenState
       v-else-if="phase === 'error'"
       kind="error"

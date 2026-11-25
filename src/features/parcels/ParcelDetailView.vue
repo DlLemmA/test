@@ -395,7 +395,12 @@ async function confirmDelete(): Promise<void> {
 
 <template>
   <div class="page page-parcel-detail">
-    <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем посылку…" />
+    <ScreenState
+      v-if="phase === 'loading'"
+      kind="loading"
+      skeleton="detail"
+      title="Загружаем посылку…"
+    />
     <ScreenState
       v-else-if="phase === 'error'"
       kind="error"

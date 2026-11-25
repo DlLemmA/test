@@ -197,7 +197,12 @@ function shippingAction(entry: CustomerParcelStatement): void {
 </script>
 
 <template>
-  <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем заказчика…" />
+  <ScreenState
+    v-if="phase === 'loading'"
+    kind="loading"
+    skeleton="detail"
+    title="Загружаем заказчика…"
+  />
   <ScreenState
     v-else-if="phase === 'error'"
     kind="error"

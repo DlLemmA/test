@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Parcel } from "../domain/Parcel";
-import {
-  filterParcelRows,
-  parcelAttention,
-  type ParcelFilter,
-  type ParcelListRow,
-} from "./parcelListFilter";
+import { filterParcelRows, type ParcelFilter, type ParcelListRow } from "./parcelListFilter";
 
 const CREATED_AT = "2026-11-23T00:00:00.000Z";
 
@@ -52,9 +47,5 @@ describe("parcel index filtering", () => {
   it("combines the chip and the query", () => {
     expect(ids("received", "катя")).toEqual([]);
     expect(ids("all", "не найдено")).toEqual([]);
-  });
-
-  it("counts what needs attention without treating done parcels as debt", () => {
-    expect(parcelAttention(rows)).toEqual({ drafts: 1, awaitingShipment: 1, debt: 1 });
   });
 });

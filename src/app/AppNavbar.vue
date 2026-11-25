@@ -5,11 +5,18 @@ import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import type { AppRoute } from "./router";
 
 const route = useRoute();
+const TAB_ROUTES = ["parcels", "add", "people"] as const;
+
 const activeRoute = computed<AppRoute>(() => {
   const name = route.name as AppRoute;
   if (name === "parcel") return "parcels";
   if (name === "customer") return "people";
   return name ?? "parcels";
+});
+
+const activeIndex = computed(() => {
+  const index = TAB_ROUTES.indexOf(activeRoute.value as (typeof TAB_ROUTES)[number]);
+  return index < 0 ? 0 : index;
 });
 </script>
 
@@ -17,6 +24,11 @@ const activeRoute = computed<AppRoute>(() => {
   <div class="bottombar-wrap">
     <div class="bottombar-shadow" aria-hidden="true"></div>
     <nav id="bottombar" class="bottombar" aria-label="Основная навигация">
+      <span
+        class="bottombar-active"
+        :style="{ '--active-index': activeIndex }"
+        aria-hidden="true"
+      ></span>
       <RouterLink
         class="bottombar-item"
         :class="{ active: activeRoute === 'parcels' }"

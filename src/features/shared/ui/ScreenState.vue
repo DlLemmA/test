@@ -2,15 +2,18 @@
 import AppIcon from "./AppIcon.vue";
 
 type Kind = "loading" | "error" | "empty";
+type Skeleton = "list" | "detail" | "form";
 
 const props = withDefaults(
   defineProps<{
     kind: Kind;
+    skeleton?: Skeleton;
     title?: string;
     message?: string;
     actionLabel?: string;
   }>(),
   {
+    skeleton: "list",
     title: undefined,
     message: undefined,
     actionLabel: undefined,
@@ -46,13 +49,38 @@ function body(): string {
     :aria-busy="kind === 'loading' ? 'true' : undefined"
   >
     <template v-if="kind === 'loading'">
-      <span class="screen-state__line is-long" aria-hidden="true" />
-      <span class="screen-state__line" aria-hidden="true" />
-      <span class="screen-state__line is-short" aria-hidden="true" />
+      <div class="screen-state__skeleton" :data-skeleton="skeleton" aria-hidden="true">
+        <template v-if="skeleton === 'detail'">
+          <span class="screen-state__skeleton-line is-title" />
+          <span class="screen-state__skeleton-line is-meta" />
+          <span class="screen-state__skeleton-rule" />
+          <span class="screen-state__skeleton-line is-long" />
+          <span class="screen-state__skeleton-line is-short" />
+          <span class="screen-state__skeleton-rule" />
+          <span class="screen-state__skeleton-line is-long" />
+          <span class="screen-state__skeleton-line is-meta" />
+        </template>
+        <template v-else-if="skeleton === 'form'">
+          <span class="screen-state__skeleton-line is-title" />
+          <span class="screen-state__skeleton-field" />
+          <span class="screen-state__skeleton-field" />
+          <span class="screen-state__skeleton-field is-short" />
+          <span class="screen-state__skeleton-action" />
+        </template>
+        <template v-else>
+          <div v-for="row in 3" :key="row" class="screen-state__skeleton-row">
+            <span class="screen-state__skeleton-mark" />
+            <span class="screen-state__skeleton-body">
+              <span class="screen-state__skeleton-line is-title" />
+              <span class="screen-state__skeleton-line is-meta" />
+            </span>
+          </div>
+        </template>
+      </div>
       <span class="screen-state__title">{{ heading() }}</span>
     </template>
     <template v-else>
-      <AppIcon class="screen-state__icon" :name="FALLBACK[kind].icon" />
+      <AppIcon v-if="kind === 'error'" class="screen-state__icon" :name="FALLBACK[kind].icon" />
       <h2 class="screen-state__title">{{ heading() }}</h2>
       <p v-if="body()" class="screen-state__message">{{ body() }}</p>
       <button v-if="actionLabel" type="button" class="btn-secondary" @click="emit('action')">

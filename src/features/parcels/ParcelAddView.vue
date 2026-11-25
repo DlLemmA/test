@@ -379,7 +379,12 @@ async function saveBatch(): Promise<void> {
 
 <template>
   <div ref="root" class="page page-batch">
-    <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем партию…" />
+    <ScreenState
+      v-if="phase === 'loading'"
+      kind="loading"
+      skeleton="form"
+      title="Загружаем партию…"
+    />
     <ScreenState
       v-else-if="phase === 'error'"
       kind="error"
