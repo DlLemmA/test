@@ -8,6 +8,7 @@ import AppDropdownMenuItem from "@/features/shared/ui/AppDropdownMenuItem.vue";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import type { Parcel } from "../domain";
 import { itemRowFacts } from "./ItemRowFacts";
+import { copyTrack } from "./copyTrack";
 import { TRACK_FORMS, unitLabel } from "./ParcelPresentation";
 import type { ItemRowView } from "./ItemGroups";
 
@@ -126,13 +127,27 @@ function hasTracks(row: ItemRowView): boolean {
         </span>
       </div>
       <div v-if="facts(row).showTracks" class="item-row__tracks">
-        <div v-for="(track, idx) in row.item.trackNumbers" :key="idx" class="track-value-row">
-          <span class="track-index" aria-hidden="true">{{ idx + 1 }}</span>
-          <span class="track-code">{{ track || "—" }}</span>
-          <span v-if="facts(row).showTrackWeights" class="track-weight">
-            {{ (row.item.weightsG[idx] || 0) > 0 ? `${row.item.weightsG[idx]} г` : "вес не задан" }}
+        <template v-for="(track, idx) in row.item.trackNumbers" :key="idx">
+          <button
+            v-if="track.trim()"
+            type="button"
+            class="track-value-row"
+            :aria-label="`Скопировать трек-номер ${track}`"
+            @click="copyTrack(track)"
+          >
+            <span class="track-index" aria-hidden="true">{{ idx + 1 }}</span>
+            <span class="track-code">{{ track }}</span>
+            <span v-if="facts(row).showTrackWeights" class="track-weight">
+              {{
+                (row.item.weightsG[idx] || 0) > 0 ? `${row.item.weightsG[idx]} г` : "вес не задан"
+              }}
+            </span>
+          </button>
+          <span v-else class="track-value-row">
+            <span class="track-index" aria-hidden="true">{{ idx + 1 }}</span>
+            <span class="track-code">—</span>
           </span>
-        </div>
+        </template>
         <div
           v-if="row.item.trackNumbers.length === 0 && props.parcel.status === 'draft'"
           class="item-entry__no-tracks"

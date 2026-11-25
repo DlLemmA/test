@@ -2741,6 +2741,17 @@ select.picker__control {
   padding-inline-start: 7px;
   border-inline-start: 1px solid var(--color-line);
 }
+button.track-value-row {
+  min-block-size: 44px;
+  align-items: center;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.track-value-row:active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-wash);
+}
 .track-index {
   color: var(--color-muted);
   font-family: var(--font-mono);

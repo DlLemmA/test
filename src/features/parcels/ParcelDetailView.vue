@@ -31,6 +31,7 @@ import { openReceiveFlow } from "./ReceiveFlow";
 import { exportParcel, parcelExportState } from "./ui/exportParcel";
 import ParcelComment from "./ui/ParcelComment.vue";
 import ParcelItems from "./ui/ParcelItems.vue";
+import ParcelTimeline from "./ui/ParcelTimeline.vue";
 import ParcelTrackCopy from "./ui/ParcelTrackCopy.vue";
 import ParcelItemWizard from "./ui/ParcelItemWizard.vue";
 import ParcelShipForm from "./ui/ParcelShipForm.vue";
@@ -427,6 +428,8 @@ async function confirmDelete(): Promise<void> {
           <p class="detail-hero__next">{{ nextStepLabel(parcel.status) }}</p>
         </div>
       </section>
+
+      <ParcelTimeline :parcel="parcel" />
 
       <div v-if="actionError" ref="actionErrorEl" class="inline-error" role="alert" tabindex="-1">
         <span>{{ actionError }}</span>
