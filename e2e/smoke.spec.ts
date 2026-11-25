@@ -246,7 +246,9 @@ test("paid goods without delivery are not shown as paid", async ({ page }) => {
 test("payment toggle sits with the price and self stays paid", async ({ page }) => {
   await page.goto("/#/parcel/2");
   await expect(page.locator('.item-entry[data-self="true"] .item-entry__owner')).toHaveText("Я");
-  await expect(page.locator('.item-entry[data-self="false"] .item-entry__owner')).toHaveCount(0);
+  const otherOwner = page.locator('.item-entry[data-self="false"] .item-entry__owner');
+  await expect(otherOwner).toHaveText("К");
+  await expect(otherOwner).toHaveAttribute("title", "Товар: Катя");
   await expect(page.locator('[data-toggle-payment="10"]')).toBeDisabled();
 
   const row = page.locator(".item-entry", { hasText: "Товар Кати" });

@@ -2535,15 +2535,20 @@ select.picker__control {
   inline-size: 16px;
   block-size: 16px;
   margin-inline-end: 5px;
-  border: 1px solid var(--color-accent-line);
+  border: 1px solid var(--color-line-strong);
   border-radius: 4px;
-  background: var(--color-accent-wash);
-  color: var(--color-accent-strong);
+  background: var(--color-slate-50);
+  color: var(--color-ink-soft);
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
   vertical-align: -2px;
+}
+.item-entry__owner.is-self {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
 }
 .item-entry__price {
   font-family: var(--font-mono);
@@ -3459,8 +3464,8 @@ select.picker__control {
 .customer-items {
   padding-top: 0;
 }
-.item-group .customer-items {
-  padding-top: 0;
+.item-group .customer-items > .item:first-child {
+  padding-block-start: 0;
 }
 .item-group .customer-items-fold {
   border-bottom: 0;

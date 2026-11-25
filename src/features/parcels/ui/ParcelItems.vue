@@ -203,6 +203,7 @@ function openDelete(itemId: number): void {
       >
         <ParcelCustomerItems
           :rows="group.visibleRows"
+          :customer="group.customer"
           :customer-id="group.customerId"
           :is-self="group.customer?.isSelf ?? false"
           :parcel="props.parcel"

@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { money, t } from "@/core/utils";
-import { SELF_INITIAL } from "@/features/customers/ui/CustomerPresentation";
+import type { Customer } from "@/features/customers/domain";
+import { customerInitials } from "@/features/customers/ui/CustomerPresentation";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import AppDropdownMenu from "@/features/shared/ui/AppDropdownMenu.vue";
 import AppDropdownMenuItem from "@/features/shared/ui/AppDropdownMenuItem.vue";
@@ -12,12 +14,18 @@ import type { ItemRowView } from "./ItemGroups";
 
 const props = defineProps<{
   rows: ItemRowView[];
+  customer?: Customer;
   customerId: number;
   isSelf: boolean;
   parcel: Parcel;
   deliveryByItem: Map<number, number>;
   settlement: SettlementFacts;
 }>();
+
+const ownerInitial = computed(() => (props.customer ? customerInitials(props.customer) : "—"));
+const ownerTitle = computed(() =>
+  props.customer?.isSelf ? "Ваш товар" : `Товар: ${props.customer?.name ?? "без заказчика"}`,
+);
 
 const emit = defineEmits<{
   editItem: [itemId: number, customerId: number];
@@ -94,13 +102,13 @@ function itemPaid(itemId: number): boolean {
       </div>
       <div class="parcel-entry__hint">
         <span
-          v-if="props.isSelf"
           class="item-entry__owner"
+          :class="{ 'is-self': props.isSelf }"
           role="img"
-          aria-label="Ваш товар"
-          title="Ваш товар"
+          :aria-label="ownerTitle"
+          :title="ownerTitle"
         >
-          {{ SELF_INITIAL }}
+          {{ ownerInitial }}
         </span>
         {{ row.item.quantity }} {{ unitLabel(row.item.unit)
         }}{{
