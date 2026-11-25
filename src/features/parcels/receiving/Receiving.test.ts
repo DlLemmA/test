@@ -130,6 +130,11 @@ describe("receiving reducer", () => {
     expect(receivingFacts(lost).weighed).toBe(0);
     expect(itemsToFinish(lost)).toEqual([]);
     expect(lost.step).toBe("finish");
+
+    const restored = apply(lost, { type: "restore", itemId: 11 });
+    expect([...restored.lost]).toEqual([]);
+    expect(receivingFacts(restored).remaining).toBe(1);
+    expect(restored.step).toBe("scanning");
   });
 
   it("keeps the manual list until everything is processed", () => {

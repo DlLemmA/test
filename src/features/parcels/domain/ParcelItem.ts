@@ -140,7 +140,9 @@ export class ParcelItem {
       weightsG: input.weightsG ?? this.weightsG,
       tracksCompletedAt: input.trackNumbers
         ? undefined
-        : (input.tracksCompletedAt ?? this.tracksCompletedAt),
+        : "tracksCompletedAt" in input
+          ? input.tracksCompletedAt
+          : this.tracksCompletedAt,
       status: input.status ?? this.status,
       createdAt: this.createdAt,
     });

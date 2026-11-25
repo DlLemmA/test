@@ -125,6 +125,8 @@ test("draft rows offer tracks and payment; received rows show weight", async ({ 
   await expect(receivedRow.locator(".track-weight")).toHaveText("200 г");
   await expect(receivedRow.locator(".track-code")).toHaveText("KAT-1");
   await expect(receivedRow.locator('[data-toggle-payment="11"]')).toBeVisible();
+  await expect(receivedRow.locator('[data-toggle-lost="11"]')).toBeVisible();
+  await expect(receivedRow.locator('[data-toggle-tracks="11"]')).toHaveCount(0);
   await expect(receivedRow.locator(".item-entry__index")).toHaveCount(0);
   await expect(receivedRow.locator(".parcel-entry__state")).toHaveCount(0);
   await expect(receivedRow.locator(".entry-menu__trigger")).toHaveCount(0);
@@ -148,8 +150,15 @@ test("draft rows offer tracks and payment; received rows show weight", async ({ 
   const draftRow = page.locator('.item-entry:has([data-edit="11"])');
   await expect(draftRow.locator('.item-row__tracks [data-add-track="11"]')).toBeVisible();
   await expect(draftRow.locator('[data-toggle-payment="11"]')).toBeVisible();
+  await expect(draftRow.locator('[data-toggle-tracks="11"]')).toBeChecked();
+  await expect(draftRow.locator('[data-toggle-lost="11"]')).toHaveCount(0);
   await expect(draftRow.locator(".track-weight")).toHaveCount(0);
   await expect(draftRow.locator(".track-code")).toHaveText("KAT-1");
+
+  await draftRow.locator('[data-toggle-tracks="11"]').uncheck();
+  await expect(draftRow.locator('[data-toggle-tracks="11"]')).not.toBeChecked();
+  await draftRow.locator('[data-toggle-tracks="11"]').check();
+  await expect(draftRow.locator('[data-toggle-tracks="11"]')).toBeChecked();
 
   await draftRow.locator('[data-toggle-payment="11"]').check();
   await expect(draftRow.locator('[data-toggle-payment="11"]')).toBeChecked();
@@ -167,10 +176,33 @@ test("draft rows offer tracks and payment; received rows show weight", async ({ 
   await page.reload();
   const shippedRow = page.locator('.item-entry:has([data-edit="11"])');
   await expect(shippedRow.locator('.item-row__tracks [data-add-track="11"]')).toBeVisible();
+  await expect(shippedRow.locator('[data-toggle-tracks="11"]')).toBeVisible();
+  await expect(shippedRow.locator('[data-toggle-lost="11"]')).toBeVisible();
   await shippedRow.locator("[data-edit]").click();
   await expect(page.locator("[data-panel='tracks']")).toBeVisible();
   await expect(page.locator("#itemTrack0")).toBeEnabled();
   await expect(page.locator("input[name='tracksCompleted']")).toBeEnabled();
+});
+
+test("state checkboxes fit a narrow ledger", async ({ page }) => {
+  await page.goto("/#/parcel/2");
+  await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcels.update(2, { status: "shipped" });
+  });
+  await page.reload();
+  const row = page.locator('.item-entry:has([data-edit="11"])');
+  await expect(row.locator('[data-toggle-tracks="11"]')).toBeVisible();
+  await expect(row.locator('[data-toggle-lost="11"]')).toBeVisible();
+
+  const overflow = () =>
+    page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+  await page.setViewportSize({ width: 360, height: 780 });
+  expect(await overflow(), "horizontal overflow at 360px").toBe(0);
+  await page.setViewportSize({ width: 320, height: 780 });
+  expect(await overflow(), "horizontal overflow at 320px").toBe(0);
 });
 
 test("item rows use the ledger line treatment", async ({ page }) => {
@@ -186,6 +218,11 @@ test("item rows use the ledger line treatment", async ({ page }) => {
   await expect(
     page.locator('[data-item-group][data-customer="2"] .customer-items-fold > summary'),
   ).toContainText("1 товар");
+
+  await row.locator('[data-toggle-lost="11"]').check();
+  await expect(row.locator(".parcel-entry__state")).toHaveText("Потерян");
+  await row.locator('[data-toggle-lost="11"]').uncheck();
+  await expect(row.locator(".parcel-entry__state")).toHaveCount(0);
 
   await page.locator("#markAsDone").click();
   await expect(page.locator('.detail-hero[data-status="done"]')).toBeVisible();

@@ -222,9 +222,9 @@ async function submit(): Promise<void> {
     } else if (item.value) {
       const { parcelId: _, ...updateData } = data;
       await parcelCommands.updateItem(item.value.id, updateData);
-      if (canEditTracks.value && tracksCompleted.value) {
+      if (canEditTracks.value) {
         await parcelCommands.updateItem(item.value.id, {
-          tracksCompletedAt: new Date().toISOString(),
+          tracksCompletedAt: tracksCompleted.value ? new Date().toISOString() : undefined,
         });
       }
     }

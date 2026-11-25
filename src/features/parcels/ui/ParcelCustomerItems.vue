@@ -34,6 +34,8 @@ const emit = defineEmits<{
   deleteItem: [itemId: number, customerId: number];
   addTrack: [itemId: number, customerId: number];
   toggleItemPayment: [itemId: number];
+  toggleTracksComplete: [itemId: number];
+  toggleLost: [itemId: number];
 }>();
 
 function facts(row: ItemRowView) {
@@ -47,6 +49,10 @@ function badgeClass(row: ItemRowView): string {
 
 function itemPaid(itemId: number): boolean {
   return props.settlement.paidItems.has(itemId);
+}
+
+function hasTracks(row: ItemRowView): boolean {
+  return row.item.trackNumbers.some((track) => track.trim().length > 0);
 }
 </script>
 
@@ -145,6 +151,44 @@ function itemPaid(itemId: number): boolean {
       </div>
       <div v-if="facts(row).compactWeight" class="item-entry__weight">
         {{ facts(row).compactWeight }}
+      </div>
+      <div v-if="facts(row).showTracksComplete || facts(row).showLost" class="item-flags">
+        <label
+          v-if="facts(row).showTracksComplete"
+          class="pay-summary item-flag item-flag--tracks"
+          :class="{ 'is-locked': !hasTracks(row) && !row.item.tracksCompleted }"
+        >
+          <input
+            type="checkbox"
+            class="pay-summary__input"
+            :name="`tracksComplete-${row.item.id}`"
+            :data-toggle-tracks="row.item.id"
+            :checked="row.item.tracksCompleted"
+            :disabled="!hasTracks(row) && !row.item.tracksCompleted"
+            :title="hasTracks(row) ? '' : 'Добавьте трек, чтобы отметить заполненными'"
+            @change="emit('toggleTracksComplete', row.item.id)"
+          />
+          <span class="pay-summary__body">
+            <span class="pay-summary__label">Треки заполнены</span>
+          </span>
+        </label>
+        <label
+          v-if="facts(row).showLost"
+          class="pay-summary item-flag item-flag--lost"
+          :class="{ 'is-lost': row.item.status === 'lost' }"
+        >
+          <input
+            type="checkbox"
+            class="pay-summary__input"
+            :name="`itemLost-${row.item.id}`"
+            :data-toggle-lost="row.item.id"
+            :checked="row.item.status === 'lost'"
+            @change="emit('toggleLost', row.item.id)"
+          />
+          <span class="pay-summary__body">
+            <span class="pay-summary__label">Потерян</span>
+          </span>
+        </label>
       </div>
     </div>
     <label

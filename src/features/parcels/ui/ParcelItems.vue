@@ -28,6 +28,8 @@ const emit = defineEmits<{
   toggleGoods: [customerId: number, checked: boolean];
   toggleShipping: [customerId: number];
   toggleItemPayment: [itemId: number];
+  toggleTracksComplete: [itemId: number];
+  toggleLost: [itemId: number];
 }>();
 
 const searchQuery = shallowRef("");
@@ -214,6 +216,8 @@ function openDelete(itemId: number): void {
           @delete-item="openDelete"
           @add-track="(itemId) => openEdit(itemId, 'tracks')"
           @toggle-item-payment="emit('toggleItemPayment', $event)"
+          @toggle-tracks-complete="emit('toggleTracksComplete', $event)"
+          @toggle-lost="emit('toggleLost', $event)"
         />
       </ParcelCustomer>
       <p

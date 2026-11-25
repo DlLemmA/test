@@ -48,6 +48,12 @@ function fixture(items: ParcelItem[]) {
     );
     return current.find((entry) => entry.id === itemId)!;
   });
+  const restoreItem = vi.fn<(itemId: number) => Promise<ParcelItem>>(async (itemId) => {
+    current = current.map((entry) =>
+      entry.id === itemId ? entry.update({ status: "received" }) : entry,
+    );
+    return current.find((entry) => entry.id === itemId)!;
+  });
   const finishItem = vi.fn<(itemId: number) => Promise<ParcelItem>>(async (itemId) => {
     current = current.map((entry) =>
       entry.id === itemId ? entry.update({ status: "received" }) : entry,
@@ -61,10 +67,12 @@ function fixture(items: ParcelItem[]) {
       },
       saveWeights,
       markLost,
+      restoreItem,
       finishItem,
     } satisfies ReceiveFlowStore,
     saveWeights,
     markLost,
+    restoreItem,
     finishItem,
     onComplete: vi.fn<() => void>(() => {}),
   };
@@ -72,6 +80,10 @@ function fixture(items: ParcelItem[]) {
 
 function click(id: string): void {
   document.querySelector<HTMLButtonElement>(`#${id}`)!.click();
+}
+
+function lostToggle(): HTMLInputElement | null {
+  return document.querySelector<HTMLInputElement>('[data-action="lostItem"][data-item-id="20"]');
 }
 
 function submit(id: string): void {
@@ -133,18 +145,28 @@ describe("receiving flow without a camera", () => {
     await mountReceiveFlow(1, { ...f, scanner: new ScriptedScanner() });
 
     click("rfManualStart");
-    const lostButton = document.querySelector<HTMLButtonElement>(
-      '[data-action="lostItem"][data-item-id="20"]',
-    );
-    expect(lostButton).not.toBeNull();
+    expect(lostToggle()).not.toBeNull();
+    expect(lostToggle()!.checked).toBe(false);
 
-    lostButton!.click();
+    lostToggle()!.click();
     await vi.waitFor(() => expect(f.markLost).toHaveBeenCalledWith(20));
     expect(document.querySelector("#rfConfirm")).not.toBeNull();
 
     click("rfConfirm");
     await vi.waitFor(() => expect(f.onComplete).toHaveBeenCalledOnce());
     expect(f.finishItem).not.toHaveBeenCalled();
+  });
+
+  it("restores an item when its lost checkbox is cleared", async () => {
+    const f = fixture([item(20, ["TRACK-1"]).update({ status: "lost" })]);
+    await mountReceiveFlow(1, { ...f, scanner: new ScriptedScanner() });
+
+    click("rfManualStart");
+    expect(lostToggle()!.checked).toBe(true);
+
+    lostToggle()!.click();
+    await vi.waitFor(() => expect(f.restoreItem).toHaveBeenCalledWith(20));
+    await vi.waitFor(() => expect(lostToggle()!.checked).toBe(false));
   });
 
   it("drives scanning through the scanner seam and saves a decode immediately", async () => {

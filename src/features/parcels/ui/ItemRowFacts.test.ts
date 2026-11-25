@@ -15,6 +15,8 @@ describe("item row facts", () => {
     expect(facts.compactWeight).toBeNull();
     expect(facts.badge).toBeNull();
     expect(facts.canPay).toBe(true);
+    expect(facts.showTracksComplete).toBe(true);
+    expect(facts.showLost).toBe(false);
   });
 
   it("keeps tracks while awaiting receipt, without weight or a badge", () => {
@@ -23,6 +25,8 @@ describe("item row facts", () => {
     expect(facts.showTrackWeights).toBe(false);
     expect(facts.compactWeight).toBeNull();
     expect(facts.badge).toBeNull();
+    expect(facts.showTracksComplete).toBe(true);
+    expect(facts.showLost).toBe(true);
   });
 
   it("shows per-track weight after receiving and no normal-status badge", () => {
@@ -31,6 +35,8 @@ describe("item row facts", () => {
     expect(facts.showTrackWeights).toBe(true);
     expect(facts.compactWeight).toBeNull();
     expect(facts.badge).toBeNull();
+    expect(facts.showTracksComplete).toBe(false);
+    expect(facts.showLost).toBe(true);
   });
 
   it("collapses tracks into one weight line once done", () => {
@@ -39,6 +45,8 @@ describe("item row facts", () => {
     expect(facts.showTrackWeights).toBe(false);
     expect(facts.compactWeight).toBe("вес 200 г");
     expect(facts.canPay).toBe(true);
+    expect(facts.showTracksComplete).toBe(false);
+    expect(facts.showLost).toBe(false);
   });
 
   it("says when the done weight is unknown", () => {

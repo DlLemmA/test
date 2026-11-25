@@ -56,6 +56,7 @@ export type ReceivingEvent =
   | { type: "weight"; key: string; grams: number }
   | { type: "skip"; key: string }
   | { type: "lost"; itemId: number }
+  | { type: "restore"; itemId: number }
   | { type: "manualWeights"; values: readonly { key: string; grams: number }[] }
   | { type: "itemSaved"; item: ParcelItem }
   | { type: "finish" }
@@ -302,6 +303,17 @@ export function receivingReducer(state: ReceivingState, event: ReceivingEvent): 
       lost.add(event.itemId);
       for (const unit of state.units) {
         if (unit.itemId === event.itemId) done.add(unit.key);
+      }
+      return advance({ ...state, lost, done });
+    }
+    case "restore": {
+      const lost = new Set(state.lost);
+      const done = new Set(state.done);
+      lost.delete(event.itemId);
+      for (const unit of state.units) {
+        if (unit.itemId === event.itemId && !(state.weights.get(unit.key)! > 0)) {
+          done.delete(unit.key);
+        }
       }
       return advance({ ...state, lost, done });
     }

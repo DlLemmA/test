@@ -15,6 +15,10 @@ export interface ItemRowFacts {
   showTrackWeights: boolean;
   compactWeight: string | null;
   canPay: boolean;
+  /** Confirmation belongs to the stages where tracks can still be corrected. */
+  showTracksComplete: boolean;
+  /** Loss is a receiving fact, not a draft or finished-ledger control. */
+  showLost: boolean;
 }
 
 function compactWeightLabel(weightsG: readonly number[]): string {
@@ -34,5 +38,7 @@ export function itemRowFacts(
     showTrackWeights: parcelStatus === "received" && !lost,
     compactWeight: parcelStatus === "done" && !lost ? compactWeightLabel(item.weightsG) : null,
     canPay: !isSelf,
+    showTracksComplete: parcelStatus === "draft" || parcelStatus === "shipped",
+    showLost: parcelStatus === "shipped" || parcelStatus === "received",
   };
 }

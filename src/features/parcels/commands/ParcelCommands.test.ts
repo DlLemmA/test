@@ -209,6 +209,15 @@ describe("ParcelCommands", () => {
     expect(item.trackNumbers).toEqual(["TRACK-1"]);
   });
 
+  it("can clear a track confirmation from an item", async () => {
+    const { commands, itemId } = await draftWithItem();
+    const confirmed = await commands.updateItem(itemId, { tracksCompletedAt: "2026-01-01" });
+    expect(confirmed.tracksCompleted).toBe(true);
+
+    const cleared = await commands.updateItem(itemId, { tracksCompletedAt: undefined });
+    expect(cleared.tracksCompleted).toBe(false);
+  });
+
   it("deletes items and payments together with the parcel", async () => {
     const { commands, data } = await draftWithItem();
     data.payments.set(

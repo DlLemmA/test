@@ -31,6 +31,7 @@ export interface ReceiveFlowStore {
   load(parcelId: number): Promise<{ parcel: Parcel; items: ParcelItem[]; customers: Customer[] }>;
   saveWeights(itemId: number, weightsG: number[]): Promise<ParcelItem>;
   markLost(itemId: number): Promise<ParcelItem>;
+  restoreItem(itemId: number): Promise<ParcelItem>;
   finishItem(itemId: number): Promise<ParcelItem>;
 }
 
@@ -55,6 +56,13 @@ const defaultStore: ReceiveFlowStore = {
   },
   async markLost(itemId) {
     return parcelCommands.updateItem(itemId, { status: "lost" });
+  },
+  async restoreItem(itemId) {
+    const item = await parcelItemRepository.findById(itemId);
+    if (!item) throw new Error("Товар не найден");
+    const parcel = await parcelRepository.findById(item.parcelId);
+    const status = parcel?.status === "shipped" ? "shipped" : "received";
+    return parcelCommands.updateItem(itemId, { status });
   },
   async finishItem(itemId) {
     return parcelCommands.updateItem(itemId, { status: "received" });
@@ -233,7 +241,10 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
               })
               .join("")}
             <div class="rf-manual-actions">
-              ${isLost ? '<span class="rf-lost-flag">Потерян</span>' : `<button type="button" class="rf-link" data-action="lostItem" data-item-id="${item.id}">Потерян</button>`}
+              <label class="rf-lost-check">
+                <input type="checkbox" class="pay-summary__input" data-action="lostItem" data-item-id="${item.id}" name="lost_${item.id}" ${isLost ? "checked" : ""}>
+                <span>Потерян</span>
+              </label>
             </div>
           </div>`;
       })
@@ -304,7 +315,10 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
           </form>
           <p class="rf-keyhint">Коснитесь поля — клавиатура откроется сразу.</p>
           <div class="rf-row">
-            <button type="button" class="rf-secondary" id="rfLost" data-action="lost">Потерян</button>
+            <label class="rf-lost-check rf-lost-check--button">
+              <input type="checkbox" class="pay-summary__input" id="rfLost" data-action="lost" name="lost_${unit.itemId}">
+              <span>Потерян</span>
+            </label>
             <button type="button" class="rf-secondary" id="rfSkip" data-action="skip">Пропустить</button>
           </div>
           ${state.units.some((candidate) => candidate.itemId === unit.itemId) ? '<button type="button" class="rf-link" id="rfSiblingNext" data-action="nextSibling">Следующий трек товара →</button>' : ""}
@@ -423,6 +437,19 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
     }
   }
 
+  async function restoreLost(itemId: number): Promise<void> {
+    const item = state.items.find((entry) => entry.id === itemId);
+    if (!item || !state.lost.has(itemId)) return;
+    try {
+      const saved = await deps.store.restoreItem(itemId);
+      dispatch({ type: "restore", itemId });
+      dispatch({ type: "itemSaved", item: saved });
+      toastState.add({ message: `${item.name} — не потерян`, type: "info" });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async function submitManual(form: HTMLFormElement): Promise<void> {
     const values: { key: string; grams: number }[] = [];
     const changedItems = new Set<number>();
@@ -515,22 +542,31 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       case "skip":
         if (state.activeKey) dispatch({ type: "skip", key: state.activeKey });
         break;
-      case "lost": {
-        const unit = state.activeKey ? state.byKey.get(state.activeKey) : undefined;
-        if (unit) void markLost(unit.itemId);
-        break;
-      }
-      case "lostItem": {
-        const itemId = Number(button.dataset.itemId);
-        if (Number.isFinite(itemId)) void markLost(itemId);
-        break;
-      }
       case "finish":
         dispatch({ type: "finish" });
         break;
       case "confirm":
         void commit();
         break;
+    }
+  });
+
+  sheet.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !sheet.contains(input)) return;
+    const action = input.dataset.action;
+    if (action === "lost") {
+      const unit = state.activeKey ? state.byKey.get(state.activeKey) : undefined;
+      if (!unit) return;
+      if (input.checked) void markLost(unit.itemId);
+      else void restoreLost(unit.itemId);
+      return;
+    }
+    if (action === "lostItem") {
+      const itemId = Number(input.dataset.itemId);
+      if (!Number.isFinite(itemId)) return;
+      if (input.checked) void markLost(itemId);
+      else void restoreLost(itemId);
     }
   });
 

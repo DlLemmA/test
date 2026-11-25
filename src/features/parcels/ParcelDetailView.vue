@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onScopeDispose, ref, shallowRef } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import type { ParcelItemStatus } from "@/core/dbSchema";
 import { toastState, uiState } from "@/core/state";
 import { kg, money, t } from "@/core/utils";
 import {
@@ -261,6 +262,48 @@ async function toggleItemPayment(itemId: number): Promise<void> {
   }
 }
 
+async function toggleTracksComplete(itemId: number): Promise<void> {
+  const item = items.value.find((candidate) => candidate.id === itemId);
+  if (!item) return;
+  const next = !item.tracksCompleted;
+  try {
+    await parcelCommands.updateItem(itemId, {
+      tracksCompletedAt: next ? new Date().toISOString() : undefined,
+    });
+    refresh();
+    toastState.add({
+      message: next ? `${item.name} · треки заполнены` : `${item.name} · отметка с треков снята`,
+      type: next ? "success" : "info",
+    });
+  } catch (err) {
+    toastState.add({ message: "Не удалось изменить отметку о треках", type: "error" });
+    console.error(err);
+  }
+}
+
+async function toggleLost(itemId: number): Promise<void> {
+  const current = parcel.value;
+  const item = items.value.find((candidate) => candidate.id === itemId);
+  if (!current || !item) return;
+  const lost = item.status !== "lost";
+  const status: ParcelItemStatus = lost
+    ? "lost"
+    : current.status === "received"
+      ? "received"
+      : "shipped";
+  try {
+    await parcelCommands.updateItem(itemId, { status });
+    refresh();
+    toastState.add({
+      message: `${item.name} — ${lost ? "потерян" : "не потерян"}`,
+      type: lost ? "warn" : "info",
+    });
+  } catch (err) {
+    toastState.add({ message: "Не удалось изменить отметку о потере", type: "error" });
+    console.error(err);
+  }
+}
+
 function openWizard(itemId: number | null, step: ItemFormStep): void {
   wizardItemId.value = itemId;
   wizardStep.value = step;
@@ -390,6 +433,8 @@ async function confirmDelete(): Promise<void> {
       @toggle-goods="(customerId, checked) => toggleGoods(customerId, checked)"
       @toggle-shipping="toggleShipping"
       @toggle-item-payment="toggleItemPayment"
+      @toggle-tracks-complete="toggleTracksComplete"
+      @toggle-lost="toggleLost"
     />
 
     <ParcelShipForm v-model:open="shipOpen" :parcel="parcel" @shipped="refresh" />

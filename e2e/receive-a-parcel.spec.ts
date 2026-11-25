@@ -36,9 +36,10 @@ test.describe("ReceiveParcel", () => {
     await page.locator("#rfManualStart").click();
     await expect(page.locator("#rfScanForm")).toHaveCount(0);
     const manualRow = page.locator(".rf-manual-item").filter({ hasText: "Товар на приёмку" });
-    await expect(manualRow.locator('[data-action="lostItem"]')).toHaveText("Потерян");
+    const lostToggle = manualRow.locator('[data-action="lostItem"]');
+    await expect(lostToggle).not.toBeChecked();
 
-    await manualRow.locator('[data-action="lostItem"]').click();
+    await lostToggle.click();
     await expect(page.locator("#toastContainer")).toContainText("Товар на приёмку — потерян");
     await expect(page.locator("#rfConfirm")).toBeVisible();
     await page.locator("#rfConfirm").click();
