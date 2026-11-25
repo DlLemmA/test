@@ -82,7 +82,7 @@ test("presentation vocabulary stays consistent across screens", async ({ page })
   ).toContainText("1 шт");
   await expect(
     page.locator(".item-entry").filter({ hasText: "Товар Кати" }).locator(".parcel-entry__hint"),
-  ).not.toContainText("Катя");
+  ).toContainText("Катя · 1 шт · 1 трек");
 });
 
 test("amounts agree between the parcel and customer screens", async ({ page }) => {
@@ -131,7 +131,13 @@ test("draft rows offer tracks and payment; received rows show weight", async ({ 
 
   await receivedRow.locator("[data-edit]").click();
   await expect(page.locator("[data-panel='weights']")).toBeVisible();
-  await expect(page.locator("[data-panel='tracks']")).toHaveCount(0);
+  await expect(page.locator("[data-panel='tracks']")).toBeHidden();
+  await expect(page.locator('[data-step="tracks"]')).toBeEnabled();
+  await expect(page.locator("[data-goto='tracks']")).toHaveText("Посмотреть треки");
+  await expect(page.locator("#itemTrack0")).toBeDisabled();
+  await page.locator('[data-step="tracks"]').click();
+  await expect(page.locator("[data-panel='tracks']")).toBeVisible();
+  await expect(page.locator("input[name='tracksCompleted']")).toBeDisabled();
   await page.locator(".drawer-close").click();
 
   await page.evaluate(async () => {
@@ -150,6 +156,8 @@ test("draft rows offer tracks and payment; received rows show weight", async ({ 
 
   await page.locator('.item-entry:has([data-edit="11"]) [data-edit="11"]').click();
   await expect(page.locator("[data-panel='tracks']")).toBeVisible();
+  await expect(page.locator('[data-step="weights"]')).toBeDisabled();
+  await expect(page.locator("#itemWeight0")).toBeDisabled();
 });
 
 test("item rows use the ledger line treatment", async ({ page }) => {
@@ -161,7 +169,7 @@ test("item rows use the ledger line treatment", async ({ page }) => {
   await expect(row.locator(".track-value-row")).toHaveCount(1);
   await expect(row.locator(".item-entry__index")).toHaveCount(0);
   await expect(row.locator(".parcel-entry__head .parcel-entry__actions [data-edit]")).toBeVisible();
-  await expect(row.locator(".parcel-entry__hint")).not.toContainText("Катя");
+  await expect(row.locator(".parcel-entry__hint")).toContainText("Катя · 1 шт · 1 трек");
   await expect(
     page.locator('[data-item-group][data-customer="2"] .customer-items-fold > summary'),
   ).toContainText("1 товар");
@@ -245,9 +253,9 @@ test("paid goods without delivery are not shown as paid", async ({ page }) => {
 
 test("payment toggle sits with the price and self stays paid", async ({ page }) => {
   await page.goto("/#/parcel/2");
-  await expect(page.locator('.item-entry[data-self="true"] .item-entry__owner')).toHaveText("Я");
+  await expect(page.locator('.item-entry[data-self="true"] .item-entry__owner')).toHaveText("Вы");
   const otherOwner = page.locator('.item-entry[data-self="false"] .item-entry__owner');
-  await expect(otherOwner).toHaveText("К");
+  await expect(otherOwner).toHaveText("Катя");
   await expect(otherOwner).toHaveAttribute("title", "Товар: Катя");
   await expect(page.locator('[data-toggle-payment="10"]')).toBeDisabled();
 

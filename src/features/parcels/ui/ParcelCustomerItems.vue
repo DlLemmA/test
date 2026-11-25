@@ -2,7 +2,6 @@
 import { computed } from "vue";
 import { money, t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
-import { customerInitials } from "@/features/customers/ui/CustomerPresentation";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import AppDropdownMenu from "@/features/shared/ui/AppDropdownMenu.vue";
 import AppDropdownMenuItem from "@/features/shared/ui/AppDropdownMenuItem.vue";
@@ -22,7 +21,9 @@ const props = defineProps<{
   settlement: SettlementFacts;
 }>();
 
-const ownerInitial = computed(() => (props.customer ? customerInitials(props.customer) : "—"));
+const ownerLabel = computed(() =>
+  props.customer?.isSelf ? "Вы" : (props.customer?.name ?? "Без заказчика"),
+);
 const ownerTitle = computed(() =>
   props.customer?.isSelf ? "Ваш товар" : `Товар: ${props.customer?.name ?? "без заказчика"}`,
 );
@@ -101,19 +102,16 @@ function itemPaid(itemId: number): boolean {
         </div>
       </div>
       <div class="parcel-entry__hint">
-        <span
-          class="item-entry__owner"
-          :class="{ 'is-self': props.isSelf }"
-          role="img"
-          :aria-label="ownerTitle"
-          :title="ownerTitle"
-        >
-          {{ ownerInitial }}
+        <span class="item-entry__owner" :class="{ 'is-self': props.isSelf }" :title="ownerTitle">
+          {{ ownerLabel }}
         </span>
-        {{ row.item.quantity }} {{ unitLabel(row.item.unit)
-        }}{{
-          row.item.trackNumbers.length ? ` · ${t(TRACK_FORMS, row.item.trackNumbers.length)}` : ""
-        }}
+        <span class="item-entry__sep" aria-hidden="true"> · </span>
+        <span class="item-entry__hint-text">
+          {{ row.item.quantity }} {{ unitLabel(row.item.unit)
+          }}{{
+            row.item.trackNumbers.length ? ` · ${t(TRACK_FORMS, row.item.trackNumbers.length)}` : ""
+          }}
+        </span>
         <span
           v-if="(props.deliveryByItem.get(row.item.id) || 0) > 0"
           class="item-entry__without-delivery"

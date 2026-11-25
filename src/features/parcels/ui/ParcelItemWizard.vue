@@ -44,8 +44,11 @@ const tracks = ref<string[]>([""]);
 const weights = ref<Record<string, string>>({});
 const tracksCompleted = ref(false);
 
-/** Tracks are entry data: once the parcel is shipped they are read-only. */
+/** Tracks are entry data: editable in draft, readable later if already entered. */
 const canEditTracks = computed(() => !isNew.value && props.parcelStatus === "draft");
+const canViewTracks = computed(
+  () => canEditTracks.value || (item.value?.trackNumbers.length ?? 0) > 0,
+);
 const canEditWeights = computed(() => !isNew.value && props.parcelStatus === "received");
 const customerOptions = computed(() =>
   customers.value.map((customer) => ({
@@ -59,11 +62,23 @@ const weightRows = computed(() =>
     .filter(Boolean)
     .map((track, idx) => ({ track, idx })),
 );
+/** Every step stays visible; an unused track step is locked, a used one stays readable. */
 const steps = computed<WizardStep[]>(() => {
-  const result: WizardStep[] = [{ id: "main", label: "Товар" }];
-  if (canEditTracks.value) result.push({ id: "tracks", label: "Треки" });
-  if (canEditWeights.value) result.push({ id: "weights", label: "Веса" });
-  return result;
+  const trackTitle = !canViewTracks.value
+    ? "Треки появятся после сохранения товара"
+    : canEditTracks.value
+      ? undefined
+      : "Треки доступны только для просмотра";
+  const weightTitle = isNew.value
+    ? "Веса можно указать после сохранения товара"
+    : canEditWeights.value
+      ? undefined
+      : "Веса доступны на этапе получения";
+  return [
+    { id: "main", label: "Товар" },
+    { id: "tracks", label: "Треки", disabled: !canViewTracks.value, title: trackTitle },
+    { id: "weights", label: "Веса", disabled: !canEditWeights.value, title: weightTitle },
+  ];
 });
 
 function errorMessage(err: unknown): string {
@@ -72,9 +87,9 @@ function errorMessage(err: unknown): string {
 
 function defaultStep(): ItemFormStep {
   if (isNew.value) return "main";
-  if (props.initialStep === "tracks" && !canEditTracks.value) return "main";
+  if (props.initialStep === "tracks" && !canViewTracks.value) return "main";
   if (props.initialStep === "weights" && !canEditWeights.value) {
-    return canEditTracks.value ? "tracks" : "main";
+    return canViewTracks.value ? "tracks" : "main";
   }
   return props.initialStep;
 }
@@ -125,7 +140,10 @@ function focusStepPanel(): void {
 }
 
 function goTo(next: ItemFormStep): void {
-  if (next === "tracks" && form.value && !form.value.reportValidity()) return;
+  if (next === "tracks" && !canViewTracks.value) return;
+  if (next === "weights" && !canEditWeights.value) return;
+  if (next === "tracks" && canEditTracks.value && form.value && !form.value.reportValidity())
+    return;
   step.value = next;
   void nextTick(focusStepPanel);
 }
@@ -312,20 +330,22 @@ async function submit(): Promise<void> {
         </div>
         <div class="item-wizard__actions col-span-2">
           <button
-            v-if="canEditTracks"
+            v-if="!isNew"
             type="button"
             class="btn-secondary"
             data-goto="tracks"
+            :disabled="!canViewTracks"
             enterkeyhint="next"
             @click="goTo('tracks')"
           >
-            Далее: треки
+            {{ canEditTracks ? "Далее: треки" : "Посмотреть треки" }}
           </button>
           <button
-            v-else-if="canEditWeights"
+            v-if="!isNew"
             type="button"
             class="btn-secondary"
             data-goto="weights"
+            :disabled="!canEditWeights"
             enterkeyhint="next"
             @click="goTo('weights')"
           >
@@ -338,13 +358,13 @@ async function submit(): Promise<void> {
       </div>
 
       <div
-        v-if="canEditTracks"
         class="item-wizard__panel"
+        :class="{ 'is-locked': !canEditTracks }"
         data-panel="tracks"
         :hidden="step !== 'tracks'"
       >
         <p class="item-wizard__context"><span>Товар</span> <b>{{ name }}</b></p>
-        <fieldset class="item-wizard__tracks">
+        <fieldset class="item-wizard__tracks" :disabled="!canEditTracks">
           <legend>Трек-номера</legend>
           <div class="grid gap-2" data-track-rows @input="onTracksInput">
             <div v-for="(track, idx) in tracks" :key="idx" class="item-track-row" data-track-row>
@@ -367,6 +387,7 @@ async function submit(): Promise<void> {
                 class="track-remove"
                 data-remove-track
                 :hidden="tracks.length === 1"
+                :disabled="!canEditTracks"
                 @click="removeTrackRow(idx)"
               >
                 <span class="sr-only" data-remove-label>Удалить трек {{ idx + 1 }}</span>
@@ -374,17 +395,24 @@ async function submit(): Promise<void> {
               </button>
             </div>
           </div>
-          <button type="button" class="text-btn" data-add-track-row @click="addTrackRow">
+          <button
+            type="button"
+            class="text-btn"
+            data-add-track-row
+            :disabled="!canEditTracks"
+            @click="addTrackRow"
+          >
             <AppIcon name="plus" /> Добавить трек
           </button>
         </fieldset>
-        <label class="pay-summary item-wizard__complete">
+        <label class="pay-summary item-wizard__complete" :class="{ 'is-locked': !canEditTracks }">
           <input
             ref="completeCheckbox"
             v-model="tracksCompleted"
             type="checkbox"
             class="pay-summary__input"
             name="tracksCompleted"
+            :disabled="!canEditTracks"
             @change="onCompleteChange"
           />
           <span class="pay-summary__body">
@@ -400,13 +428,13 @@ async function submit(): Promise<void> {
       </div>
 
       <div
-        v-if="canEditWeights"
         class="item-wizard__panel"
+        :class="{ 'is-locked': !canEditWeights }"
         data-panel="weights"
         :hidden="step !== 'weights'"
       >
         <p class="item-wizard__context"><span>Товар</span> <b>{{ name }}</b></p>
-        <fieldset class="item-wizard__weights">
+        <fieldset class="item-wizard__weights" :disabled="!canEditWeights">
           <legend>Веса треков</legend>
           <div class="grid gap-2" data-weight-rows>
             <div v-if="weightRows.length === 0" class="empty">Сначала добавьте трек-номера</div>
