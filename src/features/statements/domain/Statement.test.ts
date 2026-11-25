@@ -7,6 +7,7 @@ import {
   buildCustomerStatement,
   buildCustomerStatements,
   buildParcelStatement,
+  buildParcelStatements,
   type StatementData,
   withPaymentState,
 } from "./Statement";
@@ -114,6 +115,12 @@ describe("statements", () => {
     expect(statement.settlement.paidItems.has(11)).toBe(true);
     expect(statement.settlement.paidItems.has(10)).toBe(true); // self
     expect(buildParcelStatement(statements(), 999)).toBeNull();
+  });
+
+  it("builds one statement per parcel for the index", () => {
+    const all = buildParcelStatements(statements());
+    expect(all.map((entry) => entry.parcel.id)).toEqual([1, 2]);
+    expect(all[1]!.items.map((item) => item.id)).toEqual([12]);
   });
 
   it("recomputes payment and balance facts for an optimistic update", () => {

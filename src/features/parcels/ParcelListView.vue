@@ -3,29 +3,40 @@ import { computed, onMounted, onScopeDispose, shallowRef } from "vue";
 import { useRouter } from "vue-router";
 import { parcelCommands } from "@/features/shared/wiring";
 import { toastState, uiState } from "@/core/state";
-import { parcelRepository } from "./infrastructure";
-import type { Parcel } from "./domain";
+import { getParcelStatements } from "@/features/statements/service";
 import ConfirmDrawer from "@/features/shared/ui/ConfirmDrawer.vue";
 import ScreenState from "@/features/shared/ui/ScreenState.vue";
 import ParcelListItem from "./ui/ParcelListItem.vue";
 import { exportParcel } from "./ui/exportParcel";
 import { confirmDeleteParcel } from "./ui/deleteParcelCopy";
+import {
+  filterParcelRows,
+  PARCEL_FILTERS,
+  parcelAttention,
+  toParcelListRows,
+  type ParcelFilter,
+  type ParcelListRow,
+} from "./ui/parcelListFilter";
 
 const router = useRouter();
 
-const parcels = shallowRef<Parcel[]>([]);
+const rows = shallowRef<ParcelListRow[]>([]);
 const deleteTarget = shallowRef<number | null>(null);
 const phase = shallowRef<"loading" | "ready" | "error">("loading");
+const query = shallowRef("");
+const filter = shallowRef<ParcelFilter>("all");
 
 const ordered = computed(() =>
   // Sorts a copy so the source ref stays in insertion order.
   // oxlint-disable-next-line unicorn/no-array-sort
-  [...parcels.value].sort((a, b) => {
-    const ad = a.shippedAt ? Date.parse(a.shippedAt) : 0;
-    const bd = b.shippedAt ? Date.parse(b.shippedAt) : 0;
+  [...rows.value].sort((a, b) => {
+    const ad = a.parcel.shippedAt ? Date.parse(a.parcel.shippedAt) : 0;
+    const bd = b.parcel.shippedAt ? Date.parse(b.parcel.shippedAt) : 0;
     return bd - ad;
   }),
 );
+const visible = computed(() => filterParcelRows(ordered.value, filter.value, query.value));
+const attention = computed(() => parcelAttention(rows.value));
 const deleteOpen = computed({
   get: () => deleteTarget.value !== null,
   set: (open: boolean) => {
@@ -39,9 +50,9 @@ onScopeDispose(() => loadScope.abort());
 async function load(): Promise<void> {
   phase.value = "loading";
   try {
-    const found = await parcelRepository.findAll();
+    const found = await getParcelStatements();
     if (!loadScope.signal.aborted) {
-      parcels.value = found;
+      rows.value = toParcelListRows(found);
       phase.value = "ready";
     }
   } catch (error) {
@@ -61,9 +72,14 @@ function addParcel(): void {
   void router.push({ name: "add" });
 }
 
+function resetFilters(): void {
+  query.value = "";
+  filter.value = "all";
+}
+
 async function exportFromMenu(id: number): Promise<void> {
-  const parcel = parcels.value.find((candidate) => candidate.id === id);
-  if (parcel) await exportParcel(parcel);
+  const row = rows.value.find((candidate) => candidate.parcel.id === id);
+  if (row) await exportParcel(row.parcel);
 }
 
 function retryDelete(id: number): void {
@@ -101,7 +117,7 @@ async function confirmDelete(): Promise<void> {
   <div class="page page-parcels">
     <header class="page-head">
       <h1>Посылки</h1>
-      <p class="page-head__note">По дате отправки — сначала свежие</p>
+      <p class="page-head__note">Сначала свежие — черновики в конце</p>
     </header>
 
     <ScreenState v-if="phase === 'loading'" kind="loading" title="Загружаем посылки…" />
@@ -112,23 +128,74 @@ async function confirmDelete(): Promise<void> {
       action-label="Повторить"
       @action="refresh"
     />
-    <section v-else-if="ordered.length" class="section parcel-index">
-      <ParcelListItem
-        v-for="parcel in ordered"
-        :key="parcel.id"
-        :parcel="parcel"
-        @export="exportFromMenu"
-        @delete="deleteTarget = $event"
+    <template v-else>
+      <div class="parcel-filters">
+        <label class="visually-hidden" for="parcelSearch">Найти посылку</label>
+        <input
+          id="parcelSearch"
+          v-model="query"
+          class="parcel-filters__search"
+          type="search"
+          autocomplete="off"
+          enterkeyhint="search"
+          placeholder="Название, № или трек"
+          aria-label="Найти посылку"
+        />
+        <div class="parcel-filters__chips" role="group" aria-label="Фильтр посылок">
+          <button
+            v-for="chip in PARCEL_FILTERS"
+            :key="chip.id"
+            type="button"
+            class="parcel-chip"
+            :class="{ 'is-active': filter === chip.id }"
+            :data-filter="chip.id"
+            :aria-pressed="filter === chip.id"
+            @click="filter = chip.id"
+          >
+            {{ chip.label }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="rows.length" class="attention-line register-line" aria-label="Требует внимания">
+        <span>Требует внимания</span>
+        <button type="button" data-attention="draft" @click="filter = 'draft'">
+          Черновики: <b>{{ attention.drafts }}</b>
+        </button>
+        <button type="button" data-attention="shipped" @click="filter = 'to-ship'">
+          К отправке: <b>{{ attention.awaitingShipment }}</b>
+        </button>
+        <button type="button" data-attention="debt" @click="filter = 'debt'">
+          С долгом: <b>{{ attention.debt }}</b>
+        </button>
+      </div>
+
+      <section v-if="visible.length" class="section parcel-index">
+        <ParcelListItem
+          v-for="row in visible"
+          :key="row.parcel.id"
+          :parcel="row.parcel"
+          @export="exportFromMenu"
+          @delete="deleteTarget = $event"
+        />
+      </section>
+      <ScreenState
+        v-else-if="rows.length"
+        kind="empty"
+        title="Ничего не найдено"
+        message="Измените запрос или вернитесь ко всем посылкам."
+        action-label="Сбросить фильтры"
+        @action="resetFilters"
       />
-    </section>
-    <ScreenState
-      v-else
-      kind="empty"
-      title="Посылок пока нет"
-      message="Добавьте первую посылку — товары и заказчиков внесёте следующим шагом."
-      action-label="Добавить посылку"
-      @action="addParcel"
-    />
+      <ScreenState
+        v-else
+        kind="empty"
+        title="Посылок пока нет"
+        message="Добавьте первую посылку — товары и заказчиков внесёте следующим шагом."
+        action-label="Добавить посылку"
+        @action="addParcel"
+      />
+    </template>
 
     <ConfirmDrawer
       v-model:open="deleteOpen"

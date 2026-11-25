@@ -91,6 +91,13 @@ export function buildParcelStatement(
  * optimistic checkbox update: the same policy and balance math as a fresh
  * load, but without a round trip to Supabase.
  */
+/** Every parcel in the ledger with the same facts the detail screen uses. */
+export function buildParcelStatements(data: StatementData): ParcelStatement[] {
+  return data.parcels
+    .map((parcel) => buildParcelStatement(data, parcel.id))
+    .filter((statement): statement is ParcelStatement => statement !== null);
+}
+
 export function withPaymentState(
   statement: ParcelStatement,
   paymentState: PaymentState,

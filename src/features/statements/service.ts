@@ -13,6 +13,7 @@ import {
   buildCustomerStatement,
   buildCustomerStatements,
   buildParcelStatement,
+  buildParcelStatements,
   type CustomerStatement,
   type ParcelStatement,
   type StatementData,
@@ -44,6 +45,10 @@ export async function getParcelStatement(parcelId: number): Promise<ParcelStatem
   ]);
   if (!parcel) return null;
   return buildParcelStatement({ customers, parcels: [parcel], items, payments }, parcelId);
+}
+
+export async function getParcelStatements(): Promise<ParcelStatement[]> {
+  return buildParcelStatements(await loadAll());
 }
 
 export async function getCustomerStatement(customerId: number): Promise<CustomerStatement | null> {
