@@ -71,7 +71,12 @@ function onFoldToggle(event: Event): void {
 </script>
 
 <template>
-  <section class="item-group" data-item-group :data-customer="props.group.customerId">
+  <section
+    class="item-group"
+    :class="{ 'is-self': props.group.customer?.isSelf }"
+    data-item-group
+    :data-customer="props.group.customerId"
+  >
     <div class="parcel-entry item-group__head settle-entry" :data-status="props.parcel.status">
       <CustomerMark :customer="props.group.customer" variant="box" />
       <div class="parcel-entry__body min-w-0">

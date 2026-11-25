@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { money, t } from "@/core/utils";
+import { SELF_INITIAL } from "@/features/customers/ui/CustomerPresentation";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import AppDropdownMenu from "@/features/shared/ui/AppDropdownMenu.vue";
 import AppDropdownMenuItem from "@/features/shared/ui/AppDropdownMenuItem.vue";
@@ -49,6 +50,7 @@ function itemPaid(itemId: number): boolean {
     :data-status="row.item.status"
     :data-search="row.searchText"
     :data-needs-tracks="String(row.needsTracks)"
+    :data-self="String(props.isSelf)"
   >
     <div class="parcel-entry__body min-w-0">
       <div class="parcel-entry__head">
@@ -91,6 +93,15 @@ function itemPaid(itemId: number): boolean {
         </div>
       </div>
       <div class="parcel-entry__hint">
+        <span
+          v-if="props.isSelf"
+          class="item-entry__owner"
+          role="img"
+          aria-label="Ваш товар"
+          title="Ваш товар"
+        >
+          {{ SELF_INITIAL }}
+        </span>
         {{ row.item.quantity }} {{ unitLabel(row.item.unit)
         }}{{
           row.item.trackNumbers.length ? ` · ${t(TRACK_FORMS, row.item.trackNumbers.length)}` : ""

@@ -2271,9 +2271,15 @@ select.picker__control {
   white-space: pre-wrap;
   overflow: auto;
 }
-/* Customer groups inside the continuous item list */
-.item-group {
-  border-bottom: 1px solid var(--color-line-strong);
+/* Customer groups inside the continuous item list. Space, not another rule,
+   tells the eye where one person's goods end and the next person's begin. */
+.item-group + .item-group {
+  margin-top: 18px;
+}
+.item-group.is-self > .item-group__head .customer-mark--box {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
 }
 /* Parcel settlement rows share the customer screen's .pay-summary look.
    .payment-bullet stays only as a stable selector hook. */
@@ -2523,6 +2529,22 @@ select.picker__control {
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.item-entry__owner {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 16px;
+  block-size: 16px;
+  margin-inline-end: 5px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 4px;
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -2px;
+}
 .item-entry__price {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -2653,6 +2675,9 @@ select.picker__control {
 @media (max-width: 480px) {
   .item-entry {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .item-group + .item-group {
+    margin-top: 14px;
   }
 }
 @media (max-width: 360px) {
@@ -3435,7 +3460,7 @@ select.picker__control {
   padding-top: 0;
 }
 .item-group .customer-items {
-  padding-top: 4px;
+  padding-top: 0;
 }
 .item-group .customer-items-fold {
   border-bottom: 0;
@@ -3662,6 +3687,9 @@ select.picker__control {
   .item-entry {
     grid-template-columns: minmax(0, 1fr);
   }
+  .item-group + .item-group {
+    margin-top: 14px;
+  }
   .parcel-entry__date b {
     font-size: 21px;
   }
@@ -3675,6 +3703,9 @@ select.picker__control {
   }
   .item-entry {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .item-group + .item-group {
+    margin-top: 14px;
   }
   .parcel-entry__head {
     flex-wrap: wrap;
