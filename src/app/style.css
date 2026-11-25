@@ -3612,6 +3612,36 @@ button.track-value-row:active {
 .customer-summary {
   margin-top: 10px;
 }
+.customer-summary__title {
+  margin: 14px 2px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pay-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid var(--color-line);
+}
+.pay-row .pay-summary {
+  border-bottom: 0;
+}
+.pay-row--delivery {
+  background: var(--color-canvas);
+}
+.pay-action {
+  min-block-size: 44px;
+  padding: 0 10px;
+  border-inline-start: 1px solid var(--color-line);
+  color: var(--color-accent-strong);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.pay-action:active {
+  background: var(--color-accent-wash);
+}
 .customer-note {
   margin: 6px 2px 0;
   color: var(--color-muted);

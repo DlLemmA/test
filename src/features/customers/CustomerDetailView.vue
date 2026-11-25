@@ -126,9 +126,11 @@ async function togglePayment(event: Event, entry: CustomerParcelStatement, itemI
   }
 }
 
-async function toggleGoods(event: Event, entry: CustomerParcelStatement) {
-  const input = event.target as HTMLInputElement;
-  const checked = input.checked;
+async function setGoodsPaid(
+  entry: CustomerParcelStatement,
+  checked: boolean,
+  input?: HTMLInputElement,
+) {
   const current = statement.value;
   if (!current || current.customer.isSelf) return;
   try {
@@ -145,15 +147,26 @@ async function toggleGoods(event: Event, entry: CustomerParcelStatement) {
     });
     refresh();
   } catch (error) {
-    input.checked = !checked;
+    if (input) input.checked = !checked;
     fail("Не удалось изменить оплату товаров", () => void load());
     console.error(error);
   }
 }
 
-async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
+function toggleGoods(event: Event, entry: CustomerParcelStatement): void {
   const input = event.target as HTMLInputElement;
-  const checked = input.checked;
+  void setGoodsPaid(entry, input.checked, input);
+}
+
+function goodsAction(entry: CustomerParcelStatement): void {
+  void setGoodsPaid(entry, !goodsPaid(entry));
+}
+
+async function setShippingPaid(
+  entry: CustomerParcelStatement,
+  checked: boolean,
+  input?: HTMLInputElement,
+) {
   const current = statement.value;
   if (!current || !deliveryPayable(entry, current.customer.id)) return;
   try {
@@ -164,10 +177,22 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
     });
     refresh();
   } catch (error) {
-    input.checked = !checked;
+    if (input) input.checked = !checked;
     fail("Не удалось изменить оплату доставки", () => void load());
     console.error(error);
   }
+}
+
+function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
+  const input = event.target as HTMLInputElement;
+  void setShippingPaid(entry, input.checked, input);
+}
+
+function shippingAction(entry: CustomerParcelStatement): void {
+  const current = statement.value;
+  if (!current) return;
+  const checked = !entry.settlement.paidDelivery.has(current.customer.id);
+  void setShippingPaid(entry, checked);
 }
 </script>
 
@@ -212,6 +237,7 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
       </button>
     </div>
 
+    <p class="customer-summary__title">Баланс заказчика</p>
     <div class="check-list customer-summary">
       <div class="check-row"><span>Оплачено</span><b>{{ money(statement.balance.paid) }}</b></div>
       <div
@@ -270,55 +296,83 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
           </RouterLink>
         </div>
 
-        <label class="pay-summary">
-          <input
-            type="checkbox"
-            class="pay-summary__input"
-            :data-toggle-goods="entry.parcel.id"
-            :checked="goodsPaid(entry)"
-            :indeterminate="goodsIndeterminate(entry)"
-            :disabled="statement.customer.isSelf"
-            @change="toggleGoods($event, entry)"
-          />
-          <span class="pay-summary__body">
-            <span class="pay-summary__label">Товары оплачены</span>
-            <span class="pay-summary__note">без доставки</span>
-          </span>
-          <span class="pay-summary__amount">{{
-            money(share(entry, statement.customer.id).goods.owed)
-          }}</span>
-        </label>
-
-        <label class="pay-summary pay-summary--delivery">
-          <input
-            type="checkbox"
-            class="pay-summary__input"
-            :data-toggle-shipping="entry.parcel.id"
-            :checked="
-              deliveryPayable(entry, statement.customer.id) &&
-              entry.settlement.paidDelivery.has(statement.customer.id)
-            "
-            :disabled="statement.customer.isSelf || !deliveryPayable(entry, statement.customer.id)"
-            @change="toggleShipping($event, entry)"
-          />
-          <span class="pay-summary__body">
-            <span class="pay-summary__label">Доставка оплачена</span>
-            <span class="pay-summary__note">
-              {{
-                statement.customer.isSelf
-                  ? "учтено в общем остатке"
-                  : deliveryPayable(entry, statement.customer.id)
-                    ? "включена в цены товаров"
-                    : "цена не задана"
-              }}
+        <div class="pay-row">
+          <label class="pay-summary">
+            <input
+              type="checkbox"
+              class="pay-summary__input"
+              :data-toggle-goods="entry.parcel.id"
+              :checked="goodsPaid(entry)"
+              :indeterminate="goodsIndeterminate(entry)"
+              :disabled="statement.customer.isSelf"
+              @change="toggleGoods($event, entry)"
+            />
+            <span class="pay-summary__body">
+              <span class="pay-summary__label">Товары оплачены</span>
+              <span class="pay-summary__note">без доставки</span>
             </span>
-          </span>
-          <span class="pay-summary__amount">{{
-            deliveryPayable(entry, statement.customer.id)
-              ? money(share(entry, statement.customer.id).delivery.owed)
-              : "—"
-          }}</span>
-        </label>
+            <span class="pay-summary__amount">{{
+              money(share(entry, statement.customer.id).goods.owed)
+            }}</span>
+          </label>
+          <button
+            v-if="!statement.customer.isSelf"
+            type="button"
+            class="pay-action"
+            :data-pay-goods="entry.parcel.id"
+            @click="goodsAction(entry)"
+          >
+            {{ goodsPaid(entry) ? "Снять оплату" : "Отметить оплату" }}
+          </button>
+        </div>
+
+        <div class="pay-row pay-row--delivery">
+          <label class="pay-summary pay-summary--delivery">
+            <input
+              type="checkbox"
+              class="pay-summary__input"
+              :data-toggle-shipping="entry.parcel.id"
+              :checked="
+                deliveryPayable(entry, statement.customer.id) &&
+                entry.settlement.paidDelivery.has(statement.customer.id)
+              "
+              :disabled="
+                statement.customer.isSelf || !deliveryPayable(entry, statement.customer.id)
+              "
+              @change="toggleShipping($event, entry)"
+            />
+            <span class="pay-summary__body">
+              <span class="pay-summary__label">Доставка оплачена</span>
+              <span class="pay-summary__note">
+                {{
+                  statement.customer.isSelf
+                    ? "учтено в общем остатке"
+                    : deliveryPayable(entry, statement.customer.id)
+                      ? "включена в цены товаров"
+                      : "цена не задана"
+                }}
+              </span>
+            </span>
+            <span class="pay-summary__amount">{{
+              deliveryPayable(entry, statement.customer.id)
+                ? money(share(entry, statement.customer.id).delivery.owed)
+                : "—"
+            }}</span>
+          </label>
+          <button
+            v-if="!statement.customer.isSelf && deliveryPayable(entry, statement.customer.id)"
+            type="button"
+            class="pay-action"
+            :data-pay-shipping="entry.parcel.id"
+            @click="shippingAction(entry)"
+          >
+            {{
+              entry.settlement.paidDelivery.has(statement.customer.id)
+                ? "Снять оплату"
+                : "Отметить оплату"
+            }}
+          </button>
+        </div>
 
         <details class="customer-items-fold">
           <summary class="customer-items-fold__summary">
