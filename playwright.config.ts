@@ -17,7 +17,23 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /iphone\/.*\.spec\.ts/,
+    },
+    {
+      name: "webkit-iphone-12",
+      use: { ...devices["iPhone 12 Pro"], browserName: "webkit" },
+      testMatch: /iphone\/.*\.spec\.ts/,
+    },
+    {
+      name: "webkit-iphone-16",
+      use: { ...devices["iPhone 16 Pro"], browserName: "webkit" },
+      testMatch: /iphone\/.*\.spec\.ts/,
+    },
+  ],
   ...(deployedURL
     ? {}
     : {
