@@ -80,38 +80,11 @@ function canTogglePayment(): boolean {
         }}{{
           row.item.trackNumbers.length ? ` · ${t(TRACK_FORMS, row.item.trackNumbers.length)}` : ""
         }}
-        ·
-        <span class="item-entry__pay">
-          <span class="item-entry__price" :class="{ 'is-paid': itemPaid(row.item.id) }">
-            {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
-          </span>
-          <label
-            v-if="canTogglePayment()"
-            class="pay-check"
-            :class="{ 'is-paid': itemPaid(row.item.id) }"
-          >
-            <input
-              type="checkbox"
-              class="pay-check__input"
-              :name="`itemPaid-${row.item.id}`"
-              :data-toggle-payment="row.item.id"
-              :checked="itemPaid(row.item.id)"
-              @change="emit('toggleItemPayment', row.item.id)"
-            />
-            <span class="pay-check__label">
-              {{ itemPaid(row.item.id) ? "Оплачено" : "Оплатить" }}
-            </span>
-          </label>
-          <span v-else-if="itemPaid(row.item.id)" class="pay-check is-paid">
-            <span class="pay-check__box" aria-hidden="true" />
-            <span class="pay-check__label">Оплачено</span>
-          </span>
-        </span>
         <span
           v-if="(props.deliveryByItem.get(row.item.id) || 0) > 0"
           class="item-entry__without-delivery"
         >
-          без доставки {{ money(row.item.totalPriceBYN) }}
+          · без доставки {{ money(row.item.totalPriceBYN) }}
         </span>
       </div>
       <div class="item-row__tracks">
@@ -140,38 +113,66 @@ function canTogglePayment(): boolean {
         </button>
       </div>
     </div>
-    <div class="parcel-entry__actions">
-      <button
-        v-if="props.parcel.status !== 'done'"
-        type="button"
-        class="btn-icon btn-primary"
-        :data-edit="row.item.id"
-        @click="emit('editItem', row.item.id, props.customerId)"
-      >
-        <span class="sr-only">Изменить товар «{{ row.item.name }}»</span>
-        <AppIcon name="pencil" />
-      </button>
-      <AppDropdownMenu
-        v-if="props.parcel.status === 'draft'"
-        :label="`Действия с товаром «${row.item.name}»`"
-        :title="`Действия с товаром «${row.item.name}»`"
-      >
-        <AppDropdownMenuItem
-          :data-move="row.item.id"
-          :aria-label="`Переместить товар «${row.item.name}»`"
-          @select="emit('moveItem', row.item.id, props.customerId)"
+    <div class="item-entry__side">
+      <span class="item-entry__pay">
+        <span class="item-entry__price" :class="{ 'is-paid': itemPaid(row.item.id) }">
+          {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
+        </span>
+        <label
+          v-if="canTogglePayment()"
+          class="pay-check"
+          :class="{ 'is-paid': itemPaid(row.item.id) }"
         >
-          <AppIcon name="arrowRight" /> Переместить
-        </AppDropdownMenuItem>
-        <AppDropdownMenuItem
-          class="is-danger"
-          :data-delete="row.item.id"
-          :aria-label="`Удалить товар «${row.item.name}»`"
-          @select="emit('deleteItem', row.item.id, props.customerId)"
+          <input
+            type="checkbox"
+            class="pay-check__input"
+            :name="`itemPaid-${row.item.id}`"
+            :data-toggle-payment="row.item.id"
+            :checked="itemPaid(row.item.id)"
+            @change="emit('toggleItemPayment', row.item.id)"
+          />
+          <span class="pay-check__label">
+            {{ itemPaid(row.item.id) ? "Оплачено" : "Оплатить" }}
+          </span>
+        </label>
+        <span v-else-if="itemPaid(row.item.id)" class="pay-check is-paid">
+          <span class="pay-check__box" aria-hidden="true" />
+          <span class="pay-check__label">Оплачено</span>
+        </span>
+      </span>
+      <div class="parcel-entry__actions">
+        <button
+          v-if="props.parcel.status !== 'done'"
+          type="button"
+          class="btn-icon btn-primary"
+          :data-edit="row.item.id"
+          @click="emit('editItem', row.item.id, props.customerId)"
         >
-          <AppIcon name="trash" /> Удалить
-        </AppDropdownMenuItem>
-      </AppDropdownMenu>
+          <span class="sr-only">Изменить товар «{{ row.item.name }}»</span>
+          <AppIcon name="pencil" />
+        </button>
+        <AppDropdownMenu
+          v-if="props.parcel.status === 'draft'"
+          :label="`Действия с товаром «${row.item.name}»`"
+          :title="`Действия с товаром «${row.item.name}»`"
+        >
+          <AppDropdownMenuItem
+            :data-move="row.item.id"
+            :aria-label="`Переместить товар «${row.item.name}»`"
+            @select="emit('moveItem', row.item.id, props.customerId)"
+          >
+            <AppIcon name="arrowRight" /> Переместить
+          </AppDropdownMenuItem>
+          <AppDropdownMenuItem
+            class="is-danger"
+            :data-delete="row.item.id"
+            :aria-label="`Удалить товар «${row.item.name}»`"
+            @select="emit('deleteItem', row.item.id, props.customerId)"
+          >
+            <AppIcon name="trash" /> Удалить
+          </AppDropdownMenuItem>
+        </AppDropdownMenu>
+      </div>
     </div>
   </div>
 </template>

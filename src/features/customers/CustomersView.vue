@@ -2,6 +2,7 @@
 import { computed, onMounted, onScopeDispose, shallowRef } from "vue";
 import { RouterLink } from "vue-router";
 import { toastState } from "@/core/state";
+import { markCustomerTransition } from "@/app/viewTransitions";
 import { money, t } from "@/core/utils";
 import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
 import { getCustomerStatements } from "@/features/statements/service";
@@ -49,6 +50,13 @@ function balanceAmount(statement: CustomerStatement): string {
     ? `долг ${money(balance.remaining)}`
     : `оплачено ${money(balance.paid)}`;
 }
+
+function onOpen(event: MouseEvent, customerId: number): void {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return;
+  }
+  markCustomerTransition(customerId);
+}
 </script>
 
 <template>
@@ -92,6 +100,7 @@ function balanceAmount(statement: CustomerStatement): string {
               :data-open-customer="statement.customer.id"
               :aria-label="`Открыть карточку ${statement.customer.name}`"
               :to="{ name: 'customer', params: { customerId: String(statement.customer.id) } }"
+              @click.capture="onOpen($event, statement.customer.id)"
             >
               <AppIcon name="arrowRight" />
             </RouterLink>

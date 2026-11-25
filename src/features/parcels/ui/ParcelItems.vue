@@ -32,7 +32,7 @@ const emit = defineEmits<{
 
 const searchQuery = shallowRef("");
 const missingTracksOnly = shallowRef(false);
-const openGroups = shallowRef<ReadonlySet<number>>(new Set());
+const closedFolds = shallowRef<ReadonlySet<number>>(new Set());
 const countText = shallowRef("");
 let countTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -62,41 +62,28 @@ watch(
   () => {
     searchQuery.value = "";
     missingTracksOnly.value = false;
-    openGroups.value = new Set();
+    closedFolds.value = new Set();
   },
 );
 
-/** Programmatic `open` also fires `toggle`; sync the reported state, never flip it. */
-function toggleGroup(customerId: number, open: boolean): void {
-  const next = new Set(openGroups.value);
-  if (open === next.has(customerId)) return;
-  if (open) next.add(customerId);
+function toggleFold(customerId: number, open: boolean): void {
+  const closed = !open;
+  if (closed === closedFolds.value.has(customerId)) return;
+  const next = new Set(closedFolds.value);
+  if (closed) next.add(customerId);
   else next.delete(customerId);
-  openGroups.value = next;
+  closedFolds.value = next;
 }
 
-function closeGroup(customerId: number): void {
-  const next = new Set(openGroups.value);
-  if (!next.delete(customerId)) return;
-  openGroups.value = next;
-}
-
-watch(
-  [searching, itemGroups],
-  ([active, groups]) => {
-    if (!active) return;
-    const next = new Set(openGroups.value);
-    let changed = false;
-    for (const group of groups.groups) {
-      if (group.visibleRows.length > 0 && !next.has(group.customerId)) {
-        next.add(group.customerId);
-        changed = true;
-      }
-    }
-    if (changed) openGroups.value = next;
-  },
-  { immediate: true },
-);
+watch([searching, itemGroups], ([active, groups]) => {
+  if (!active) return;
+  const next = new Set(closedFolds.value);
+  let changed = false;
+  for (const group of groups.groups) {
+    if (group.visibleRows.length > 0 && next.delete(group.customerId)) changed = true;
+  }
+  if (changed) closedFolds.value = next;
+});
 
 watch(
   () => itemGroups.value.result,
@@ -124,22 +111,15 @@ function defaultItemStep(status: Parcel["status"]): ItemFormStep {
   return "main";
 }
 
-function openEdit(
-  itemId: number,
-  customerId: number,
-  step = defaultItemStep(props.parcel.status),
-): void {
-  closeGroup(customerId);
+function openEdit(itemId: number, step = defaultItemStep(props.parcel.status)): void {
   emit("editItem", itemId, step);
 }
 
-function openMove(itemId: number, customerId: number): void {
-  closeGroup(customerId);
+function openMove(itemId: number): void {
   emit("moveItem", itemId);
 }
 
-function openDelete(itemId: number, customerId: number): void {
-  closeGroup(customerId);
+function openDelete(itemId: number): void {
   emit("deleteItem", itemId);
 }
 </script>
@@ -216,8 +196,8 @@ function openDelete(itemId: number, customerId: number): void {
         :parcel="props.parcel"
         :balance="props.balances.get(group.customerId) ?? emptyCustomerBalance()"
         :settlement="props.settlement"
-        :open="openGroups.has(group.customerId)"
-        @toggle-group="toggleGroup"
+        :fold-open="!closedFolds.has(group.customerId)"
+        @toggle-fold="toggleFold"
         @toggle-goods="(customerId, checked) => emit('toggleGoods', customerId, checked)"
         @toggle-shipping="emit('toggleShipping', $event)"
       >
@@ -229,10 +209,10 @@ function openDelete(itemId: number, customerId: number): void {
           :parcel="props.parcel"
           :delivery-by-item="props.deliveryByItem"
           :settlement="props.settlement"
-          @edit-item="(itemId, customerId) => openEdit(itemId, customerId)"
+          @edit-item="(itemId) => openEdit(itemId)"
           @move-item="openMove"
           @delete-item="openDelete"
-          @add-track="(itemId, customerId) => openEdit(itemId, customerId, 'tracks')"
+          @add-track="(itemId) => openEdit(itemId, 'tracks')"
           @toggle-item-payment="emit('toggleItemPayment', $event)"
         />
       </ParcelCustomer>

@@ -2,8 +2,8 @@ import { nextTick } from "vue";
 import type { RouteLocationNormalized, Router } from "vue-router";
 
 // Hash router pages share one panel. A selected list row lends its title,
-// date, status badge and next-step hint to the detail hero for one navigation,
-// so the selection morphs instead of blinking into a different layout.
+// date and next-step hint to the detail hero for one navigation, so the
+// selection morphs instead of blinking into a different layout.
 type Direction = "forward" | "backward";
 
 interface TypedViewTransition {
@@ -45,16 +45,25 @@ function startTransition(options: {
   ).startViewTransition(options);
 }
 
-/** Mark the row whose title, date, badge and hint should morph into the detail hero. */
+/** Mark the row whose title, date and hint should morph into the detail hero. */
 export function markParcelTransition(id: number): void {
-  clearParcelTransition();
+  clearRowTransition();
   document
     .querySelector(`[data-open="${id}"]`)
     ?.closest(".parcel-entry")
     ?.classList.add("is-vt-source");
 }
 
-export function clearParcelTransition(): void {
+/** Mark the customer row whose name, avatar and facts lend themselves to detail. */
+export function markCustomerTransition(id: number): void {
+  clearRowTransition();
+  document
+    .querySelector(`[data-open-customer="${id}"]`)
+    ?.closest(".customer-line")
+    ?.classList.add("is-vt-source");
+}
+
+export function clearRowTransition(): void {
   document
     .querySelectorAll(".is-vt-source")
     .forEach((element) => element.classList.remove("is-vt-source"));
@@ -83,6 +92,9 @@ export function runViewTransition(
   if (from.name === "parcels" && to.name === "parcel") {
     markParcelTransition(Number(to.params.parcelId));
   }
+  if (from.name === "people" && to.name === "customer") {
+    markCustomerTransition(Number(to.params.customerId));
+  }
 
   return new Promise<boolean>((resolve) => {
     const transition = startTransition({
@@ -100,11 +112,14 @@ export function runViewTransition(
         if (from.name === "parcel" && to.name === "parcels") {
           markParcelTransition(Number(from.params.parcelId));
         }
+        if (from.name === "customer" && to.name === "people") {
+          markCustomerTransition(Number(from.params.customerId));
+        }
       },
     });
 
     void transition.finished.finally(() => {
-      clearParcelTransition();
+      clearRowTransition();
       focusPanel();
     });
   });

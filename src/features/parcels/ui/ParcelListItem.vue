@@ -6,7 +6,6 @@ import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import { markParcelTransition } from "@/app/viewTransitions";
 import { parcelDate } from "./ParcelPresentation";
 import { nextStepLabel } from "./ParcelNextStatus";
-import { parcelStatusInfo } from "./ParcelStatusInfo";
 import type { Parcel } from "../domain";
 
 const props = defineProps<{ parcel: Parcel }>();
@@ -37,11 +36,6 @@ function onOpen(event: MouseEvent): void {
     <div class="parcel-entry__body min-w-0">
       <div class="parcel-entry__head">
         <b>{{ parcelTitle(props.parcel) }}</b>
-        <span
-          class="parcel-entry__state"
-          :class="`state-${parcelStatusInfo(props.parcel.status).class}`"
-          >{{ parcelStatusInfo(props.parcel.status).label }}</span
-        >
       </div>
       <div class="parcel-entry__hint">{{ nextStepLabel(props.parcel.status) }}</div>
     </div>

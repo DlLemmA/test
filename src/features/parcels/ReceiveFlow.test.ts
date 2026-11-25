@@ -42,6 +42,12 @@ function fixture(items: ParcelItem[]) {
       return current.find((entry) => entry.id === itemId)!;
     },
   );
+  const markLost = vi.fn<(itemId: number) => Promise<ParcelItem>>(async (itemId) => {
+    current = current.map((entry) =>
+      entry.id === itemId ? entry.update({ status: "lost" }) : entry,
+    );
+    return current.find((entry) => entry.id === itemId)!;
+  });
   const finishItem = vi.fn<(itemId: number) => Promise<ParcelItem>>(async (itemId) => {
     current = current.map((entry) =>
       entry.id === itemId ? entry.update({ status: "received" }) : entry,
@@ -54,15 +60,11 @@ function fixture(items: ParcelItem[]) {
         return { parcel, items: current, customers };
       },
       saveWeights,
-      async markLost(itemId) {
-        current = current.map((entry) =>
-          entry.id === itemId ? entry.update({ status: "lost" }) : entry,
-        );
-        return current.find((entry) => entry.id === itemId)!;
-      },
+      markLost,
       finishItem,
     } satisfies ReceiveFlowStore,
     saveWeights,
+    markLost,
     finishItem,
     onComplete: vi.fn<() => void>(() => {}),
   };
@@ -110,6 +112,39 @@ describe("receiving flow without a camera", () => {
     await vi.waitFor(() => expect(f.finishItem).toHaveBeenCalledWith(20));
     expect(f.onComplete).toHaveBeenCalledOnce();
     expect(document.querySelector("#receiveFlow")).toBeNull();
+  });
+
+  it("keeps unfilled items above processed ones in the manual list", async () => {
+    const f = fixture([item(20, ["DONE-1"]), item(21, ["OPEN-1"])]);
+    await mountReceiveFlow(1, { ...f, scanner: new ScriptedScanner() });
+
+    click("rfManualStart");
+    document.querySelector<HTMLInputElement>('[data-weight-key="20:0"]')!.value = "150";
+    submit("rfManualForm");
+
+    const ids = Array.from(document.querySelectorAll(".rf-manual-item")).map(
+      (row) => (row as HTMLElement).dataset.itemId,
+    );
+    expect(ids).toEqual(["21", "20"]);
+  });
+
+  it("marks an item lost from the manual list without scanning it", async () => {
+    const f = fixture([item(20, ["TRACK-1"])]);
+    await mountReceiveFlow(1, { ...f, scanner: new ScriptedScanner() });
+
+    click("rfManualStart");
+    const lostButton = document.querySelector<HTMLButtonElement>(
+      '[data-action="lostItem"][data-item-id="20"]',
+    );
+    expect(lostButton).not.toBeNull();
+
+    lostButton!.click();
+    await vi.waitFor(() => expect(f.markLost).toHaveBeenCalledWith(20));
+    expect(document.querySelector("#rfConfirm")).not.toBeNull();
+
+    click("rfConfirm");
+    await vi.waitFor(() => expect(f.onComplete).toHaveBeenCalledOnce());
+    expect(f.finishItem).not.toHaveBeenCalled();
   });
 
   it("drives scanning through the scanner seam and saves a decode immediately", async () => {

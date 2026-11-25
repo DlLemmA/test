@@ -9,7 +9,7 @@ import type { CustomerParcelStatement, CustomerStatement } from "@/features/stat
 import { ITEM_FORMS, PARCEL_IN_FORMS, parcelDate } from "@/features/parcels/ui/ParcelPresentation";
 import type { ParcelItem } from "@/features/parcels/domain";
 import { nextStepLabel } from "@/features/parcels/ui/ParcelNextStatus";
-import { parcelStatusInfo } from "@/features/parcels/ui/ParcelStatusInfo";
+import { parcelDebtClass, parcelDebtLabel } from "@/features/parcels/ui/ParcelDebt";
 import { paymentService } from "@/features/shared/wiring";
 import { broughtWeight, customerLabel } from "./ui/CustomerPresentation";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
@@ -76,23 +76,12 @@ function deliveryPayable(entry: CustomerParcelStatement, customerId: number): bo
   return entry.settlement.deliveryInvoiced && share(entry, customerId).delivery.owed > 0;
 }
 
-function parcelPaid(entry: CustomerParcelStatement, customerId: number): boolean {
-  const flags = paidFlags(entry);
-  const shippingPaid = entry.settlement.paidDelivery.has(customerId);
-  return (
-    flags.length > 0 &&
-    flags.every(Boolean) &&
-    (!deliveryPayable(entry, customerId) || shippingPaid)
-  );
-}
-
-function parcelIndeterminate(entry: CustomerParcelStatement, customerId: number): boolean {
-  const flags = paidFlags(entry);
-  const shippingPaid = entry.settlement.paidDelivery.has(customerId);
-  return (
-    !parcelPaid(entry, customerId) &&
-    (flags.some(Boolean) || (deliveryPayable(entry, customerId) && shippingPaid))
-  );
+function debtFacts(entry: CustomerParcelStatement, customer: CustomerStatement["customer"]) {
+  return {
+    remaining: share(entry, customer.id).remaining,
+    isSelf: customer.isSelf,
+    deliveryInvoiced: entry.settlement.deliveryInvoiced,
+  };
 }
 
 function errorMessage(error: unknown): string {
@@ -150,30 +139,6 @@ async function toggleShipping(event: Event, entry: CustomerParcelStatement) {
     await paymentService.setShippingPaid(entry.parcel.id, current.customer.id, checked);
     toastState.add({
       message: checked ? "Доставка оплачена" : "Оплата доставки снята",
-      type: "success",
-    });
-    refresh();
-  } catch (error) {
-    input.checked = !checked;
-    toastState.add({ message: errorMessage(error), type: "error" });
-  }
-}
-
-async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
-  const input = event.target as HTMLInputElement;
-  const checked = input.checked;
-  const current = statement.value;
-  if (!current) return;
-  try {
-    await paymentService.setParcelPayment(
-      entry.parcel.id,
-      current.customer.id,
-      entry.items.map((item) => item.id),
-      checked,
-      deliveryPayable(entry, current.customer.id),
-    );
-    toastState.add({
-      message: checked ? "Посылка оплачена" : "Оплата посылки снята",
       type: "success",
     });
     refresh();
@@ -246,13 +211,17 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
               <b :title="entry.parcel.name || `Посылка #${entry.parcel.id}`">{{
                 entry.parcel.name || `Посылка #${entry.parcel.id}`
               }}</b>
+            </div>
+            <div class="parcel-entry__hint customer-parcel-hint">
+              <span class="customer-parcel-hint__text">{{
+                nextStepLabel(entry.parcel.status)
+              }}</span>
               <span
-                class="parcel-entry__state"
-                :class="`state-${parcelStatusInfo(entry.parcel.status).class}`"
-                >{{ parcelStatusInfo(entry.parcel.status).label }}</span
+                class="parcel-debt"
+                :class="parcelDebtClass(debtFacts(entry, statement.customer))"
+                >{{ parcelDebtLabel(debtFacts(entry, statement.customer)) }}</span
               >
             </div>
-            <div class="parcel-entry__hint">{{ nextStepLabel(entry.parcel.status) }}</div>
           </div>
           <RouterLink
             class="btn-icon btn-primary"
@@ -264,51 +233,24 @@ async function toggleParcel(event: Event, entry: CustomerParcelStatement) {
           </RouterLink>
         </div>
 
-        <div class="pay-summary-row">
-          <label class="pay-summary">
-            <input
-              type="checkbox"
-              class="pay-summary__input"
-              :data-toggle-goods="entry.parcel.id"
-              :checked="goodsPaid(entry)"
-              :indeterminate="goodsIndeterminate(entry)"
-              :disabled="statement.customer.isSelf"
-              @change="toggleGoods($event, entry)"
-            />
-            <span class="pay-summary__body">
-              <span class="pay-summary__label">Товары оплачены</span>
-              <span class="pay-summary__note">без доставки</span>
-            </span>
-            <span class="pay-summary__amount">{{
-              money(share(entry, statement.customer.id).goods.owed)
-            }}</span>
-          </label>
-
-          <label class="pay-summary pay-summary--total">
-            <input
-              type="checkbox"
-              class="pay-summary__input"
-              :data-toggle-parcel="entry.parcel.id"
-              :checked="parcelPaid(entry, statement.customer.id)"
-              :indeterminate="parcelIndeterminate(entry, statement.customer.id)"
-              :disabled="statement.customer.isSelf"
-              @change="toggleParcel($event, entry)"
-            />
-            <span class="pay-summary__body">
-              <span class="pay-summary__label">Посылка оплачена</span>
-              <span class="pay-summary__note">
-                {{
-                  deliveryPayable(entry, statement.customer.id)
-                    ? "товары + доставка"
-                    : "доставка не учтена"
-                }}
-              </span>
-            </span>
-            <span class="pay-summary__amount">{{
-              money(share(entry, statement.customer.id).owed)
-            }}</span>
-          </label>
-        </div>
+        <label class="pay-summary">
+          <input
+            type="checkbox"
+            class="pay-summary__input"
+            :data-toggle-goods="entry.parcel.id"
+            :checked="goodsPaid(entry)"
+            :indeterminate="goodsIndeterminate(entry)"
+            :disabled="statement.customer.isSelf"
+            @change="toggleGoods($event, entry)"
+          />
+          <span class="pay-summary__body">
+            <span class="pay-summary__label">Товары оплачены</span>
+            <span class="pay-summary__note">без доставки</span>
+          </span>
+          <span class="pay-summary__amount">{{
+            money(share(entry, statement.customer.id).goods.owed)
+          }}</span>
+        </label>
 
         <label class="pay-summary pay-summary--delivery">
           <input

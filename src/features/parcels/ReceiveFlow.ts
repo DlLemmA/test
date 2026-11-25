@@ -199,15 +199,28 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
   }
 
   function manualRowsHtml(): string {
-    return currentItems(state)
-      .filter((item) => state.units.some((unit) => unit.itemId === item.id))
+    const pendingIds = new Set(
+      state.units
+        .filter((unit) => !state.lost.has(unit.itemId) && !(state.weights.get(unit.key)! > 0))
+        .map((unit) => unit.itemId),
+    );
+    const listed = currentItems(state).filter((item) =>
+      state.units.some((unit) => unit.itemId === item.id),
+    );
+    // Keep each item's tracks in order; only move whole items with open weights up.
+    const ordered = [
+      ...listed.filter((item) => pendingIds.has(item.id)),
+      ...listed.filter((item) => !pendingIds.has(item.id)),
+    ];
+    return ordered
       .map((item) => {
         const list = state.units.filter((unit) => unit.itemId === item.id);
+        const isLost = state.lost.has(item.id);
         const needle = `${item.name} ${customerName(item.customerId)} ${list
           .map((unit) => unit.track)
           .join(" ")}`.toLowerCase();
         return `
-          <div class="rf-manual-item" data-search="${esc(needle)}" ${search && !needle.includes(search.trim().toLowerCase()) ? "hidden" : ""}>
+          <div class="rf-manual-item" data-item-id="${item.id}" data-search="${esc(needle)}" ${isLost ? 'data-lost="true"' : ""} ${search && !needle.includes(search.trim().toLowerCase()) ? "hidden" : ""}>
             <div class="rf-manual-name">${esc(item.name)}<span>${esc(customerName(item.customerId))}</span></div>
             ${list
               .map((unit) => {
@@ -215,10 +228,13 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
                 return `<div class="rf-manual-row">
                   <span class="rf-manual-track">${esc(unit.track)}</span>
                   <label class="visually-hidden" for="${fieldId}">Вес трека ${unit.idx + 1} товара ${esc(item.name)}</label>
-                  <input id="${fieldId}" data-weight-key="${unit.key}" class="rf-manual-weight" type="number" inputmode="numeric" min="0" step="1" placeholder="г" value="${state.weights.get(unit.key) ?? ""}">
+                  <input id="${fieldId}" data-weight-key="${unit.key}" class="rf-manual-weight" type="number" inputmode="numeric" min="0" step="1" placeholder="г" value="${state.weights.get(unit.key) ?? ""}" ${isLost ? "disabled" : ""}>
                 </div>`;
               })
               .join("")}
+            <div class="rf-manual-actions">
+              ${isLost ? '<span class="rf-lost-flag">Потерян</span>' : `<button type="button" class="rf-link" data-action="lostItem" data-item-id="${item.id}">Потерян</button>`}
+            </div>
           </div>`;
       })
       .join("");
@@ -339,6 +355,7 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
         sheet.innerHTML = `
           <div class="rf-grab"></div>
           <h2 class="rf-title">Все треки списком</h2>
+          <p class="rf-sub">Сначала товары с незаполненными весами.</p>
           <label class="visually-hidden" for="rfSearch">Поиск товара или трека</label>
           <input type="search" id="rfSearch" class="rf-search" placeholder="Найти товар или трек" value="${esc(search)}">
           <form id="rfManualForm" class="rf-manual-form">
@@ -413,7 +430,7 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
 
     form.querySelectorAll<HTMLInputElement>("[data-weight-key]").forEach((input) => {
       const raw = input.value.trim();
-      if (!raw) return;
+      if (!raw || input.disabled) return;
       const grams = Number(raw);
       if (!Number.isFinite(grams) || grams < 0) {
         input.setAttribute("aria-invalid", "true");
@@ -501,6 +518,11 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       case "lost": {
         const unit = state.activeKey ? state.byKey.get(state.activeKey) : undefined;
         if (unit) void markLost(unit.itemId);
+        break;
+      }
+      case "lostItem": {
+        const itemId = Number(button.dataset.itemId);
+        if (Number.isFinite(itemId)) void markLost(itemId);
         break;
       }
       case "finish":

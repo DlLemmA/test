@@ -14,7 +14,6 @@ import AppIcon from "@/features/shared/ui/AppIcon.vue";
 import ConfirmDrawer from "@/features/shared/ui/ConfirmDrawer.vue";
 import { parcelReadiness, type Parcel, type PaymentState } from "./domain";
 import { nextStepLabel } from "./ui/ParcelNextStatus";
-import { parcelStatusInfo } from "./ui/ParcelStatusInfo";
 import { ITEM_FORMS, parcelDate } from "./ui/ParcelPresentation";
 import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/ReadinessCopy";
 import { openReceiveFlow } from "./ReceiveFlow";
@@ -119,7 +118,6 @@ const unpaidItemsHint = computed(() => {
 });
 
 const date = computed(() => (parcel.value ? parcelDate(parcel.value) : null));
-const status = computed(() => (parcel.value ? parcelStatusInfo(parcel.value.status) : null));
 const trackNumbers = computed(() =>
   items.value.flatMap((item) => item.trackNumbers.map((track) => track.trim()).filter(Boolean)),
 );
@@ -138,7 +136,12 @@ const calculation = computed(() => {
   );
   return {
     remaining: {
-      label: remainingTotal > 0 ? "Должны" : "Оплачено",
+      label:
+        remainingTotal > 0
+          ? "Должны"
+          : statement.value?.settlement.deliveryInvoiced
+            ? "Оплачено"
+            : "Доставка не учтена",
       value: money(remainingTotal),
       warn: remainingTotal > 0,
     },
@@ -288,7 +291,7 @@ async function confirmDelete(): Promise<void> {
 </script>
 
 <template>
-  <div v-if="parcel && status && date && settlement" class="page page-parcel-detail">
+  <div v-if="parcel && date && settlement" class="page page-parcel-detail">
     <div class="detail-topbar">
       <RouterLink class="text-btn" id="backToParcels" :to="{ name: 'parcels' }">
         <AppIcon name="chevronLeft" /> Все посылки
@@ -309,7 +312,6 @@ async function confirmDelete(): Promise<void> {
       <div class="detail-hero__body min-w-0">
         <div class="detail-hero__title-row">
           <h1>{{ parcel.name || `Посылка №${parcel.id}` }}</h1>
-          <span class="detail-state" :class="`state-${status.class}`">{{ status.label }}</span>
         </div>
         <p class="detail-hero__next">{{ nextStepLabel(parcel.status) }}</p>
       </div>

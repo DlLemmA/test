@@ -31,6 +31,8 @@ type AppSchema = {
   replaceAll(snapshot: SchemaSnapshot): Promise<void>;
 };
 
+type SnapshotBuilder = (base: SchemaSnapshot, schema: AppSchema) => SchemaSnapshot;
+
 const CREATED_AT = "2026-01-01T00:00:00.000Z";
 
 const DEMO_SNAPSHOT = (createdAt: string, schema: AppSchema): SchemaSnapshot => ({
@@ -96,12 +98,13 @@ const DEMO_SNAPSHOT = (createdAt: string, schema: AppSchema): SchemaSnapshot => 
 });
 
 /**
- * Seed the in-memory cache, then reload so the app mounts with test auth and
- * the fixture already in place. No Postgres or real auth flow is involved.
+ * Replace the whole cache-backed fixture in one step, then reload so the app
+ * mounts with test auth and the requested rows already in place. No Postgres,
+ * auth flow or direct cache poking from specs is involved.
  */
-export async function seedSmokeData(page: Page): Promise<void> {
+async function seedSnapshot(page: Page, build: SnapshotBuilder): Promise<void> {
   await page.goto("/");
-  const vocabulary = await page.evaluate(() => {
+  const schema = await page.evaluate(() => {
     const { appSchema } = window as unknown as { appSchema: AppSchema };
     return {
       parcelStatus: appSchema.parcelStatus,
@@ -120,7 +123,139 @@ export async function seedSmokeData(page: Page): Promise<void> {
       appAuth.enterTestMode();
       await appSchema.replaceAll(snapshot);
     },
-    DEMO_SNAPSHOT(CREATED_AT, vocabulary),
+    build(DEMO_SNAPSHOT(CREATED_AT, schema), schema),
   );
   await page.reload();
+}
+
+export async function seedSmokeData(page: Page): Promise<void> {
+  await seedSnapshot(page, (base) => base);
+}
+
+export type ShipFixture = "untracked" | "unconfirmed" | "track-ready";
+
+/** Add one draft item to parcel 1 with no tracks, unconfirmed tracks or confirmed tracks. */
+export async function seedShipFixture(page: Page, fixture: ShipFixture): Promise<void> {
+  const hasTrack = fixture !== "untracked";
+  const confirmed = fixture === "track-ready";
+  const name =
+    fixture === "untracked"
+      ? "Товар без треков"
+      : fixture === "unconfirmed"
+        ? "Товар с неподтверждёнными треками"
+        : "Товар с треком";
+  await seedSnapshot(page, (base, schema) => ({
+    ...base,
+    parcelItems: [
+      ...base.parcelItems,
+      {
+        id: 12,
+        parcelId: 1,
+        name,
+        priceCNY: 1,
+        priceBYN: confirmed ? 0.5 : 0.1,
+        quantity: 1,
+        unit: schema.unit[0],
+        customerId: 2,
+        trackNumbers: JSON.stringify(hasTrack ? ["TRACK-1"] : []),
+        weightsG: "[]",
+        status: schema.itemStatus[0],
+        ...(confirmed ? { tracksCompletedAt: CREATED_AT } : {}),
+        createdAt: CREATED_AT,
+      },
+    ],
+  }));
+}
+
+/** A paid item in the draft parcel: no delivery facts can exist yet. */
+export async function seedPaidDraftFixture(page: Page): Promise<void> {
+  await seedSnapshot(page, (base, schema) => ({
+    ...base,
+    parcelItems: [
+      ...base.parcelItems,
+      {
+        id: 13,
+        parcelId: 1,
+        name: "Оплаченный товар в черновике",
+        priceCNY: 10,
+        priceBYN: 1.3,
+        quantity: 1,
+        unit: schema.unit[0],
+        customerId: 2,
+        trackNumbers: "[]",
+        weightsG: "[]",
+        status: schema.itemStatus[0],
+        createdAt: CREATED_AT,
+      },
+    ],
+    payments: [
+      ...base.payments,
+      {
+        parcelId: 1,
+        customerId: 2,
+        itemId: 13,
+        type: schema.paymentType[0],
+        paid: true,
+        createdAt: CREATED_AT,
+      },
+    ],
+  }));
+}
+
+export type ReceiveFixture = {
+  parcelId?: number;
+  itemId?: number;
+  track?: string;
+  withShipping?: boolean;
+};
+
+/** Add a shipped parcel with one unweighed item, with or without shipping facts. */
+export async function seedReceiveFixture(page: Page, options: ReceiveFixture = {}): Promise<void> {
+  const { parcelId = 3, itemId = 30, track = "RCV-1", withShipping = true } = options;
+  await seedSnapshot(page, (base, schema) => ({
+    ...base,
+    parcels: [
+      ...base.parcels,
+      {
+        id: parcelId,
+        status: schema.parcelStatus[1],
+        createdAt: CREATED_AT,
+        shippedAt: CREATED_AT,
+        ...(withShipping ? { boxWeightG: 100, shippingCostBYN: 10 } : {}),
+      },
+    ],
+    parcelItems: [
+      ...base.parcelItems,
+      {
+        id: itemId,
+        parcelId,
+        name: "Товар на приёмку",
+        priceCNY: 10,
+        priceBYN: 1.3,
+        quantity: 1,
+        unit: schema.unit[0],
+        customerId: 1,
+        trackNumbers: JSON.stringify([track]),
+        weightsG: "[]",
+        status: schema.itemStatus[0],
+        createdAt: CREATED_AT,
+      },
+    ],
+  }));
+}
+
+/** Make the received demo parcel impossible to finish until it is reweighed. */
+export async function seedUnweighedFixture(page: Page): Promise<void> {
+  await seedSnapshot(page, (base) => ({
+    ...base,
+    parcelItems: base.parcelItems.map((row) => (row.id === 11 ? { ...row, weightsG: "[]" } : row)),
+  }));
+}
+
+/** Start the comment flows from a known empty or pre-filled note. */
+export async function seedParcelComment(page: Page, comment: string | null): Promise<void> {
+  await seedSnapshot(page, (base) => ({
+    ...base,
+    parcels: base.parcels.map((row) => (row.id === 2 ? { ...row, comment } : row)),
+  }));
 }
