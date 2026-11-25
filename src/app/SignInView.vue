@@ -29,8 +29,7 @@ async function submit(): Promise<void> {
   error.value = "";
   try {
     await sendMagicLink(email.value.trim());
-    message.value =
-      "Проверьте почту — отправили ссылку для входа. После перехода вернитесь в приложение на главном экране.";
+    message.value = "Отправили ссылку для входа. Откройте её на этом устройстве.";
   } catch {
     error.value = "Не удалось отправить ссылку. Проверьте адрес и попробуйте ещё раз.";
   } finally {
@@ -79,6 +78,11 @@ async function submit(): Promise<void> {
         </button>
       </form>
 
+      <div v-if="message" id="signInSent" class="sign-in__sent" role="status" aria-live="polite">
+        <strong>Проверьте почту</strong>
+        <p>{{ message }} Затем вернитесь в приложение на главном экране.</p>
+      </div>
+
       <div v-if="isDev" class="sign-in__dev">
         <span class="sign-in__dev-label">Для разработки</span>
         <button
@@ -93,8 +97,7 @@ async function submit(): Promise<void> {
       </div>
 
       <p id="signInStatus" class="sign-in__status" role="status" aria-live="polite">
-        <span v-if="message" class="is-success">{{ message }}</span>
-        <span v-else-if="error" class="is-error">{{ error }}</span>
+        <span v-if="error" class="is-error">{{ error }}</span>
       </p>
     </section>
   </main>

@@ -1035,6 +1035,24 @@
   min-height: 48px;
   margin-top: 4px;
 }
+.sign-in__sent {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line-strong);
+  border-inline-start: 3px solid var(--color-positive);
+  border-radius: 10px;
+  background: var(--color-paper);
+}
+.sign-in__sent strong {
+  display: block;
+  color: var(--color-positive);
+  font-size: 14px;
+}
+.sign-in__sent p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
 .sign-in__dev {
   display: grid;
   gap: 6px;
