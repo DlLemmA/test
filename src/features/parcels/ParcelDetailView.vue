@@ -7,6 +7,7 @@ import {
   ref,
   shallowRef,
   useTemplateRef,
+  watch,
 } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import type { ParcelItemStatus } from "@/core/dbSchema";
@@ -27,7 +28,7 @@ import { nextStepLabel } from "./ui/ParcelNextStatus";
 import { ITEM_FORMS, parcelDate } from "./ui/ParcelPresentation";
 import { finishBlockMessage, finishHint, shipBlockMessage } from "./ui/ReadinessCopy";
 import { openReceiveFlow } from "./ReceiveFlow";
-import { exportParcel } from "./ui/exportParcel";
+import { exportParcel, parcelExportState } from "./ui/exportParcel";
 import ParcelComment from "./ui/ParcelComment.vue";
 import ParcelItems from "./ui/ParcelItems.vue";
 import ParcelTrackCopy from "./ui/ParcelTrackCopy.vue";
@@ -139,6 +140,31 @@ const customers = computed(() => viewStatement.value?.customers ?? []);
 const balances = computed(() => viewStatement.value?.balance.byCustomer ?? new Map());
 const deliveryByItem = computed(() => viewStatement.value?.balance.deliveryByItem ?? new Map());
 const settlement = computed(() => viewStatement.value?.settlement ?? null);
+
+const exportBusy = computed(
+  () => parcelExportState.parcelId === parcel.value?.id && parcelExportState.phase !== "idle",
+);
+const exportLabel = computed(() => {
+  if (parcelExportState.parcelId !== parcel.value?.id) return "Экспорт в Excel";
+  switch (parcelExportState.phase) {
+    case "preparing":
+      return "Готовим Excel…";
+    case "sharing":
+      return "Отправляем файл…";
+    case "downloading":
+      return "Скачиваем…";
+    default:
+      return "Экспорт в Excel";
+  }
+});
+const exportError = computed(() =>
+  parcelExportState.parcelId === parcel.value?.id ? parcelExportState.error : "",
+);
+const exportErrorEl = useTemplateRef<HTMLParagraphElement>("exportErrorEl");
+watch(exportError, (message) => {
+  if (message) void nextTick(() => exportErrorEl.value?.focus());
+});
+
 /** Finishing is a logistics step: unpaid lines stay as debt, but stay visible. */
 const unpaidItemsHint = computed(() => {
   const paid = settlement.value?.paidItems;
@@ -466,10 +492,14 @@ async function confirmDelete(): Promise<void> {
           type="button"
           class="text-btn"
           id="exportParcel"
+          :disabled="exportBusy"
           @click="exportParcel(parcel)"
         >
-          <AppIcon name="sheet" /> Экспорт в Excel
+          <AppIcon name="sheet" /> {{ exportLabel }}
         </button>
+        <p v-if="exportError" ref="exportErrorEl" class="field-error" role="alert" tabindex="-1">
+          {{ exportError }}
+        </p>
       </div>
 
       <ParcelComment :parcel-id="parcel.id" :comment="parcel.comment" />
