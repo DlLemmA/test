@@ -1,5 +1,5 @@
 // Which facts earn space in an item row depends on the parcel's stage.
-// Draft is about tracks, receiving is about weight, done is about money.
+// Draft and shipped are about tracks, receiving is about weight, done is about money.
 import type { ParcelItemStatus, ParcelStatus } from "@/core/dbSchema";
 import { parcelItemStatusInfo, type StatusInfo } from "./ParcelStatusInfo";
 

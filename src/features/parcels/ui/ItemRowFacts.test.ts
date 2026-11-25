@@ -17,6 +17,14 @@ describe("item row facts", () => {
     expect(facts.canPay).toBe(true);
   });
 
+  it("keeps tracks while awaiting receipt, without weight or a badge", () => {
+    const facts = itemRowFacts("shipped", item({ status: "shipped", weightsG: [] }), false);
+    expect(facts.showTracks).toBe(true);
+    expect(facts.showTrackWeights).toBe(false);
+    expect(facts.compactWeight).toBeNull();
+    expect(facts.badge).toBeNull();
+  });
+
   it("shows per-track weight after receiving and no normal-status badge", () => {
     const facts = itemRowFacts("received", item(), false);
     expect(facts.showTracks).toBe(true);

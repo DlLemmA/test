@@ -134,7 +134,7 @@ function itemPaid(itemId: number): boolean {
           Треков пока нет
         </div>
         <button
-          v-if="props.parcel.status === 'draft'"
+          v-if="props.parcel.status === 'draft' || props.parcel.status === 'shipped'"
           type="button"
           class="text-btn"
           :data-add-track="row.item.id"

@@ -106,7 +106,7 @@ function clearSearch(): void {
 }
 
 function defaultItemStep(status: Parcel["status"]): ItemFormStep {
-  if (status === "draft") return "tracks";
+  if (status === "draft" || status === "shipped") return "tracks";
   if (status === "received") return "weights";
   return "main";
 }

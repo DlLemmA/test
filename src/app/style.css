@@ -2537,30 +2537,21 @@ select.picker__control {
   color: var(--color-danger);
 }
 .item-entry .parcel-entry__hint {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px 0;
   margin-top: 2px;
   font-size: 11px;
   line-height: 1.5;
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.item-entry__hint-text {
-  min-inline-size: 0;
-}
 .item-entry__owner {
-  flex: none;
   color: var(--color-ink-soft);
   font-weight: 600;
-  overflow-wrap: anywhere;
 }
 .item-entry__owner.is-self {
   color: var(--color-accent-strong);
 }
 .item-entry__sep {
-  flex: none;
+  margin-inline: 3px;
   color: var(--color-muted);
 }
 .item-entry__price {

@@ -158,6 +158,19 @@ test("draft rows offer tracks and payment; received rows show weight", async ({ 
   await expect(page.locator("[data-panel='tracks']")).toBeVisible();
   await expect(page.locator('[data-step="weights"]')).toBeDisabled();
   await expect(page.locator("#itemWeight0")).toBeDisabled();
+  await page.locator(".drawer-close").click();
+
+  await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcels.update(2, { status: "shipped" });
+  });
+  await page.reload();
+  const shippedRow = page.locator('.item-entry:has([data-edit="11"])');
+  await expect(shippedRow.locator('.item-row__tracks [data-add-track="11"]')).toBeVisible();
+  await shippedRow.locator("[data-edit]").click();
+  await expect(page.locator("[data-panel='tracks']")).toBeVisible();
+  await expect(page.locator("#itemTrack0")).toBeEnabled();
+  await expect(page.locator("input[name='tracksCompleted']")).toBeEnabled();
 });
 
 test("item rows use the ledger line treatment", async ({ page }) => {

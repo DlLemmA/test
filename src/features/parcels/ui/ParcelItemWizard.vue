@@ -44,8 +44,10 @@ const tracks = ref<string[]>([""]);
 const weights = ref<Record<string, string>>({});
 const tracksCompleted = ref(false);
 
-/** Tracks are entry data: editable in draft, readable later if already entered. */
-const canEditTracks = computed(() => !isNew.value && props.parcelStatus === "draft");
+/** Tracks are entry data: editable while awaiting distribution or receipt. */
+const canEditTracks = computed(
+  () => !isNew.value && (props.parcelStatus === "draft" || props.parcelStatus === "shipped"),
+);
 const canViewTracks = computed(
   () => canEditTracks.value || (item.value?.trackNumbers.length ?? 0) > 0,
 );
