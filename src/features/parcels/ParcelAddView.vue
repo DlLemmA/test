@@ -72,6 +72,7 @@ const remaining = computed(() => Math.max(0, totalCNY.value - currentCNY.value))
 const progress = computed(() =>
   Math.min(100, Math.round((currentCNY.value / (totalCNY.value || 1)) * 100)),
 );
+const rateFillStyle = computed(() => ({ transform: `scaleX(${progress.value / 100})` }));
 const steps = computed<WizardStep[]>(() =>
   STEP_LABELS.map((label, index) => {
     const number = index + 1;
@@ -504,7 +505,7 @@ async function saveBatch(): Promise<void> {
           <div><span>Добавлено</span><b>{{ currentCNY.toFixed(2) }} CNY</b></div>
           <div><span>Остаток</span><b>{{ remaining.toFixed(2) }} CNY</b></div>
           <div class="rate-track" aria-hidden="true">
-            <div class="rate-fill" :style="{ width: `${progress}%` }" />
+            <div class="rate-fill" :style="rateFillStyle" />
           </div>
         </div>
         <p class="small muted">{{ money(currentBYN) }} из {{ money(totalBYN) }}</p>

@@ -8,6 +8,8 @@ type Direction = "forward" | "backward";
 
 interface TypedViewTransition {
   finished: Promise<void>;
+  ready?: Promise<void>;
+  updateCallbackDone?: Promise<void>;
 }
 
 type ViewTransitionStarter = (options: {
@@ -158,6 +160,10 @@ export function runViewTransition(
       return;
     }
 
+    // A skipped transition rejects `ready`; `finished` still settles, so keep
+    // both handled to avoid console noise on rapid back-to-back navigation.
+    transition.ready?.catch(() => undefined);
+    transition.updateCallbackDone?.catch(() => undefined);
     activeTransition = transition.finished
       .catch(() => undefined)
       .then(() => {

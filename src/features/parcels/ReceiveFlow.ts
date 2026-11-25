@@ -160,11 +160,19 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
     oscillator.stop(now + 0.13);
   }
 
+  let flashTimer: number | undefined;
+
   function flashScan(found: boolean): void {
+    if (flashTimer !== undefined) window.clearTimeout(flashTimer);
     flash.classList.remove("is-found", "is-unknown");
     // Reading layout restarts the animation for a rapid second scan.
     void flash.offsetWidth;
     flash.classList.add(found ? "is-found" : "is-unknown");
+    // Reduced motion gets a static tint instead of a nearly invisible 1ms flash.
+    flashTimer = window.setTimeout(() => {
+      flash.classList.remove("is-found", "is-unknown");
+      flashTimer = undefined;
+    }, 320);
   }
 
   function announce(message: string): void {
