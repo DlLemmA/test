@@ -233,6 +233,11 @@ function openDelete(itemId: number): void {
 </template>
 
 <style scoped>
+/* The goods heading is the only h2 inside this component; the ancestor reset
+   stays global because both detail screens share the section chrome. */
+.section-title h2 {
+  text-wrap: balance;
+}
 /* Item search — the filter stays in the ledger, not a floating bar */
 .item-search {
   display: flex;

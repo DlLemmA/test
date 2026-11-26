@@ -1137,9 +1137,6 @@ select.picker__control {
   padding: 12px 0;
   font-size: 14px;
 }
-.page-parcel-detail .section-title h2 {
-  text-wrap: balance;
-}
 .customer-mark {
   display: grid;
   place-items: center;
