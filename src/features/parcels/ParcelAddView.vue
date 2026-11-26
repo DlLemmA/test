@@ -804,3 +804,231 @@ async function saveBatch(): Promise<void> {
     </template>
   </div>
 </template>
+
+<style scoped>
+/* Batch wizard — a ledger worksheet, not a card stack */
+.page-batch form .field + .field {
+  margin-top: 12px;
+}
+.batch-add {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line);
+}
+.batch-add__modes {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 4px;
+  border-bottom: 1px solid var(--color-line);
+}
+.batch-add__mode {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 2px 8px;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+.batch-add__mode[aria-pressed="true"] {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent-strong);
+}
+.batch-add__group + .batch-add__group {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-line);
+}
+.batch-add__label {
+  margin: 0 0 4px;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+.csv-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.csv-file-row .btn-secondary {
+  min-height: 44px;
+}
+.import-preview {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-paper);
+}
+.import-preview__title {
+  margin: 0 0 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.import-preview__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.import-preview__line {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 0 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--color-line);
+  font-size: 12px;
+}
+.import-preview__line:first-child {
+  border-top: 0;
+}
+.import-preview__num {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.import-preview__raw {
+  overflow-wrap: anywhere;
+}
+.import-preview__ok,
+.import-preview__error {
+  grid-column: 2;
+  font-size: 11px;
+}
+.import-preview__ok {
+  color: var(--color-positive);
+}
+.import-preview__error {
+  color: var(--color-negative);
+}
+.csv-ui-form {
+  padding-top: 10px;
+  border-top: 1px solid var(--color-line);
+}
+.batch-add textarea {
+  min-height: 96px;
+  font-size: 16px;
+  resize: vertical;
+}
+.batch-add textarea[aria-invalid="true"] {
+  border-color: var(--color-negative);
+  background: #fff0f0;
+}
+.page-batch :is(input, select) {
+  min-height: 48px;
+  font-size: 16px;
+}
+.page-batch :is(input, select)[aria-invalid="true"] {
+  border-color: var(--color-negative);
+  background: #fff0f0;
+}
+/* Keep the coarse-pointer override after the base rule so it still wins. */
+@media (pointer: coarse) {
+  .page-batch :is(input, select) {
+    min-height: 52px;
+  }
+}
+.check-notice {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-warning);
+  border-radius: 4px;
+  background: var(--color-paper);
+  color: var(--color-ink-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.check-notice.is-ok {
+  border-left-color: var(--color-positive);
+}
+.batch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.batch-grid .field + .field {
+  margin-top: 0;
+}
+.rate-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  padding: 11px 0;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+}
+.rate-strip > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rate-strip span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.rate-strip b {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.rate-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--color-slate-200);
+}
+.rate-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transform-origin: left center;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rate-fill {
+    transition: transform 180ms ease-out;
+  }
+}
+.batch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 2px;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 0;
+}
+.batch-row:first-of-type {
+  border-top: 0;
+}
+.batch-row b {
+  font-size: 14px;
+}
+.batch-row .parcel-entry__head b {
+  overflow: visible;
+  line-height: 1.3;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.batch-row .parcel-entry__hint {
+  line-height: 1.4;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.btn-secondary.w-full,
+.btn-primary.w-full {
+  min-height: 48px;
+}
+</style>

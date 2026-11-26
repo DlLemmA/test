@@ -387,3 +387,78 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
     <div v-else class="empty">Посылок пока нет</div>
   </div>
 </template>
+
+<style scoped>
+/* Customer account statement — quiet lines, no cards */
+.page-customer-detail {
+  gap: 4px;
+  padding-top: 4px;
+}
+.detail-hero .customer-mark--avatar {
+  inline-size: 48px;
+  block-size: 48px;
+  border-radius: 14px;
+  font-size: 17px;
+}
+.detail-hero.is-self .customer-mark--avatar {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.customer-summary {
+  margin-top: 10px;
+}
+.customer-summary__title {
+  margin: 14px 2px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pay-row {
+  border-bottom: 1px solid var(--color-line);
+}
+.pay-row .pay-summary {
+  border-bottom: 0;
+}
+.pay-row--delivery {
+  background: var(--color-canvas);
+}
+.customer-note {
+  margin: 6px 2px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.customer-statement + .customer-statement {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+.parcel-line {
+  padding-top: 12px;
+  padding-bottom: 6px;
+}
+.parcel-line .btn-icon {
+  align-self: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.parcel-line .btn-icon:hover {
+  background: var(--color-accent-line);
+  box-shadow: none;
+}
+.customer-parcel-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.customer-parcel-hint__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>
