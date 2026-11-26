@@ -595,24 +595,8 @@
 }
 
 /* === Misc === */
-.hidden {
-  display: none !important;
-}
 [hidden] {
   display: none !important;
-}
-
-/* Truncate helper for iOS Safari - explicit overflow hidden */
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 640px) {
-  .hide-mobile {
-    display: none !important;
-  }
 }
 
 /* --- Empty states --- */
