@@ -135,4 +135,66 @@ function onOpenAutoFocus(event: Event): void {
     translate: 0 100%;
   }
 }
+
+/* Sheet chrome belongs to the drawer itself, not to each form inside it. */
+.drawer-handle {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 8px;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.drawer-handle:active {
+  cursor: grabbing;
+}
+.drawer-handle::after {
+  content: "";
+  width: 40px;
+  height: 5px;
+  background: var(--color-line-strong);
+  border-radius: 3px;
+}
+.drawer-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 0.5rem;
+}
+.drawer-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  text-box: trim-both cap alphabetic;
+}
+.drawer-close {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+}
+.drawer-close:active {
+  background: var(--color-accent-soft);
+}
+.drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 </style>

@@ -24,3 +24,14 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
     </div>
   </AppDrawer>
 </template>
+
+<style scoped>
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-line);
+}
+</style>
