@@ -588,73 +588,10 @@
   letter-spacing: -0.03em;
   line-height: 1.15;
 }
-.page-head__count {
-  color: var(--color-muted);
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
 .page-head__note {
   margin: 3px 0 0;
   color: var(--color-muted);
   font-size: 13px;
-}
-/* --- Parcel index — search and filters stay under the masthead --- */
-.parcel-filters,
-.customer-filters {
-  display: block;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  margin: 8px -1rem 0;
-  padding: 8px 1rem 10px;
-  background: var(--color-canvas);
-  border-bottom: 1px solid var(--color-line);
-}
-.parcel-filters__search,
-.customer-filters__search {
-  inline-size: 100%;
-  min-block-size: 48px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 10px;
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font-size: 16px;
-}
-.parcel-filters__chips {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  margin-top: 8px;
-  padding-bottom: 2px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.parcel-filters__chips::-webkit-scrollbar {
-  display: none;
-}
-.parcel-chip {
-  flex: none;
-  min-block-size: 44px;
-  padding: 8px 14px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 22px;
-  background: var(--color-paper);
-  color: var(--color-muted);
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.parcel-chip.is-active {
-  border-color: var(--color-accent);
-  background: var(--color-accent-wash);
-  color: var(--color-accent-strong);
-}
-.section-total {
-  color: var(--color-muted);
-  font-size: 12px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 /* === Misc === */
@@ -1706,11 +1643,6 @@ select.picker__control {
    From src/features/parcels/parcelDetail.css — parcel detail
    ============================================================ */
 /* --- Screen 2: parcel detail — a waybill on the desk, not a dashboard --- */
-.page-parcel-detail {
-  container: ledger / inline-size;
-  gap: 4px;
-  padding-top: 4px;
-}
 .page-parcel-detail .text-btn,
 .page-customer-detail .text-btn {
   display: inline-flex;
@@ -1763,32 +1695,6 @@ select.picker__control {
   border-top: 1px solid var(--color-line-strong);
   border-bottom: 1px solid var(--color-line);
 }
-.detail-hero__date {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding-inline-end: 12px;
-  border-inline-end: 1px solid var(--color-line);
-  line-height: 1;
-}
-.detail-hero__date b {
-  color: var(--color-ink);
-  font-family: var(--font-mono);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.06em;
-}
-.detail-hero__date span {
-  margin-top: 3px;
-  color: var(--color-muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.detail-hero[data-status="draft"] .detail-hero__date b {
-  color: var(--color-muted);
-}
 .detail-hero__title-row {
   display: flex;
   align-items: center;
@@ -1800,35 +1706,6 @@ select.picker__control {
 .page-customer-detail .detail-hero h1 {
   font-size: 21px;
   text-wrap: balance;
-}
-.item-state {
-  position: relative;
-  flex: none;
-  padding-inline-start: 9px;
-  color: var(--color-muted);
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.item-state::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: 0;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  transform: translateY(-50%);
-}
-.item-state.state-warn {
-  color: var(--color-warning);
-}
-.item-state.state-info {
-  color: var(--color-ink-soft);
-}
-.item-state.state-good {
-  color: var(--color-positive);
 }
 .detail-hero__next {
   margin: 5px 0 0;
@@ -1846,87 +1723,6 @@ select.picker__control {
   color: var(--color-ink-soft);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-.detail-action {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--color-line);
-}
-.detail-action__hint {
-  flex-basis: 100%;
-  margin: -2px 0 0;
-  color: var(--color-muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-.page-parcel-detail .btn-action {
-  min-block-size: 44px;
-  padding-inline: 16px;
-  border-radius: 10px;
-  font-size: 14px;
-}
-
-/* Parcel calculation — one ledger rule under the stamp, not a second card */
-.parcel-calc {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--color-line);
-}
-.parcel-calc__primary {
-  display: flex;
-  align-items: baseline;
-}
-.parcel-calc__item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.parcel-calc__item--headline {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  white-space: nowrap;
-}
-.parcel-calc__item--headline b {
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-}
-.parcel-calc__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px 16px;
-  margin: 0;
-}
-.parcel-calc__meta dd {
-  margin: 0;
-}
-.parcel-calc__label {
-  color: var(--color-muted);
-}
-.parcel-calc__item b {
-  color: var(--color-ink-soft);
-  font-weight: 650;
-}
-.parcel-calc__item--headline.is-warn b {
-  color: var(--color-warning);
 }
 
 /* Customer groups inside the continuous item list. Space, not another rule,
@@ -1956,105 +1752,6 @@ select.picker__control {
 }
 .page-parcel-detail .section-title h2 {
   text-wrap: balance;
-}
-.item-search {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 8px;
-  padding-block: 8px 10px;
-  border-bottom: 1px solid var(--color-line);
-}
-.item-search__field {
-  position: relative;
-  display: flex;
-  flex: 1 1 220px;
-  align-items: center;
-  min-inline-size: 0;
-}
-.item-search__field > span {
-  position: absolute;
-  inset-inline-start: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--color-muted);
-  pointer-events: none;
-}
-.item-search__field .icon {
-  inline-size: 18px;
-  block-size: 18px;
-}
-.item-search__input {
-  flex: 1;
-  min-inline-size: 0;
-  min-block-size: 44px;
-  padding-inline-start: 38px;
-  font-size: 16px;
-}
-/* Native clear of type="search" lives inside the input, so it never steals
-   flex width from the field on narrow screens. */
-.item-search__input::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-  appearance: none;
-  inline-size: 24px;
-  block-size: 24px;
-  border-radius: 50%;
-  background: var(--color-slate-100)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a5261' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E")
-    center / 12px 12px no-repeat;
-  cursor: pointer;
-}
-.item-search__filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex: 0 0 auto;
-  min-block-size: 40px;
-  padding: 6px 10px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 999px;
-  background: var(--color-paper);
-  color: var(--color-ink-soft);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.item-search__filter b {
-  color: var(--color-warning);
-  font-variant-numeric: tabular-nums;
-}
-.item-search__filter.is-active {
-  border-color: var(--color-accent-strong);
-  background: var(--color-accent-wash);
-  color: var(--color-accent-strong);
-}
-.item-search__filter.is-active b {
-  color: inherit;
-}
-.item-search__filter-x {
-  display: none;
-  place-items: center;
-  inline-size: 16px;
-  block-size: 16px;
-  margin-inline-start: 1px;
-  border-radius: 50%;
-  font-size: 14px;
-  line-height: 1;
-}
-.item-search__filter.is-active .item-search__filter-x {
-  display: grid;
-  background: var(--color-accent-strong);
-  color: var(--color-paper);
-}
-.item-search__count {
-  flex: 0 0 100%;
-  padding-inline-start: 2px;
-  color: var(--color-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.item-search__empty {
-  padding-block: 14px 4px;
 }
 .ledger__summary {
   margin: 4px 0 0;
@@ -2347,9 +2044,6 @@ button.track-value-row:active {
 @media (max-width: 360px) {
   .detail-hero {
     grid-template-columns: max-content minmax(0, 1fr);
-  }
-  .detail-hero__date b {
-    font-size: 25px;
   }
 }
 
@@ -2979,70 +2673,8 @@ button.track-value-row:active {
 /* ============================================================
    From src/features/customers/customers.css — customers
    ============================================================ */
-/* --- Screen 4: customer directory — quiet rows, no stat tiles --- */
-.page-customers {
-  padding: 4px 0 0;
-}
-.customer-index {
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--color-line-strong);
-  list-style: none;
-}
-.customer-index li + li {
-  border-top: 1px solid var(--color-line);
-}
-.customer-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.customer-row {
-  display: grid;
-  flex: 1;
-  grid-template-columns: 34px minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-  min-width: 0;
-  padding: 10px 2px;
-}
-.customer-row__body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-}
-.customer-row__name {
-  overflow: hidden;
-  color: var(--color-ink);
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 20px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.customer-row__self {
-  color: var(--color-muted);
-  font-weight: 600;
-}
-.customer-row__meta {
-  color: var(--color-muted);
-  font-size: 12px;
-}
-.customer-row__balance {
-  margin-top: 1px;
-  color: var(--color-ink);
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.customer-row__balance.is-debt {
-  color: var(--color-negative);
-}
-.customer-row__balance.is-paid {
-  color: var(--color-positive);
-}
+/* Paired list/detail selectors stay global: viewTransitions.ts adds
+   .is-vt-source to the list row while the detail hero owns the other half. */
 .customer-line.is-vt-source .customer-row__name,
 .page-customer-detail .detail-hero h1 {
   view-transition-name: customer-title;
@@ -3057,29 +2689,6 @@ button.track-value-row:active {
 .page-customer-detail .detail-hero__facts {
   view-transition-name: customer-facts;
   width: fit-content;
-}
-.customer-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 6px;
-}
-.page-customers .customer-actions > .btn-icon {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border-color: var(--color-accent-line);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-strong);
-}
-.page-customers .customer-actions > .btn-secondary {
-  border-color: var(--color-line);
-  background: transparent;
-  color: var(--color-ink-soft);
-}
-@media (pointer: coarse) {
-  .customer-row {
-    padding-block: 12px;
-  }
 }
 .drawer-content .field-check {
   display: flex;
@@ -3520,13 +3129,6 @@ button.track-value-row:active {
   }
   .detail-hero {
     grid-template-columns: max-content minmax(0, 1fr);
-  }
-  .detail-hero__date b {
-    font-size: 25px;
-  }
-  .parcel-calc,
-  .parcel-calc__meta {
-    justify-content: flex-start;
   }
   .item-row__tracks {
     gap: 4px 10px;

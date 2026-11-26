@@ -552,3 +552,136 @@ async function confirmDelete(): Promise<void> {
     </template>
   </div>
 </template>
+
+<style scoped>
+/* Parcel detail — a waybill on the desk, not a dashboard */
+.page-parcel-detail {
+  container: ledger / inline-size;
+  gap: 4px;
+  padding-top: 4px;
+}
+.detail-hero__date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-inline-end: 12px;
+  border-inline-end: 1px solid var(--color-line);
+  line-height: 1;
+}
+.detail-hero__date b {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.06em;
+}
+.detail-hero__date span {
+  margin-top: 3px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.detail-hero[data-status="draft"] .detail-hero__date b {
+  color: var(--color-muted);
+}
+.detail-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.detail-action__hint {
+  flex-basis: 100%;
+  margin: -2px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.btn-action {
+  min-block-size: 44px;
+  padding-inline: 16px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+/* Parcel calculation — one ledger rule under the stamp, not a second card */
+.parcel-calc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.parcel-calc__primary {
+  display: flex;
+  align-items: baseline;
+}
+.parcel-calc__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.parcel-calc__item--headline {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+.parcel-calc__item--headline b {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+.parcel-calc__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 16px;
+  margin: 0;
+}
+.parcel-calc__meta dd {
+  margin: 0;
+}
+.parcel-calc__label {
+  color: var(--color-muted);
+}
+.parcel-calc__item b {
+  color: var(--color-ink-soft);
+  font-weight: 650;
+}
+.parcel-calc__item--headline.is-warn b {
+  color: var(--color-warning);
+}
+
+/* These overrides must stay after the base rules: scoped selectors carry the
+   same attribute specificity here, so source order preserves the reflow. */
+@media (max-width: 360px) {
+  .detail-hero__date b {
+    font-size: 25px;
+  }
+}
+@container ledger (max-width: 430px) {
+  .detail-hero__date b {
+    font-size: 25px;
+  }
+  .parcel-calc,
+  .parcel-calc__meta {
+    justify-content: flex-start;
+  }
+}
+</style>

@@ -231,3 +231,107 @@ function openDelete(itemId: number): void {
     </div>
   </section>
 </template>
+
+<style scoped>
+/* Item search — the filter stays in the ledger, not a floating bar */
+.item-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  padding-block: 8px 10px;
+  border-bottom: 1px solid var(--color-line);
+}
+.item-search__field {
+  position: relative;
+  display: flex;
+  flex: 1 1 220px;
+  align-items: center;
+  min-inline-size: 0;
+}
+.item-search__field > span {
+  position: absolute;
+  inset-inline-start: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+/* The SVG is injected by AppIcon via v-html, so it carries no scope attribute. */
+.item-search__field :deep(.icon) {
+  inline-size: 18px;
+  block-size: 18px;
+}
+.item-search__input {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  padding-inline-start: 38px;
+  font-size: 16px;
+}
+/* Native clear of type="search" lives inside the input, so it never steals
+   flex width from the field on narrow screens. */
+.item-search__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  background: var(--color-slate-100)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a5261' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E")
+    center / 12px 12px no-repeat;
+  cursor: pointer;
+}
+.item-search__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-block-size: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.item-search__filter b {
+  color: var(--color-warning);
+  font-variant-numeric: tabular-nums;
+}
+.item-search__filter.is-active {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+}
+.item-search__filter.is-active b {
+  color: inherit;
+}
+.item-search__filter-x {
+  display: none;
+  place-items: center;
+  inline-size: 16px;
+  block-size: 16px;
+  margin-inline-start: 1px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+}
+.item-search__filter.is-active .item-search__filter-x {
+  display: grid;
+  background: var(--color-accent-strong);
+  color: var(--color-paper);
+}
+.item-search__count {
+  flex: 0 0 100%;
+  padding-inline-start: 2px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.item-search__empty {
+  padding-block: 14px 4px;
+}
+</style>

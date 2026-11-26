@@ -190,3 +190,115 @@ function onOpen(event: MouseEvent, customerId: number): void {
     />
   </div>
 </template>
+
+<style scoped>
+/* Search stays under the masthead */
+.customer-filters {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 8px -1rem 0;
+  padding: 8px 1rem 10px;
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-line);
+}
+.customer-filters__search {
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 16px;
+}
+
+/* Customer directory — quiet rows, no stat tiles */
+.page-customers {
+  padding: 4px 0 0;
+}
+.customer-index {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-line-strong);
+  list-style: none;
+}
+.customer-index li + li {
+  border-top: 1px solid var(--color-line);
+}
+.customer-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.customer-row {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 2px;
+}
+.customer-row__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.customer-row__name {
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.customer-row__self {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+.customer-row__meta {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.customer-row__balance {
+  margin-top: 1px;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.customer-row__balance.is-debt {
+  color: var(--color-negative);
+}
+.customer-row__balance.is-paid {
+  color: var(--color-positive);
+}
+.customer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+.customer-actions > .btn-icon {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+.customer-actions > .btn-secondary {
+  border-color: var(--color-line);
+  background: transparent;
+  color: var(--color-ink-soft);
+}
+@media (pointer: coarse) {
+  .customer-row {
+    padding-block: 12px;
+  }
+}
+</style>

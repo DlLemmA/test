@@ -195,3 +195,56 @@ async function confirmDelete(): Promise<void> {
     />
   </div>
 </template>
+
+<style scoped>
+/* Search and filters stay under the masthead */
+.parcel-filters {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 8px -1rem 0;
+  padding: 8px 1rem 10px;
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-line);
+}
+.parcel-filters__search {
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 16px;
+}
+.parcel-filters__chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-top: 8px;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.parcel-filters__chips::-webkit-scrollbar {
+  display: none;
+}
+.parcel-chip {
+  flex: none;
+  min-block-size: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 22px;
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.parcel-chip.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+}
+</style>
