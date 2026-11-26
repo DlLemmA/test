@@ -197,6 +197,19 @@ async function confirmDelete(): Promise<void> {
 </template>
 
 <style scoped>
+/* The index owns the ledger container; parcel rows keep their global treatment
+   because the same markup appears inside customer detail. */
+.page-parcels {
+  container: ledger / inline-size;
+  padding: 4px 0 0;
+}
+.page-parcels .section.parcel-index {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
 /* Search and filters stay under the masthead */
 .parcel-filters {
   display: block;

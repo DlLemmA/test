@@ -763,17 +763,6 @@
    From src/features/parcels/parcelList.css — parcel list
    ============================================================ */
 /* --- Screen 1: parcel index — a warm paper ledger, date first --- */
-.page-parcels {
-  container: ledger / inline-size;
-  padding: 4px 0 0;
-}
-.page-parcels .section.parcel-index {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
 .parcel-entry {
   position: relative;
   display: grid;
