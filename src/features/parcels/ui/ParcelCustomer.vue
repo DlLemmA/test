@@ -245,6 +245,10 @@ function onFoldToggle(event: Event): void {
 .item-group .customer-items-fold {
   border-bottom: 0;
 }
+/* Locked rows swap the checkbox for this spacer; only this component renders it. */
+.pay-summary__placeholder {
+  inline-size: 16px;
+}
 .pay-summary-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
