@@ -132,7 +132,7 @@ async function confirmDelete(): Promise<void> {
       @action="refresh"
     />
     <template v-else>
-      <div class="parcel-filters">
+      <search class="parcel-filters">
         <label class="visually-hidden" for="parcelSearch">Найти посылку</label>
         <input
           id="parcelSearch"
@@ -142,7 +142,6 @@ async function confirmDelete(): Promise<void> {
           autocomplete="off"
           enterkeyhint="search"
           placeholder="Название, № или трек"
-          aria-label="Найти посылку"
         />
         <div class="parcel-filters__chips" role="group" aria-label="Фильтр посылок">
           <button
@@ -158,7 +157,7 @@ async function confirmDelete(): Promise<void> {
             {{ chip.label }}
           </button>
         </div>
-      </div>
+      </search>
 
       <section v-if="visible.length" class="section parcel-index">
         <ParcelListItem

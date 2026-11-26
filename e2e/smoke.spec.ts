@@ -17,6 +17,17 @@ test("opens a parcel from the list", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("brand returns to the parcel index", async ({ page }) => {
+  await page.goto("/#/people");
+  await page.locator(".brand-mark").click();
+  await expect(page).toHaveURL(/#\/parcels$/);
+
+  await page.goto("/#/customer/2");
+  await page.locator(".brand-text strong").click();
+  await expect(page).toHaveURL(/#\/parcels$/);
+  await expect(page.locator(".page-parcels")).toBeVisible();
+});
+
 test("goods stay visible when the customer heading is clicked", async ({ page }) => {
   await page.goto("/#/parcel/2");
   const group = page.locator('[data-item-group][data-customer="2"]');

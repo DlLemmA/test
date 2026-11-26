@@ -12,11 +12,14 @@ import ScreenState from "@/features/shared/ui/ScreenState.vue";
 import CustomerForm from "./ui/CustomerForm.vue";
 import { broughtWeight, SELF_SUFFIX } from "./ui/CustomerPresentation";
 import CustomerMark from "./ui/CustomerMark.vue";
+import { filterCustomerStatements } from "./ui/customerListFilter";
 
 const statements = shallowRef<CustomerStatement[]>([]);
 const formTarget = shallowRef<number | "new" | null>(null);
 const phase = shallowRef<"loading" | "ready" | "error">("loading");
+const query = shallowRef("");
 
+const visible = computed(() => filterCustomerStatements(statements.value, query.value));
 const formOpen = computed({
   get: () => formTarget.value !== null,
   set: (open: boolean) => {
@@ -92,8 +95,23 @@ function onOpen(event: MouseEvent, customerId: number): void {
       action-label="Повторить"
       @action="refresh"
     />
-    <ul v-else-if="statements.length" class="customer-index">
-      <li v-for="statement in statements" :key="statement.customer.id">
+    <search v-else class="customer-filters">
+      <label class="visually-hidden" for="customerSearch">Найти заказчика</label>
+      <input
+        id="customerSearch"
+        v-model="query"
+        class="customer-filters__search"
+        type="search"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="none"
+        spellcheck="false"
+        enterkeyhint="search"
+        placeholder="Имя заказчика"
+      />
+    </search>
+    <ul v-if="visible.length" class="customer-index">
+      <li v-for="statement in visible" :key="statement.customer.id">
         <div class="customer-line">
           <div class="customer-row">
             <CustomerMark :customer="statement.customer" variant="list" />
@@ -141,6 +159,14 @@ function onOpen(event: MouseEvent, customerId: number): void {
         </div>
       </li>
     </ul>
+    <ScreenState
+      v-else-if="query.trim()"
+      kind="empty"
+      title="Ничего не найдено"
+      message="Попробуйте другое имя заказчика."
+      action-label="Сбросить поиск"
+      @action="query = ''"
+    />
     <ScreenState
       v-else
       kind="empty"

@@ -10,7 +10,16 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
-    plugins: [vue(), tailwindcss()],
+    plugins: [
+      vue({
+        template: {
+          // Vue's SFC compiler predates the native <search> landmark and would
+          // otherwise try to resolve it as a component at runtime.
+          compilerOptions: { isCustomElement: (tag) => tag === "search" },
+        },
+      }),
+      tailwindcss(),
+    ],
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),

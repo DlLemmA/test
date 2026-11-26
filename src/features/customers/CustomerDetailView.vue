@@ -158,10 +158,6 @@ function toggleGoods(event: Event, entry: CustomerParcelStatement): void {
   void setGoodsPaid(entry, input.checked, input);
 }
 
-function goodsAction(entry: CustomerParcelStatement): void {
-  void setGoodsPaid(entry, !goodsPaid(entry));
-}
-
 async function setShippingPaid(
   entry: CustomerParcelStatement,
   checked: boolean,
@@ -186,13 +182,6 @@ async function setShippingPaid(
 function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
   const input = event.target as HTMLInputElement;
   void setShippingPaid(entry, input.checked, input);
-}
-
-function shippingAction(entry: CustomerParcelStatement): void {
-  const current = statement.value;
-  if (!current) return;
-  const checked = !entry.settlement.paidDelivery.has(current.customer.id);
-  void setShippingPaid(entry, checked);
 }
 </script>
 
@@ -320,15 +309,6 @@ function shippingAction(entry: CustomerParcelStatement): void {
               money(share(entry, statement.customer.id).goods.owed)
             }}</span>
           </label>
-          <button
-            v-if="!statement.customer.isSelf"
-            type="button"
-            class="pay-action"
-            :data-pay-goods="entry.parcel.id"
-            @click="goodsAction(entry)"
-          >
-            {{ goodsPaid(entry) ? "Снять оплату" : "Отметить оплату" }}
-          </button>
         </div>
 
         <div class="pay-row pay-row--delivery">
@@ -364,19 +344,6 @@ function shippingAction(entry: CustomerParcelStatement): void {
                 : "—"
             }}</span>
           </label>
-          <button
-            v-if="!statement.customer.isSelf && deliveryPayable(entry, statement.customer.id)"
-            type="button"
-            class="pay-action"
-            :data-pay-shipping="entry.parcel.id"
-            @click="shippingAction(entry)"
-          >
-            {{
-              entry.settlement.paidDelivery.has(statement.customer.id)
-                ? "Снять оплату"
-                : "Отметить оплату"
-            }}
-          </button>
         </div>
 
         <details class="customer-items-fold">

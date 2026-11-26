@@ -49,7 +49,7 @@ test("marks a customer's goods paid", async ({ page }) => {
   await seedSmokeData(page);
   await page.goto("/#/customer/2");
 
-  await page.locator('[data-pay-goods="2"]').click();
+  await page.locator('[data-toggle-goods="2"]').check();
   await expect(page.locator('[data-toggle-goods="2"]')).toBeChecked();
   await expect(
     page.locator("#toastContainer .toast__message", { hasText: "Товары оплачены" }),

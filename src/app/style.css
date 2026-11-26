@@ -610,7 +610,9 @@
   font-size: 13px;
 }
 /* --- Parcel index — search and filters stay under the masthead --- */
-.parcel-filters {
+.parcel-filters,
+.customer-filters {
+  display: block;
   position: sticky;
   top: 0;
   z-index: 5;
@@ -619,7 +621,8 @@
   background: var(--color-canvas);
   border-bottom: 1px solid var(--color-line);
 }
-.parcel-filters__search {
+.parcel-filters__search,
+.customer-filters__search {
   inline-size: 100%;
   min-block-size: 48px;
   padding: 10px 12px;
@@ -935,6 +938,15 @@
   align-items: center;
   gap: 9px;
   min-width: 0;
+  min-height: 44px;
+  margin-inline: -6px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.brand:active {
+  background: var(--color-paper);
 }
 .brand-mark {
   flex: none;
@@ -3683,9 +3695,6 @@ button.track-value-row:active {
   font-weight: 600;
 }
 .pay-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
   border-bottom: 1px solid var(--color-line);
 }
 .pay-row .pay-summary {
@@ -3693,18 +3702,6 @@ button.track-value-row:active {
 }
 .pay-row--delivery {
   background: var(--color-canvas);
-}
-.pay-action {
-  min-block-size: 44px;
-  padding: 0 10px;
-  border-inline-start: 1px solid var(--color-line);
-  color: var(--color-accent-strong);
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.pay-action:active {
-  background: var(--color-accent-wash);
 }
 .customer-note {
   margin: 6px 2px 0;

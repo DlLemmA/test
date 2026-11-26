@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from "vue-router";
 import { signOut } from "@/core/auth";
 import { toastState } from "@/core/state";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
@@ -19,7 +20,7 @@ async function signOutAndReset(): Promise<void> {
 
 <template>
   <header class="app-header">
-    <div class="brand">
+    <RouterLink class="brand" :to="{ name: 'parcels' }" aria-label="На главную, посылки">
       <span class="brand-mark" aria-hidden="true">
         <svg
           viewBox="0 0 24 24"
@@ -38,7 +39,7 @@ async function signOutAndReset(): Promise<void> {
         <strong>Pindoчет</strong>
         <small>учёт посылок</small>
       </span>
-    </div>
+    </RouterLink>
     <div class="header-actions">
       <button id="signOutBtn" class="header-btn" type="button" @click="signOutAndReset">
         <AppIcon name="logOut" />
