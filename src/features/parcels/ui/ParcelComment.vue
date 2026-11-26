@@ -21,6 +21,7 @@ watch(
   (value) => {
     savedComment.value = value ?? "";
     if (commentDraft.value === savedComment.value) commentDraft.value = null;
+    void nextTick(resizeComment);
   },
 );
 
@@ -42,7 +43,8 @@ function resizeComment(): void {
 function expandComment(): void {
   if (commentFocused.value) return;
   commentFocused.value = true;
-  void resizeComment();
+  // The expanded rows and wrapping apply on Vue's next render, so measure then.
+  void nextTick(resizeComment);
 }
 
 function collapseComment(): void {
@@ -69,7 +71,7 @@ function saveComment(): void {
       toastState.add({ message: "Заметка сохранена", type: "success" });
     })
     .catch(() => {
-      // Keep the draft so the visible retry button can save the same text.
+      // Keep the draft so the next blur retries the same text.
       error.value = "Не удалось сохранить заметку. Попробуйте ещё раз.";
       void nextTick(() => errorEl.value?.focus());
     })
@@ -86,7 +88,7 @@ function blurComment(): void {
 function onInput(event: Event): void {
   commentDraft.value = (event.target as HTMLTextAreaElement).value;
   error.value = "";
-  resizeComment();
+  void nextTick(resizeComment);
 }
 </script>
 
@@ -111,11 +113,51 @@ function onInput(event: Event): void {
       @keydown.esc="($event.target as HTMLTextAreaElement).blur()"
       @blur="blurComment"
     />
-    <div v-if="dirty || error" class="parcel-comment__footer">
-      <p v-if="error" ref="errorEl" class="field-error" role="alert" tabindex="-1">{{ error }}</p>
-      <button type="button" class="btn-secondary" :disabled="saving" @click="saveComment">
-        {{ saving ? "Сохраняем…" : "Сохранить" }}
-      </button>
+    <div v-if="error" class="parcel-comment__footer">
+      <p ref="errorEl" class="field-error" role="alert" tabindex="-1">{{ error }}</p>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Inline one-line note, editable on click */
+.parcel-comment {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.parcel-comment__text {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 32px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--color-slate-50);
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  /* 16px keeps iOS Safari from zooming the page on focus. */
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: hidden;
+  resize: none;
+  cursor: text;
+}
+.parcel-comment__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-block: 4px 8px;
+}
+.parcel-comment__text::placeholder {
+  color: var(--color-muted);
+}
+.parcel-comment.is-expanded .parcel-comment__text {
+  border-color: var(--color-line-strong);
+  background: var(--color-paper);
+  white-space: pre-wrap;
+  overflow: auto;
+}
+</style>

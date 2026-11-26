@@ -34,6 +34,20 @@ test.describe("UpdateComment", () => {
     });
   });
 
+  test("auto-sizes a saved multiline note without a save button", async ({ page }) => {
+    const note = "Первая строка\nВторая строка\nТретья строка";
+    await openFixture(page, note);
+    const textarea = page.locator("#parcelCommentText");
+    const collapsedHeight = await textarea.evaluate((el) => el.getBoundingClientRect().height);
+
+    await textarea.click();
+    await expect(page.locator("#parcelCommentBlock")).toHaveClass(/is-expanded/);
+    await expect(page.locator("#parcelCommentBlock button")).toHaveCount(0);
+    await expect
+      .poll(() => textarea.evaluate((el) => el.getBoundingClientRect().height))
+      .toBeGreaterThan(collapsedHeight + 20);
+  });
+
   test("clears a saved note from the inline editor", async ({ page }) => {
     await openFixture(page, "Старая заметка");
     const textarea = page.locator("#parcelCommentText");

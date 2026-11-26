@@ -67,3 +67,39 @@ watch(authSession, (session) => {
     </div>
   </ToastProvider>
 </template>
+
+<style scoped>
+.view-panel {
+  view-transition-name: panel-root;
+}
+.auth-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  color: var(--color-muted);
+  background: var(--color-canvas);
+}
+.app-shell {
+  max-width: 42rem;
+  margin-inline: auto;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-canvas);
+}
+/* The routed screens never scroll the body. Keeping one scroller lets the
+   router restore a deliberate position and keeps the dock out of focused inputs. */
+.app-main {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-inline: 1rem;
+  padding-bottom: 7rem;
+  scroll-padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+</style>

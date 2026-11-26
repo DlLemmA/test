@@ -48,3 +48,91 @@ async function signOutAndReset(): Promise<void> {
     </div>
   </header>
 </template>
+
+<style scoped>
+/* App header — quiet register masthead */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 11px;
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-line-strong);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 44px;
+  margin-inline: -6px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.brand:active {
+  background: var(--color-paper);
+}
+.brand-mark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 7px;
+  background: var(--color-paper);
+  color: var(--color-accent);
+}
+.brand-mark svg {
+  width: 15px;
+  height: 15px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+.brand-text strong {
+  color: var(--color-ink);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.brand-text small {
+  color: var(--color-muted);
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+.header-actions {
+  display: flex;
+  gap: 2px;
+}
+.header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* The SVG is injected by AppIcon via v-html, so it carries no scope attribute. */
+.header-btn :deep(.icon) {
+  width: 15px;
+  height: 15px;
+}
+.header-btn:active {
+  background: var(--color-slate-100);
+  color: var(--color-accent-strong);
+}
+</style>

@@ -102,3 +102,132 @@ async function submit(): Promise<void> {
     </section>
   </main>
 </template>
+
+<style scoped>
+/* Sign-in — the same paper slip, no SaaS card */
+.sign-in {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--color-canvas);
+}
+.sign-in__card {
+  width: min(100%, 420px);
+  padding: 28px;
+  border: 1px solid var(--color-line-strong);
+  border-top: 3px solid var(--color-accent);
+  border-radius: 12px;
+  background: var(--color-paper);
+  box-shadow: none;
+}
+.sign-in__mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 14px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: 10px;
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+}
+/* The SVG is injected by AppIcon via v-html, so it carries no scope attribute. */
+.sign-in__mark :deep(.icon) {
+  width: 20px;
+  height: 20px;
+}
+.sign-in h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: -0.03em;
+}
+.sign-in__lead {
+  margin: 6px 0 20px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+.sign-in__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sign-in__form label {
+  font-weight: 600;
+}
+.sign-in__form input {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--color-ink);
+  font-size: max(1rem, 1em);
+}
+.sign-in__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  margin-top: 4px;
+}
+.sign-in__sent {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line-strong);
+  border-inline-start: 3px solid var(--color-positive);
+  border-radius: 10px;
+  background: var(--color-paper);
+}
+.sign-in__sent strong {
+  display: block;
+  color: var(--color-positive);
+  font-size: 14px;
+}
+.sign-in__sent p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+.sign-in__dev {
+  display: grid;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--color-line-strong);
+}
+.sign-in__dev-label,
+.sign-in__dev-hint {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+.sign-in__dev-label {
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sign-in__dev-hint {
+  font-size: 12px;
+}
+.sign-in__test {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.sign-in__hint,
+.sign-in__status {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+.sign-in__status {
+  min-height: 1.25em;
+  margin-top: 10px;
+}
+.sign-in .is-error {
+  color: var(--color-negative);
+}
+</style>
