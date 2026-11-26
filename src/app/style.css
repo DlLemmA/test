@@ -2006,8 +2006,4 @@ select.picker__control {
   textarea {
     font-size: max(16px, 1em) !important;
   }
-  .wizard-step {
-    min-block-size: 44px;
-    padding-inline: 10px;
-  }
 }
