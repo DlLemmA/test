@@ -829,15 +829,6 @@
   background: currentColor;
   transform: translateY(-50%);
 }
-.parcel-entry__state.state-warn {
-  color: var(--color-warning);
-}
-.parcel-entry__state.state-info {
-  color: var(--color-ink-soft);
-}
-.parcel-entry__state.state-good {
-  color: var(--color-positive);
-}
 .parcel-entry__hint {
   display: block;
   margin-top: 4px;
