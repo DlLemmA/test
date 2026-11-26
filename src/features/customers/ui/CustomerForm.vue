@@ -133,3 +133,26 @@ async function submit(): Promise<void> {
     </form>
   </AppDrawer>
 </template>
+
+<style scoped>
+.field-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.field-check input {
+  width: 20px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  accent-color: var(--color-accent);
+}
+.field-check label {
+  margin: 0;
+  font-weight: 600;
+}
+#customerName[aria-invalid="true"] {
+  border-color: var(--color-negative);
+  background: #fff0f0;
+}
+</style>

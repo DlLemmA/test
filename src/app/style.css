@@ -1987,27 +1987,6 @@ select.picker__control {
   view-transition-name: customer-facts;
   width: fit-content;
 }
-.drawer-content .field-check {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.drawer-content .field-check input {
-  width: 20px;
-  min-height: 0;
-  padding: 0;
-  border-radius: 6px;
-  accent-color: var(--color-accent);
-}
-.drawer-content .field-check label {
-  margin: 0;
-  font-weight: 600;
-}
-.drawer-content #customerName[aria-invalid="true"] {
-  border-color: var(--color-negative);
-  background: #fff0f0;
-}
-
 /* ============================================================
    From src/features/customers/customerDetail.css — customer detail
    ============================================================ */
