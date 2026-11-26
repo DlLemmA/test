@@ -545,3 +545,136 @@ async function submit(): Promise<void> {
     </form>
   </AppDrawer>
 </template>
+
+<style scoped>
+/* Item wizard — track and weight entry stay in the ledger line language */
+.item-track-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+.track-remove {
+  display: grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.track-remove[hidden] {
+  display: none;
+}
+.item-wizard__tracks {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.item-wizard__tracks legend {
+  padding: 0 0 6px;
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.item-wizard__tracks .text-btn {
+  min-block-size: 32px;
+  padding-inline: 2px;
+  background: transparent;
+  color: var(--color-accent-strong);
+  font-size: 12px;
+}
+/* .pay-summary's global margin has always won here, so this label keeps 0. */
+.item-wizard__weights {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.item-wizard__weights legend {
+  padding: 0 0 6px;
+  color: var(--color-ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.weight-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 0.7fr);
+  align-items: end;
+  gap: 8px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--color-line);
+}
+.weight-row__code {
+  overflow-wrap: anywhere;
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.item-wizard__panel {
+  padding-top: 14px;
+}
+.item-wizard__panel.is-locked .item-wizard__context b {
+  color: var(--color-muted);
+}
+.item-wizard__tracks:disabled,
+.item-wizard__weights:disabled {
+  opacity: 0.6;
+}
+.item-wizard__tracks:disabled input,
+.item-wizard__weights:disabled input,
+.item-wizard__complete.is-locked {
+  background: var(--color-slate-50);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.item-wizard__context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink);
+  font-size: 12px;
+}
+.item-wizard__context span {
+  color: var(--color-muted);
+}
+.item-wizard__context b {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.item-wizard__panel[hidden] {
+  display: none;
+}
+.item-wizard__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.item-wizard__actions .text-btn {
+  min-block-size: 36px;
+  padding-inline: 8px;
+  background: transparent;
+  color: var(--color-muted);
+}
+/* Keep the coarse-pointer overrides after the base rules so they still win. */
+@media (pointer: coarse) {
+  .item-wizard__actions .text-btn,
+  .item-wizard__tracks .text-btn,
+  .track-remove {
+    min-block-size: 44px;
+  }
+  .track-remove {
+    inline-size: 44px;
+  }
+}
+</style>

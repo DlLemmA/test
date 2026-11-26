@@ -48,3 +48,91 @@ function select(step: WizardStep): void {
     </ol>
   </nav>
 </template>
+
+<style scoped>
+/* One step navigation for the batch wizard and the item wizard */
+.wizard-steps {
+  padding: 4px 0;
+}
+.item-wizard__steps {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item-wizard__steps li {
+  position: relative;
+}
+.item-wizard__steps li + li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -10px;
+  top: 50%;
+  inline-size: 10px;
+  block-size: 1px;
+  background: var(--color-line-strong);
+}
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 32px;
+  margin: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+.wizard-step:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.wizard-step__dot {
+  display: grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 50%;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+.wizard-step.is-active {
+  color: var(--color-ink);
+  font-weight: 650;
+}
+.wizard-step.is-active .wizard-step__dot {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+.wizard-step.is-done {
+  color: var(--color-ink-soft);
+}
+.wizard-step.is-done .wizard-step__dot {
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
+}
+.wizard-step:disabled,
+.wizard-step.is-locked {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.wizard-step:disabled .wizard-step__dot,
+.wizard-step.is-locked .wizard-step__dot {
+  border-style: dashed;
+}
+@media (pointer: coarse) {
+  .wizard-step {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+}
+</style>
