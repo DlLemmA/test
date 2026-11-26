@@ -575,11 +575,6 @@
 .page-head {
   padding: 10px 2px 0;
 }
-.page-head__row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
 .page-head h1,
 .detail-hero h1 {
   margin: 0;

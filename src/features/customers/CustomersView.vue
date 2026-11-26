@@ -192,6 +192,12 @@ function onOpen(event: MouseEvent, customerId: number): void {
 </template>
 
 <style scoped>
+/* Only the directory stacks its heading in a row; the page head itself is shared. */
+.page-head__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 /* Search stays under the masthead */
 .customer-filters {
   display: block;
