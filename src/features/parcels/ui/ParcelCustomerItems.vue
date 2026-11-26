@@ -231,3 +231,240 @@ function hasTracks(row: ItemRowView): boolean {
     </div>
   </div>
 </template>
+
+<style scoped>
+.item-entry {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 6px 10px;
+  padding: 11px 0 10px;
+}
+.item-entry .parcel-entry__head {
+  align-items: center;
+  gap: 8px;
+}
+.item-entry .parcel-entry__head b {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  font-size: 14px;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.item-entry .parcel-entry__head .parcel-entry__actions {
+  flex: none;
+  margin-inline-start: auto;
+}
+.item-entry .parcel-entry__state {
+  font-size: 10px;
+}
+.item-entry .parcel-entry__state.state-bad {
+  color: var(--color-danger);
+}
+.item-entry .parcel-entry__hint {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.item-entry__owner {
+  color: var(--color-ink-soft);
+  font-weight: 600;
+}
+.item-entry__owner.is-self {
+  color: var(--color-accent-strong);
+}
+.item-entry__sep {
+  margin-inline: 3px;
+  color: var(--color-muted);
+}
+.item-entry__price.is-paid {
+  color: var(--color-positive);
+}
+.item-pay-summary.pay-summary {
+  min-block-size: 0;
+  padding: 0;
+  border-bottom: 0;
+  gap: 8px;
+  grid-template-columns: 16px auto auto;
+  justify-self: start;
+}
+.item-pay-summary .pay-summary__label,
+.item-pay-summary .pay-summary__amount {
+  font-size: 12px;
+}
+.item-pay-summary.is-locked {
+  cursor: default;
+  color: var(--color-muted);
+}
+.item-entry__without-delivery {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.item-entry__weight {
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.item-row__tracks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 6px;
+  margin-top: 7px;
+}
+.item-entry__no-tracks {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+.item-entry.is-missing-tracks .item-entry__no-tracks {
+  color: var(--color-warning);
+}
+.track-value-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-block-size: 22px;
+  padding: 2px 7px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: var(--color-paper);
+  font-variant-numeric: tabular-nums;
+}
+.track-value-row + .track-value-row {
+  padding-inline-start: 7px;
+  border-inline-start: 1px solid var(--color-line);
+}
+button.track-value-row {
+  min-block-size: 44px;
+  align-items: center;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.track-value-row:active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-wash);
+}
+.track-index {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.track-code {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.track-weight {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.item-row__tracks .text-btn {
+  min-block-size: 22px;
+  padding: 1px 4px;
+  color: var(--color-muted);
+  font-size: 10px;
+}
+.item-entry .parcel-entry__actions > .btn-icon {
+  width: 30px;
+  height: 30px;
+  border-color: var(--color-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted);
+}
+/* AppIcon injects the SVG, so deep is required to keep its 14px size. */
+.item-entry .parcel-entry__actions > .btn-icon :deep(svg) {
+  width: 14px;
+  height: 14px;
+}
+.item-entry .parcel-entry__actions > .btn-icon:hover {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+}
+.item-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+  margin-top: 6px;
+}
+.item-flag.pay-summary {
+  display: inline-grid;
+  grid-template-columns: 16px auto;
+  justify-self: auto;
+  gap: 6px;
+  min-block-size: 44px;
+  padding: 4px 0;
+  border-bottom: 0;
+}
+/* Facts sit in one wrapping ledger line; hairlines separate the cells. */
+.item-flags > .pay-summary {
+  padding-inline: 10px;
+  border-inline-start: 1px solid var(--color-line);
+}
+.item-flags > .pay-summary:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+.item-flags .item-pay-summary.pay-summary {
+  grid-template-columns: 16px auto auto;
+}
+.item-flag .pay-summary__label {
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  font-weight: 500;
+}
+.item-flag.is-locked {
+  color: var(--color-muted);
+  cursor: default;
+}
+.item-flags .item-flag:has(input:checked) {
+  color: var(--color-ink-soft);
+}
+.item-flags .item-flag--lost:has(input:checked) {
+  color: var(--color-negative);
+}
+
+@media (pointer: coarse) {
+  .item-entry .parcel-entry__actions button,
+  .item-entry .parcel-entry__actions summary {
+    min-block-size: 44px;
+  }
+  .item-entry .parcel-entry__actions > .btn-icon {
+    min-inline-size: 44px;
+  }
+}
+@media (max-width: 480px) {
+  .item-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 360px) {
+  .item-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@container ledger (max-width: 430px) {
+  .item-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .item-row__tracks {
+    gap: 4px 10px;
+  }
+}
+</style>
