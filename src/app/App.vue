@@ -68,9 +68,13 @@ watch(authSession, (session) => {
       <main id="main-content" ref="mainContent" class="app-main">
         <div id="panel-container" class="view-panel" tabindex="-1">
           <RouterView v-slot="{ Component }">
-            <Transition :name="tabTransition ? 'panel-tab' : undefined" mode="out-in">
+            <!-- Only tabs get a Vue <Transition>. Wrapping every route would
+                 delay the new DOM past the View Transition snapshot and make
+                 the row → hero morph compare the row with itself. -->
+            <Transition v-if="tabTransition" name="panel-tab" mode="out-in">
               <component :is="Component" />
             </Transition>
+            <component v-else :is="Component" />
           </RouterView>
         </div>
       </main>

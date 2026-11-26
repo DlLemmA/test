@@ -4,6 +4,8 @@
 
 Статус: рекомендации Приоритета 1 применены в тот же день. VT перенесён в `router.beforeResolve`, `waitForNewRoute()` и `types` удалены, анимация работает только вперёд (`parcels → parcel`, `people → customer`); `back` — обычный переход без VT. Переключение табов получило дешёвый Vue `<Transition name="panel-tab">` вместо VT.
 
+Дополнительно исправлена найденная регрессия: `<Transition mode="out-in">` оборачивал **все** роуты, поэтому к моменту нового снимка в DOM оставался старый список — браузер анимировал строку саму с собой, и морфинга заголовка не было. Теперь `<Transition>` включён только для таб↔таб; list→detail рендерит компонент напрямую. Проверка в `e2e/view-transition.spec.ts` сверяет, что на `ready` уже есть detail hero и keyframes заголовка действительно различаются.
+
 Объём: same-document View Transitions в SPA на Vue 3 + Vue Router 4, плюс три дополнительные темы: Vue `<Transition>` / `<TransitionGroup>`, GSAP reverse/Flip и рекомендации для этого репозитория.
 
 Источники: только официальная документация и спецификации (Vue, Vue Router, GSAP, MDN/CSSWG, Chrome, WebKit). Код и тесты не изменялись; все примеры ниже иллюстративные.

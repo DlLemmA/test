@@ -96,18 +96,34 @@ test("uses a cheap tab transition and one forward view transition", async ({ pag
   await expect(page.locator("#bottombar")).toBeVisible();
 
   await page.evaluate(() => {
-    type Starter = (updateCallback: () => Promise<void> | void) => { finished: Promise<void> };
+    type Starter = (updateCallback: () => Promise<void> | void) => {
+      finished: Promise<void>;
+      ready?: Promise<void>;
+    };
     const doc = document as Document & { startViewTransition?: Starter };
     const original = doc.startViewTransition?.bind(doc);
-    const target = window as unknown as { viewTransitions: number; tabAnimations: number };
+    const target = window as unknown as {
+      viewTransitions: number;
+      tabAnimations: number;
+      detailAtReady: boolean;
+    };
     target.viewTransitions = 0;
     target.tabAnimations = 0;
+    target.detailAtReady = false;
     if (original) {
       Object.defineProperty(doc, "startViewTransition", {
         configurable: true,
         value: (updateCallback: () => Promise<void> | void) => {
           target.viewTransitions += 1;
-          return original(updateCallback);
+          const transition = original(updateCallback);
+          transition.ready
+            ?.then(() => {
+              target.detailAtReady = !!document.querySelector(
+                ".page-parcel-detail .detail-hero h1",
+              );
+            })
+            .catch(() => undefined);
+          return transition;
         },
       });
     }
@@ -161,9 +177,20 @@ test("uses a cheap tab transition and one forward view transition", async ({ pag
   });
   await page.locator('[data-open="2"]').click();
   await expect(page.locator(".page-parcel-detail")).toBeVisible();
-  expect(
-    await page.evaluate(() => (window as unknown as { viewTransitions: number }).viewTransitions),
-  ).toBe(1);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const target = window as unknown as {
+          viewTransitions: number;
+          detailAtReady: boolean;
+        };
+        return {
+          viewTransitions: target.viewTransitions,
+          detailAtReady: target.detailAtReady,
+        };
+      }),
+    )
+    .toMatchObject({ viewTransitions: 1, detailAtReady: true });
 
   // Back is an ordinary route change: no second snapshot, no morph.
   await page.locator("#backToParcels").click();
