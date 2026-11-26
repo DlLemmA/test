@@ -638,7 +638,7 @@ async function saveBatch(): Promise<void> {
                     </span>
                     <span v-else-if="line.row" class="import-preview__ok">
                       {{ line.row.name }} · {{ line.row.quantity }} ×
-                      {{ money(line.row.priceCNY) }} CNY
+                      {{ line.row.priceCNY?.toFixed(2) }} CNY
                     </span>
                   </li>
                 </ol>
