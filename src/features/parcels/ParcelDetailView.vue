@@ -560,6 +560,17 @@ async function confirmDelete(): Promise<void> {
   gap: 4px;
   padding-top: 4px;
 }
+.detail-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+/* The copy button is the root of a multi-root child component, so it carries
+   no scope attribute; :deep keeps both topbar buttons on the same rhythm. */
+.detail-topbar__actions :deep(.text-btn) {
+  min-inline-size: 44px;
+  justify-content: center;
+}
 .detail-hero__date {
   display: flex;
   flex-direction: column;
