@@ -26,6 +26,13 @@ const emit = defineEmits<{ "update:open": [value: boolean]; confirm: [] }>();
 </template>
 
 <style scoped>
+/* Only the confirm drawer renders a notice; the drawer chrome itself is shared. */
+.notice {
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
 .drawer-actions {
   display: flex;
   justify-content: flex-end;

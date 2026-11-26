@@ -425,24 +425,6 @@
     color: var(--color-muted);
   }
 
-  /* Notices */
-  .notice {
-    @apply rounded-xl p-3 text-sm;
-  }
-  .notice-info {
-    background: var(--color-accent-wash);
-    color: var(--color-accent-strong);
-  }
-  .notice-warn {
-    @apply bg-amber-50 text-amber-900;
-  }
-  .notice-error {
-    @apply bg-red-50 text-red-900;
-  }
-  .notice-good {
-    @apply bg-green-50 text-green-900;
-  }
-
   /* Empty state — quiet ledger copy, not a card */
   .empty {
     @apply text-slate-500;
