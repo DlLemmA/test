@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { money, t } from "@/core/utils";
+import { byn, t } from "@/core/utils";
 import type { CustomerBalance } from "@/features/balances/domain";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import { canPayDelivery } from "@/features/settlement/domain";
@@ -113,7 +113,7 @@ function onFoldToggle(event: Event): void {
               {{ goodsPaid(props.group) ? "оплачено" : "не оплачено" }} · без доставки
             </span>
           </span>
-          <span class="pay-summary__amount">{{ money(groupTotal(props.group)) }}</span>
+          <span class="pay-summary__amount">{{ byn(groupTotal(props.group)) }}</span>
         </label>
         <span
           v-else
@@ -127,7 +127,7 @@ function onFoldToggle(event: Event): void {
               {{ goodsPaid(props.group) ? "оплачено" : "не оплачено" }} · без доставки
             </span>
           </span>
-          <span class="pay-summary__amount">{{ money(groupTotal(props.group)) }}</span>
+          <span class="pay-summary__amount">{{ byn(groupTotal(props.group)) }}</span>
         </span>
         <label
           v-if="hasDelivery() && canPayShipping(props.group)"
@@ -152,7 +152,7 @@ function onFoldToggle(event: Event): void {
               · включена в цены товаров
             </span>
           </span>
-          <span class="pay-summary__amount">{{ money(props.balance.delivery.owed) }}</span>
+          <span class="pay-summary__amount">{{ byn(props.balance.delivery.owed) }}</span>
         </label>
         <span
           v-else-if="hasDelivery()"
@@ -171,7 +171,7 @@ function onFoldToggle(event: Event): void {
               · включена в цены товаров
             </span>
           </span>
-          <span class="pay-summary__amount">{{ money(props.balance.delivery.owed) }}</span>
+          <span class="pay-summary__amount">{{ byn(props.balance.delivery.owed) }}</span>
         </span>
         <span v-else class="pay-summary payment-bullet is-locked">
           <span class="pay-summary__placeholder" aria-hidden="true"></span>
@@ -190,7 +190,7 @@ function onFoldToggle(event: Event): void {
         <span>{{ t(ITEM_FORMS, props.group.visibleRows.length) }}</span>
         <span class="customer-items-fold__meta">
           {{ groupWeight(props.group) > 0 ? `${groupWeight(props.group)} г` : "вес —" }} ·
-          {{ money(groupTotal(props.group)) }}
+          {{ byn(groupTotal(props.group)) }}
         </span>
       </summary>
       <div class="customer-items"><slot /></div>

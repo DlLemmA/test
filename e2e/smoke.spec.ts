@@ -356,7 +356,7 @@ test("goods payment checkbox flips immediately and stays in sync", async ({ page
   const label = page.locator('[data-item-group][data-customer="2"] .payment-bullet', {
     hasText: "Товары:",
   });
-  await expect(label).toContainText("2.60 BYN");
+  await expect(label).toContainText(/2,60\s+BYN/);
   await expect(check).not.toBeChecked();
   await expect(label).toContainText("не оплачено");
 
@@ -375,7 +375,7 @@ test("customer card toggles one item, all goods and shipping", async ({ page }) 
   await expect(page.locator('[data-toggle-payment="11"]')).toBeVisible();
   await expect(
     page.locator(".pay-summary", { hasText: "Товары оплачены" }).locator(".pay-summary__amount"),
-  ).toHaveText("2.60 BYN");
+  ).toHaveText(/2,60\s+BYN/);
   await expect(page.locator('[data-toggle-shipping="2"]')).not.toBeChecked();
 
   await page.locator('[data-toggle-payment="11"]').check();

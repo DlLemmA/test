@@ -3,7 +3,7 @@ import type { Customer } from "@/features/customers/domain";
 import { parcelItemRepository, parcelRepository } from "./infrastructure";
 import { parcelCommands } from "@/features/shared/wiring";
 import { toastState } from "@/core/state";
-import { I, esc, kg, money, t } from "@/core/utils";
+import { I, esc, kg, byn, t } from "@/core/utils";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { ITEM_FORMS, TRACK_FORMS } from "./ui/ParcelPresentation";
 import { shippingInfoComplete } from "@/features/settlement/domain";
@@ -332,7 +332,7 @@ export async function mountReceiveFlow(parcelId: number, deps: ReceiveFlowDeps):
       <div class="rf-grab"></div>
       <h2 class="rf-title">${isRescan ? "Сохранить веса" : "Принять товары"}</h2>
       <p class="rf-sub">Взвешено ${current.weighed} из ${t(TRACK_FORMS, current.units)} · ${current.totalWeightG} г товаров</p>
-      <p class="rf-sub rf-shipping">Вес всей посылки ${kg(state.parcel.boxWeightG ?? 0)} кг · доставка ${money(state.parcel.shippingCostBYN ?? 0)}</p>
+      <p class="rf-sub rf-shipping">Вес всей посылки ${kg(state.parcel.boxWeightG ?? 0)} кг · доставка ${byn(state.parcel.shippingCostBYN ?? 0)}</p>
       ${current.remaining ? `<div class="rf-warn">Не обработано ${t(TRACK_FORMS, current.remaining)} — ${isRescan ? "веса можно сохранить позже" : "можно принять и без них"}.</div>` : ""}
       ${hasShippingInfo ? "" : '<div class="rf-warn">Вес посылки и доставка вводятся при отправке. Заполните их в редактировании посылки.</div>'}
       <div class="rf-finish-error">

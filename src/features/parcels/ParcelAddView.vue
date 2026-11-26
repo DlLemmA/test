@@ -5,7 +5,7 @@ import { customerRepository } from "@/features/customers/infrastructure";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
 import { toastState } from "@/core/state";
-import { money, t } from "@/core/utils";
+import { cny, byn, t } from "@/core/utils";
 import { reconcileBatch, type BatchItemInput, type Parcel } from "./domain";
 import { parcelRepository } from "./infrastructure";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
@@ -94,7 +94,6 @@ const countMismatch = computed(
 );
 const overPaid = computed(() => review.value.kind === "overpayment");
 const hasDiff = computed(() => review.value.kind !== "balanced");
-const cny = (value: number): string => `${value.toFixed(2)} CNY`;
 // Vue coerces v-model on type="number" to a number; validation works with text.
 const text = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value);
@@ -109,19 +108,19 @@ const diffLabel = computed(() =>
 );
 const diffValue = computed(() =>
   hasDiff.value
-    ? `${cny(review.value.absCNY)} · ${money(review.value.absBYN)}`
-    : `${cny(0)} · ${money(0)}`,
+    ? `${cny(review.value.absCNY)} · ${byn(review.value.absBYN)}`
+    : `${cny(0)} · ${byn(0)}`,
 );
 const notice = computed(() => {
   const r = review.value;
   if (r.distributed) {
-    return `Похоже на комиссию сервиса оплаты: ${cny(r.absCNY)} (${r.commissionPercent.toFixed(1)}% от суммы товаров) = ${money(r.absBYN)}. При сохранении она будет добавлена к ценам товаров пропорционально их стоимости — каждый заказчик заплатит свою долю, а не только вы.`;
+    return `Похоже на комиссию сервиса оплаты: ${cny(r.absCNY)} (${r.commissionPercent.toFixed(1)}% от суммы товаров) = ${byn(r.absBYN)}. При сохранении она будет добавлена к ценам товаров пропорционально их стоимости — каждый заказчик заплатит свою долю, а не только вы.`;
   }
   if (overPaid.value) {
-    return `Сумма товаров превышает оплату на ${cny(r.absCNY)} (${money(r.absBYN)}). Проверьте цены товаров.`;
+    return `Сумма товаров превышает оплату на ${cny(r.absCNY)} (${byn(r.absBYN)}). Проверьте цены товаров.`;
   }
   if (hasDiff.value) {
-    return `Разница ${cny(r.absCNY)} · ${money(r.absBYN)} не будет добавлена к ценам товаров: проверьте суммы в обеих валютах.`;
+    return `Разница ${cny(r.absCNY)} · ${byn(r.absBYN)} не будет добавлена к ценам товаров: проверьте суммы в обеих валютах.`;
   }
   return "Вся сумма распределена по товарам. Неучтённых BYN нет.";
 });
@@ -506,14 +505,14 @@ async function saveBatch(): Promise<void> {
       <template v-else-if="step === 2">
         <div class="rate-strip" aria-label="Расчёт партии">
           <div><span>Курс</span><b>1 CNY = {{ rate.toFixed(4) }}</b></div>
-          <div><span>Цель</span><b>{{ totalCNY.toFixed(2) }} CNY</b></div>
-          <div><span>Добавлено</span><b>{{ currentCNY.toFixed(2) }} CNY</b></div>
-          <div><span>Остаток</span><b>{{ remaining.toFixed(2) }} CNY</b></div>
+          <div><span>Цель</span><b>{{ cny(totalCNY) }}</b></div>
+          <div><span>Добавлено</span><b>{{ cny(currentCNY) }}</b></div>
+          <div><span>Остаток</span><b>{{ cny(remaining) }}</b></div>
           <div class="rate-track" aria-hidden="true">
             <div class="rate-fill" :style="rateFillStyle" />
           </div>
         </div>
-        <p class="small muted">{{ money(currentBYN) }} из {{ money(totalBYN) }}</p>
+        <p class="small muted">{{ byn(currentBYN) }} из {{ byn(totalBYN) }}</p>
         <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
 
         <div id="batchItemsList" class="batch-items">
@@ -522,11 +521,10 @@ async function saveBatch(): Promise<void> {
               <div class="parcel-entry__body min-w-0">
                 <div class="parcel-entry__head">
                   <b :title="item.name">{{ item.name }}</b>
-                  <span class="item-entry__price">{{ money(item.priceBYN) }}</span>
+                  <span class="item-entry__price">{{ byn(item.priceBYN) }}</span>
                 </div>
                 <div class="parcel-entry__hint">
-                  {{ item.quantity }} {{ unitLabel(item.unit) }} ·
-                  {{ item.priceCNY.toFixed(2) }} CNY ·
+                  {{ item.quantity }} {{ unitLabel(item.unit) }} · {{ cny(item.priceCNY) }} ·
                   {{
                     customerLabel({
                       name:
@@ -638,7 +636,7 @@ async function saveBatch(): Promise<void> {
                     </span>
                     <span v-else-if="line.row" class="import-preview__ok">
                       {{ line.row.name }} · {{ line.row.quantity }} ×
-                      {{ line.row.priceCNY?.toFixed(2) }} CNY
+                      {{ cny(line.row.priceCNY) }}
                     </span>
                   </li>
                 </ol>
@@ -756,7 +754,7 @@ async function saveBatch(): Promise<void> {
         <h1 id="checkTitle" tabindex="-1" data-autofocus class="sr-only">Проверка партии</h1>
         <div class="check-list">
           <div class="check-row">
-            <span>Оплачено</span><b>{{ cny(totalCNY) }} · {{ money(totalBYN) }}</b>
+            <span>Оплачено</span><b>{{ cny(totalCNY) }} · {{ byn(totalBYN) }}</b>
           </div>
           <div class="check-row"><span>Курс</span><b>1 CNY = {{ rate.toFixed(4) }}</b></div>
           <div class="check-row">
@@ -764,7 +762,7 @@ async function saveBatch(): Promise<void> {
           </div>
           <div class="check-row"><span>Товаров в партии</span><b>{{ items.length }}</b></div>
           <div class="check-row">
-            <span>Сумма товаров</span><b>{{ cny(review.itemCNY) }} · {{ money(review.itemBYN) }}</b>
+            <span>Сумма товаров</span><b>{{ cny(review.itemCNY) }} · {{ byn(review.itemBYN) }}</b>
           </div>
           <div class="check-row check-row--total">
             <span>{{ diffLabel }}</span><b>{{ diffValue }}</b>

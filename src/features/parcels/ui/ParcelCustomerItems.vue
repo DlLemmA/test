@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { money, t } from "@/core/utils";
+import { byn, t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import AppDropdownMenu from "@/features/shared/ui/AppDropdownMenu.vue";
@@ -123,7 +123,7 @@ function hasTracks(row: ItemRowView): boolean {
           v-if="(props.deliveryByItem.get(row.item.id) || 0) > 0"
           class="item-entry__without-delivery"
         >
-          · без доставки {{ money(row.item.totalPriceBYN) }}
+          · без доставки {{ byn(row.item.totalPriceBYN) }}
         </span>
       </div>
       <div v-if="facts(row).showTracks" class="item-row__tracks">
@@ -188,7 +188,7 @@ function hasTracks(row: ItemRowView): boolean {
             class="pay-summary__amount item-entry__price"
             :class="{ 'is-paid': itemPaid(row.item.id) }"
           >
-            {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
+            {{ byn(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
           </span>
         </label>
         <label

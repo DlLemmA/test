@@ -1,4 +1,4 @@
-import { money } from "@/core/utils";
+import { byn } from "@/core/utils";
 
 // One label for every parcel debt tag. A parcel with unknown delivery is not
 // "paid" yet, even when all its goods are covered.
@@ -12,7 +12,7 @@ export type ParcelDebtTone = "is-debt" | "is-paid" | "is-pending";
 
 export function parcelDebtLabel(facts: ParcelDebtFacts): string {
   if (facts.remaining > 0) {
-    return facts.isSelf ? `Остаток ${money(facts.remaining)}` : `Долг ${money(facts.remaining)}`;
+    return facts.isSelf ? `Остаток ${byn(facts.remaining)}` : `Долг ${byn(facts.remaining)}`;
   }
   return facts.deliveryInvoiced ? "Оплачено" : "без доставки";
 }

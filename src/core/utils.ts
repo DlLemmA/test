@@ -21,9 +21,32 @@ export function kg(g: number | null | undefined): string {
   return g == null ? "\u2014" : (g / 1000).toFixed(3);
 }
 
-/** Format money in BYN */
-export function money(v: number | null | undefined): string {
-  return (v || 0).toFixed(2) + " BYN";
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
+
+/** Format money for the current locale, with the currency code after the amount. */
+export function formatMoney(v: number | null | undefined, currency: string): string {
+  let formatter = currencyFormatters.get(currency);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("ru-BY", {
+      style: "currency",
+      currency,
+      currencyDisplay: "code",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    currencyFormatters.set(currency, formatter);
+  }
+  return formatter.format(v || 0);
+}
+
+/** Format BYN */
+export function byn(v: number | null | undefined): string {
+  return formatMoney(v, "BYN");
+}
+
+/** Format CNY */
+export function cny(v: number | null | undefined): string {
+  return formatMoney(v, "CNY");
 }
 
 /** ISO date string for "now" */

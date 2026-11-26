@@ -12,7 +12,7 @@ import {
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import type { ParcelItemStatus } from "@/core/dbSchema";
 import { toastState, uiState } from "@/core/state";
-import { kg, money, t } from "@/core/utils";
+import { kg, byn, t } from "@/core/utils";
 import {
   getParcelStatement,
   type ParcelStatement,
@@ -200,17 +200,17 @@ const calculation = computed(() => {
           : statement.value?.settlement.deliveryInvoiced
             ? "Оплачено"
             : "Доставка не учтена",
-      value: money(remainingTotal),
+      value: byn(remainingTotal),
       warn: remainingTotal > 0,
     },
     meta: [
       { label: "Позиций", value: String(items.value.length) },
       { label: "Вес коробки", value: boxWeight.value > 0 ? `${kg(boxWeight.value)} кг` : "—" },
-      { label: "Товары", value: money(goodsTotal) },
-      { label: "Доставка", value: delivery > 0 ? money(delivery) : "—" },
+      { label: "Товары", value: byn(goodsTotal) },
+      { label: "Доставка", value: delivery > 0 ? byn(delivery) : "—" },
       {
         label: "Доставка / вес коробки",
-        value: tariffPerKg.value > 0 ? `${tariffPerKg.value.toFixed(2)} BYN/кг` : "—",
+        value: tariffPerKg.value > 0 ? `${byn(tariffPerKg.value)}/кг` : "—",
       },
     ],
   };

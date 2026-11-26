@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { parcelDebtClass, parcelDebtLabel } from "./ParcelDebt";
 
+const NBSP = "\u00a0";
+
 describe("parcel debt tag", () => {
   it("shows another customer's debt", () => {
     const facts = { remaining: 2.6, isSelf: false, deliveryInvoiced: true };
-    expect(parcelDebtLabel(facts)).toBe("Долг 2.60 BYN");
+    expect(parcelDebtLabel(facts)).toBe(`Долг 2,60${NBSP}BYN`);
     expect(parcelDebtClass(facts)).toBe("is-debt");
   });
 
   it("shows the self customer's remaining amount", () => {
     const facts = { remaining: 1.3, isSelf: true, deliveryInvoiced: true };
-    expect(parcelDebtLabel(facts)).toBe("Остаток 1.30 BYN");
+    expect(parcelDebtLabel(facts)).toBe(`Остаток 1,30${NBSP}BYN`);
   });
 
   it("does not call covered goods paid before delivery is known", () => {

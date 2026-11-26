@@ -38,9 +38,9 @@ test.describe("MakeAnOrder", () => {
     await expect(page.locator(".detail-hero h1")).toHaveText("Посылка №3");
     const group = page.locator('[data-item-group][data-customer="2"]');
     await expect(group).toContainText("Товар с комиссией");
-    await expect(group.locator(".item-entry__price")).toHaveText("13.65 BYN");
+    await expect(group.locator(".item-entry__price")).toHaveText(/13,65\s+BYN/);
     await expect(page.locator(".parcel-calc__item--headline")).toContainText("Должны");
-    await expect(page.locator(".parcel-calc__item--headline")).toContainText("13.65 BYN");
+    await expect(page.locator(".parcel-calc__item--headline")).toContainText(/13,65\s+BYN/);
   });
 
   test("records an item for the self customer as paid", async ({ page }) => {

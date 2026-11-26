@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onScopeDispose, shallowRef, useTemplateR
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { emptyCustomerBalance } from "@/features/balances/domain";
 import { toastState } from "@/core/state";
-import { money, t } from "@/core/utils";
+import { byn, t } from "@/core/utils";
 import { getCustomerStatement } from "@/features/statements/service";
 import type { CustomerParcelStatement, CustomerStatement } from "@/features/statements/service";
 import { ITEM_FORMS, PARCEL_IN_FORMS, parcelDate } from "@/features/parcels/ui/ParcelPresentation";
@@ -233,7 +233,7 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
 
     <p class="customer-summary__title">Баланс заказчика</p>
     <div class="check-list customer-summary">
-      <div class="check-row"><span>Оплачено</span><b>{{ money(statement.balance.paid) }}</b></div>
+      <div class="check-row"><span>Оплачено</span><b>{{ byn(statement.balance.paid) }}</b></div>
       <div
         class="check-row check-row--total"
         :class="statement.balance.remaining > 0 ? 'is-debt' : 'is-paid'"
@@ -245,7 +245,7 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
               : "Долг"
             : "Всё оплачено"
         }}</span>
-        <b>{{ money(Math.abs(statement.balance.remaining)) }}</b>
+        <b>{{ byn(Math.abs(statement.balance.remaining)) }}</b>
       </div>
     </div>
     <p v-if="statement.customer.isSelf" class="customer-note">
@@ -306,7 +306,7 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
               <span class="pay-summary__note">без доставки</span>
             </span>
             <span class="pay-summary__amount">{{
-              money(share(entry, statement.customer.id).goods.owed)
+              byn(share(entry, statement.customer.id).goods.owed)
             }}</span>
           </label>
         </div>
@@ -340,7 +340,7 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
             </span>
             <span class="pay-summary__amount">{{
               deliveryPayable(entry, statement.customer.id)
-                ? money(share(entry, statement.customer.id).delivery.owed)
+                ? byn(share(entry, statement.customer.id).delivery.owed)
                 : "—"
             }}</span>
           </label>
@@ -352,7 +352,7 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
             <span>{{ t(ITEM_FORMS, entry.items.length) }}</span>
             <span class="customer-items-fold__meta">
               {{ itemsWeightG(entry) > 0 ? `${itemsWeightG(entry)} г` : "вес —" }} ·
-              {{ money(share(entry, statement.customer.id).goods.owed) }}
+              {{ byn(share(entry, statement.customer.id).goods.owed) }}
             </span>
           </summary>
           <div class="customer-items">
@@ -373,10 +373,10 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
               </span>
               <span class="item-check__prices">
                 <span class="item-check__price">{{
-                  money(item.totalPriceBYN + deliveryShare(item, entry))
+                  byn(item.totalPriceBYN + deliveryShare(item, entry))
                 }}</span>
                 <span v-if="deliveryShare(item, entry) > 0" class="item-check__without-delivery">
-                  без доставки {{ money(item.totalPriceBYN) }}
+                  без доставки {{ byn(item.totalPriceBYN) }}
                 </span>
               </span>
             </label>

@@ -3,7 +3,7 @@ import { computed, onMounted, onScopeDispose, shallowRef } from "vue";
 import { RouterLink } from "vue-router";
 import { toastState } from "@/core/state";
 import { markCustomerTransition } from "@/app/viewTransitions";
-import { money, t } from "@/core/utils";
+import { byn, t } from "@/core/utils";
 import { ITEM_BARE_FORMS, PARCEL_FORMS } from "@/features/parcels/ui/ParcelPresentation";
 import { getCustomerStatements } from "@/features/statements/service";
 import type { CustomerStatement } from "@/features/statements/service";
@@ -60,9 +60,7 @@ function onSaved(): void {
 
 function balanceAmount(statement: CustomerStatement): string {
   const { balance } = statement;
-  return balance.remaining > 0
-    ? `долг ${money(balance.remaining)}`
-    : `оплачено ${money(balance.paid)}`;
+  return balance.remaining > 0 ? `долг ${byn(balance.remaining)}` : `оплачено ${byn(balance.paid)}`;
 }
 
 function onOpen(event: MouseEvent, customerId: number): void {
