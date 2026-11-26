@@ -161,30 +161,12 @@
   --color-slate-100: #f2f2f0;
   --color-slate-200: #e8e8e4;
   --color-slate-300: #d7d7d1;
-  --color-slate-400: #6f7785;
   --color-slate-500: #626a78;
   --color-slate-600: #5f6775;
-  --color-slate-700: #454d5a;
-  --color-slate-800: #303743;
   --color-slate-900: #20242c;
-  --color-slate-950: #15181e;
-  --color-blue-50: #fff4f8;
-  --color-blue-100: #ffe1ec;
-  --color-blue-200: #ffc6da;
-  --color-blue-400: #d81b60;
-  --color-blue-700: #9d1450;
   --color-red-50: #fff0f0;
   --color-red-600: #b42318;
   --color-red-700: #8a1a11;
-  --color-red-900: #6b120c;
-  --color-rose-600: #b42318;
-  --color-green-50: #eaf5ef;
-  --color-green-700: #0b5f47;
-  --color-emerald-600: #0f7b5a;
-  --color-emerald-700: #0b5f47;
-  --color-amber-50: #fff7e8;
-  --color-amber-700: #92400e;
-  --color-amber-900: #6b3b08;
 }
 
 /* === Base reset & typography === */
