@@ -89,3 +89,86 @@ test("falls back to manual receiving when the camera is unavailable", async ({ p
   await expect(page.locator("#rfScanForm")).toHaveCount(0);
   await expect(page.locator(".rf-manual-item")).toHaveCount(1);
 });
+
+test("uses a cheap tab transition and one forward view transition", async ({ page }) => {
+  await seedSmokeData(page);
+  await page.goto("/#/parcels");
+  await expect(page.locator("#bottombar")).toBeVisible();
+
+  await page.evaluate(() => {
+    type Starter = (updateCallback: () => Promise<void> | void) => { finished: Promise<void> };
+    const doc = document as Document & { startViewTransition?: Starter };
+    const original = doc.startViewTransition?.bind(doc);
+    const target = window as unknown as { viewTransitions: number; tabAnimations: number };
+    target.viewTransitions = 0;
+    target.tabAnimations = 0;
+    if (original) {
+      Object.defineProperty(doc, "startViewTransition", {
+        configurable: true,
+        value: (updateCallback: () => Promise<void> | void) => {
+          target.viewTransitions += 1;
+          return original(updateCallback);
+        },
+      });
+    }
+    const panel = document.getElementById("panel-container");
+    if (!panel) throw new Error("missing #panel-container");
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (!(record.target instanceof HTMLElement)) continue;
+        const classes = record.target.classList;
+        if (
+          classes.contains("panel-tab-enter-active") ||
+          classes.contains("panel-tab-leave-active")
+        ) {
+          target.tabAnimations += 1;
+        }
+      }
+    }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] });
+  });
+
+  const tabs = [
+    { index: 2, url: /#\/people$/ },
+    { index: 0, url: /#\/parcels$/ },
+    { index: 1, url: /#\/add$/ },
+  ];
+  for (const tab of tabs) {
+    // oxlint-disable-next-line no-await-in-loop
+    await page.evaluate((index) => {
+      document.querySelectorAll<HTMLElement>("#bottombar .bottombar-item")[index]?.click();
+    }, tab.index);
+    // oxlint-disable-next-line no-await-in-loop
+    await expect(page).toHaveURL(tab.url);
+  }
+
+  const afterTabs = await page.evaluate(() => {
+    const panel = document.getElementById("panel-container");
+    const target = window as unknown as { viewTransitions: number; tabAnimations: number };
+    return {
+      transitions: target.viewTransitions,
+      tabAnimations: target.tabAnimations,
+      activeIsPanel: document.activeElement === panel,
+      outlineStyle: panel ? getComputedStyle(panel).outlineStyle : "missing",
+    };
+  });
+  expect(afterTabs.activeIsPanel).toBe(false);
+  expect(afterTabs.outlineStyle).toBe("none");
+  expect(afterTabs.transitions).toBe(0);
+  expect(afterTabs.tabAnimations).toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLElement>("#bottombar .bottombar-item")[0]?.click();
+  });
+  await page.locator('[data-open="2"]').click();
+  await expect(page.locator(".page-parcel-detail")).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { viewTransitions: number }).viewTransitions),
+  ).toBe(1);
+
+  // Back is an ordinary route change: no second snapshot, no morph.
+  await page.locator("#backToParcels").click();
+  await expect(page.locator(".page-parcels")).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { viewTransitions: number }).viewTransitions),
+  ).toBe(1);
+});

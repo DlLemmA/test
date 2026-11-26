@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ToastProvider } from "reka-ui";
-import { onScopeDispose, useTemplateRef, watch } from "vue";
+import { onScopeDispose, shallowRef, useTemplateRef, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { authReady, authSession } from "@/core/auth";
 import { toastManager } from "@/core/state";
@@ -14,6 +14,19 @@ import Toaster from "./Toaster.vue";
 const router = useRouter();
 const route = useRoute();
 const mainContent = useTemplateRef<HTMLElement>("mainContent");
+const TAB_ROUTES = new Set(["parcels", "people", "add"]);
+const tabTransition = shallowRef(false);
+
+// Tab changes get a cheap Vue <Transition>. Everything else keeps the plain
+// router render so a row → hero View Transition is never doubled by CSS.
+watch(
+  () => route.name,
+  (to, from) => {
+    tabTransition.value =
+      from !== undefined && TAB_ROUTES.has(String(to)) && TAB_ROUTES.has(String(from));
+  },
+  { flush: "sync" },
+);
 
 function onMainScroll(): void {
   if (mainContent.value) rememberMainScroll(route.fullPath, mainContent.value.scrollTop);
@@ -54,7 +67,11 @@ watch(authSession, (session) => {
 
       <main id="main-content" ref="mainContent" class="app-main">
         <div id="panel-container" class="view-panel" tabindex="-1">
-          <RouterView />
+          <RouterView v-slot="{ Component }">
+            <Transition :name="tabTransition ? 'panel-tab' : undefined" mode="out-in">
+              <component :is="Component" />
+            </Transition>
+          </RouterView>
         </div>
       </main>
 
@@ -71,6 +88,12 @@ watch(authSession, (session) => {
 <style scoped>
 .view-panel {
   view-transition-name: panel-root;
+}
+/* Programmatic focus after a kept route transition is for screen readers.
+   The panel is not in the tab order, so it must not paint a focus ring. */
+.view-panel:focus,
+.view-panel:focus-visible {
+  outline: none;
 }
 .auth-loading {
   min-height: 100dvh;

@@ -61,12 +61,16 @@ export const appRouter = createRouter({
   },
 });
 
-appRouter.beforeEach((to, from) => {
+appRouter.beforeEach((to) => {
   if (to.name === "sign-in") {
     return authSession.value ? { name: "parcels" } : true;
   }
   if (!authSession.value) {
     return { name: "sign-in", query: { next: to.fullPath } };
   }
-  return runViewTransition(appRouter, to, from);
+  return true;
 });
+
+// After lazy route components resolve, but before the navigation is confirmed.
+// Resolving this guard is the view-transition update callback.
+appRouter.beforeResolve((to, from) => runViewTransition(to, from));

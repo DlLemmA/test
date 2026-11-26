@@ -402,8 +402,31 @@
   animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-/* The panel cross-fades; only the marked row/hero elements morph. Directional
-   slide animations fought the shared-element transition on mobile Safari. */
+/* Only the marked row/hero elements morph. Directional slide animations
+   fought the shared-element transition on mobile Safari. */
+
+/* Tab changes use a cheap Vue <Transition>, never a View Transition snapshot. */
+.panel-tab-enter-active,
+.panel-tab-leave-active {
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+.panel-tab-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.panel-tab-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-tab-enter-active,
+  .panel-tab-leave-active {
+    transition: none;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),

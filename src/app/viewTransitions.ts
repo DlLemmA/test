@@ -1,36 +1,18 @@
-import { nextTick } from "vue";
-import type { RouteLocationNormalized, Router } from "vue-router";
+import type { RouteLocationNormalized } from "vue-router";
 
 // Hash router pages share one panel. A selected list row lends its title,
-// date and next-step hint to the detail hero for one navigation, so the
-// selection morphs instead of blinking into a different layout.
-type Direction = "forward" | "backward";
-
+// date and next-step hint to the detail hero, so the selection morphs instead
+// of blinking into a different layout. Only the forward list → detail step is
+// animated; going back is an ordinary route change.
 interface TypedViewTransition {
   finished: Promise<void>;
   ready?: Promise<void>;
   updateCallbackDone?: Promise<void>;
 }
 
-type ViewTransitionStarter = (options: {
-  update: () => Promise<void> | void;
-  types?: string[];
-}) => TypedViewTransition;
-
-const ROUTE_DEPTH: Record<string, number> = {
-  "sign-in": 0,
-  parcels: 0,
-  people: 0,
-  add: 1,
-  parcel: 1,
-  customer: 1,
-};
+type ViewTransitionStarter = (updateCallback: () => Promise<void> | void) => TypedViewTransition;
 
 let activeTransition: Promise<void> | null = null;
-
-function depthOf(route: RouteLocationNormalized): number {
-  return ROUTE_DEPTH[String(route.name)] ?? 0;
-}
 
 function hasViewTransitions(): boolean {
   return (
@@ -43,14 +25,18 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
 
-function startTransition(options: {
-  update: () => Promise<void> | void;
-  types?: string[];
-}): TypedViewTransition {
+function startTransition(updateCallback: () => void): TypedViewTransition {
   // Keep the method on `document`; detaching it throws "Illegal invocation".
   return (
     document as Document & { startViewTransition: ViewTransitionStarter }
-  ).startViewTransition(options);
+  ).startViewTransition(updateCallback);
+}
+
+function isForwardMorph(from: RouteLocationNormalized, to: RouteLocationNormalized): boolean {
+  return (
+    (from.name === "parcels" && to.name === "parcel") ||
+    (from.name === "people" && to.name === "customer")
+  );
 }
 
 /** Mark the row whose title, date and hint should morph into the detail hero. */
@@ -79,45 +65,22 @@ export function clearRowTransition(): void {
 
 function focusPanel(): void {
   // No preventScroll: on a forward navigation the scroller is already at the
-  // top, and focusing the panel keeps keyboard users oriented. Back skips
-  // this so the restored list offset survives.
+  // top, and focusing the panel keeps keyboard users oriented.
   document.getElementById("panel-container")?.focus();
 }
 
 /**
- * Wait for the router to commit the new route without an `afterEach` listener.
- * A cancelled navigation simply falls through after a bounded number of paints,
- * so a rapid second tap can never leave the guard pending.
+ * Called from `router.beforeResolve`, after lazy route components are loaded.
+ * Resolving the guard is the documented view-transition update callback: the
+ * router confirms navigation and Vue paints the new view before WebKit takes
+ * the new snapshot. No route polling is needed.
  */
-async function waitForNewRoute(router: Router, to: RouteLocationNormalized): Promise<boolean> {
-  const committed = () => router.currentRoute.value.fullPath === to.fullPath;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    // oxlint-disable-next-line no-await-in-loop
-    await nextTick();
-    if (committed()) return true;
-  }
-  for (let frame = 0; frame < 6; frame += 1) {
-    // A cancelled or hidden-page navigation may never paint; the timer keeps
-    // the View Transition update callback from timing out at the browser level.
-    // oxlint-disable-next-line no-await-in-loop
-    await new Promise<void>((resolve) => {
-      const timer = window.setTimeout(resolve, 50);
-      requestAnimationFrame(() => {
-        window.clearTimeout(timer);
-        resolve();
-      });
-    });
-    if (committed()) return true;
-  }
-  return false;
-}
-
 export function runViewTransition(
-  router: Router,
   to: RouteLocationNormalized,
   from: RouteLocationNormalized,
 ): Promise<boolean> {
   if (
+    !isForwardMorph(from, to) ||
     activeTransition ||
     prefersReducedMotion() ||
     !hasViewTransitions() ||
@@ -129,34 +92,16 @@ export function runViewTransition(
     return Promise.resolve(true);
   }
 
-  const direction: Direction = depthOf(to) < depthOf(from) ? "backward" : "forward";
-  if (from.name === "parcels" && to.name === "parcel") {
-    markParcelTransition(Number(to.params.parcelId));
-  }
-  if (from.name === "people" && to.name === "customer") {
-    markCustomerTransition(Number(to.params.customerId));
-  }
+  if (to.name === "parcel") markParcelTransition(Number(to.params.parcelId));
+  if (to.name === "customer") markCustomerTransition(Number(to.params.customerId));
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<boolean>((resolveGuard) => {
     let transition: TypedViewTransition;
     try {
-      transition = startTransition({
-        types: [direction],
-        update: async () => {
-          // Let the guard continue only after the old snapshot is captured.
-          resolve(true);
-          if (!(await waitForNewRoute(router, to))) return;
-          if (from.name === "parcel" && to.name === "parcels") {
-            markParcelTransition(Number(from.params.parcelId));
-          }
-          if (from.name === "customer" && to.name === "people") {
-            markCustomerTransition(Number(from.params.customerId));
-          }
-        },
-      });
+      transition = startTransition(() => resolveGuard(true));
     } catch {
       clearRowTransition();
-      resolve(true);
+      resolveGuard(true);
       return;
     }
 
@@ -168,7 +113,7 @@ export function runViewTransition(
       .catch(() => undefined)
       .then(() => {
         clearRowTransition();
-        if (direction === "forward") focusPanel();
+        focusPanel();
         activeTransition = null;
       });
   });
