@@ -412,6 +412,11 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
   background: var(--color-accent-soft);
   color: var(--color-accent-strong);
 }
+.detail-hero__weight {
+  color: var(--color-ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .customer-summary {
   margin-top: 10px;
 }
@@ -435,6 +440,14 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
 }
 .pay-row--delivery {
   background: var(--color-canvas);
+}
+.pay-summary--delivery .pay-summary__label,
+.pay-summary--delivery .pay-summary__amount {
+  color: var(--color-ink-soft);
+}
+.pay-summary--delivery:has(input:checked) .pay-summary__label,
+.pay-summary--delivery:has(input:checked) .pay-summary__amount {
+  color: var(--color-positive);
 }
 .customer-note {
   margin: 6px 2px 0;

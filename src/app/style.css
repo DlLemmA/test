@@ -1130,11 +1130,6 @@ select.picker__control {
   font-size: 12px;
   line-height: 1.5;
 }
-.detail-hero__weight {
-  color: var(--color-ink-soft);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 
 /* Parcel settlement rows share the customer screen's .pay-summary look.
    .payment-bullet stays only as a stable selector hook. */
@@ -1902,17 +1897,9 @@ select.picker__control {
 .pay-summary__placeholder {
   inline-size: 16px;
 }
-.pay-summary--delivery .pay-summary__label,
-.pay-summary--delivery .pay-summary__amount {
-  color: var(--color-ink-soft);
-}
 /* A paid amount reads green; the checkbox itself stays pink. Partially paid
    rows keep neutral text — only the half-marked box signals the state. */
 .pay-summary:has(input:checked) {
-  color: var(--color-positive);
-}
-.pay-summary--delivery:has(input:checked) .pay-summary__label,
-.pay-summary--delivery:has(input:checked) .pay-summary__amount {
   color: var(--color-positive);
 }
 .pay-summary__input,
