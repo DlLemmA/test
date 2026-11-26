@@ -197,3 +197,107 @@ function onFoldToggle(event: Event): void {
     </details>
   </section>
 </template>
+
+<style scoped>
+/* Customer groups inside the continuous item list. Space, not another rule,
+   tells the eye where one person's goods end and the next person's begin. */
+.item-group + .item-group {
+  margin-top: 18px;
+}
+.item-group.is-self > .item-group__head .customer-mark--box {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-wash);
+  color: var(--color-accent-strong);
+}
+.settle-entry {
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 12px 0;
+}
+.item-group__head.settle-entry {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.settle-entry .parcel-entry__head b {
+  overflow: visible;
+  line-height: 1.3;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.settle-entry__checks {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+@media (max-width: 480px) {
+  .item-group + .item-group {
+    margin-top: 14px;
+  }
+}
+
+/* The first item root is slotted in from ParcelDetailView, so deep keeps the
+   boundary from hiding this one ledger-space rule. */
+.item-group .customer-items > :deep(.item:first-child) {
+  padding-block-start: 0;
+}
+.item-group .customer-items-fold {
+  border-bottom: 0;
+}
+.pay-summary-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.pay-summary-row > .pay-summary:first-child {
+  padding-right: 8px;
+  border-right: 1px solid var(--color-line);
+}
+.pay-summary-row > .pay-summary:last-child {
+  padding-left: 8px;
+}
+.settle-entry__checks .pay-summary {
+  gap: 6px;
+  min-block-size: 44px;
+  padding: 5px 0;
+}
+.settle-entry__checks .pay-summary__label,
+.settle-entry__checks .pay-summary__amount {
+  font-size: 11px;
+}
+.settle-entry__checks .pay-summary__note {
+  font-size: 10px;
+}
+.settle-entry__checks .pay-summary.is-locked {
+  color: var(--color-muted);
+  cursor: default;
+}
+.settle-entry__checks .pay-summary.is-paid,
+.settle-entry__checks .pay-summary.is-paid .pay-summary__note,
+.settle-entry__checks .pay-summary.is-paid .pay-summary__amount {
+  color: var(--color-positive);
+}
+
+@media (max-width: 360px) {
+  .item-group + .item-group {
+    margin-top: 14px;
+  }
+}
+@container ledger (max-width: 430px) {
+  .item-group + .item-group {
+    margin-top: 14px;
+  }
+}
+@media (max-width: 480px) {
+  .pay-summary-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pay-summary-row > .pay-summary:first-child {
+    padding-right: 2px;
+    border-right: 0;
+  }
+  .pay-summary-row > .pay-summary:last-child {
+    padding-left: 2px;
+  }
+}
+</style>
