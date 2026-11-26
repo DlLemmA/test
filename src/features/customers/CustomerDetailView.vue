@@ -394,6 +394,14 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
   gap: 4px;
   padding-top: 4px;
 }
+.customer-mark--avatar {
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 13px;
+  background: var(--color-slate-100);
+  color: var(--color-ink-soft);
+  font-size: 14px;
+}
 .detail-hero .customer-mark--avatar {
   inline-size: 48px;
   block-size: 48px;
@@ -412,6 +420,12 @@ function toggleShipping(event: Event, entry: CustomerParcelStatement): void {
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 600;
+}
+.check-row--total.is-debt b {
+  color: var(--color-negative);
+}
+.check-row--total.is-paid b {
+  color: var(--color-positive);
 }
 .pay-row {
   border-bottom: 1px solid var(--color-line);

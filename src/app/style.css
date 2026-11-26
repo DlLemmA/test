@@ -1991,20 +1991,6 @@ select.picker__control {
    From src/features/customers/customerDetail.css — customer detail
    ============================================================ */
 /* --- Screen 5: customer account statement — quiet lines, no cards --- */
-.customer-mark--avatar {
-  inline-size: 40px;
-  block-size: 40px;
-  border-radius: 13px;
-  background: var(--color-slate-100);
-  color: var(--color-ink-soft);
-  font-size: 14px;
-}
-.check-row--total.is-debt b {
-  color: var(--color-negative);
-}
-.check-row--total.is-paid b {
-  color: var(--color-positive);
-}
 .parcel-debt {
   flex: none;
   padding: 3px 8px;
