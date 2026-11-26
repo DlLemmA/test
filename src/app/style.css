@@ -3919,7 +3919,7 @@ button.track-value-row:active {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px 14px;
+  gap: 2px 0;
   margin-top: 6px;
 }
 .item-flag.pay-summary {
@@ -3930,6 +3930,18 @@ button.track-value-row:active {
   min-block-size: 44px;
   padding: 4px 0;
   border-bottom: 0;
+}
+/* Facts sit in one wrapping ledger line; hairlines separate the cells. */
+.item-flags > .pay-summary {
+  padding-inline: 10px;
+  border-inline-start: 1px solid var(--color-line);
+}
+.item-flags > .pay-summary:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+.item-flags .item-pay-summary.pay-summary {
+  grid-template-columns: 16px auto auto;
 }
 .item-flag .pay-summary__label {
   color: var(--color-ink-soft);

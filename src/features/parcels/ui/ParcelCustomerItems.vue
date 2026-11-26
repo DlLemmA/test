@@ -167,7 +167,30 @@ function hasTracks(row: ItemRowView): boolean {
       <div v-if="facts(row).compactWeight" class="item-entry__weight">
         {{ facts(row).compactWeight }}
       </div>
-      <div v-if="facts(row).showTracksComplete || facts(row).showLost" class="item-flags">
+      <div class="item-flags">
+        <label
+          class="pay-summary item-flag item-pay-summary"
+          :class="{ 'is-paid': itemPaid(row.item.id), 'is-locked': !facts(row).canPay }"
+        >
+          <input
+            type="checkbox"
+            class="pay-summary__input"
+            :name="`itemPaid-${row.item.id}`"
+            :data-toggle-payment="row.item.id"
+            :checked="itemPaid(row.item.id)"
+            :disabled="!facts(row).canPay"
+            @change="emit('toggleItemPayment', row.item.id)"
+          />
+          <span class="pay-summary__body">
+            <span class="pay-summary__label">Оплачено</span>
+          </span>
+          <span
+            class="pay-summary__amount item-entry__price"
+            :class="{ 'is-paid': itemPaid(row.item.id) }"
+          >
+            {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
+          </span>
+        </label>
         <label
           v-if="facts(row).showTracksComplete"
           class="pay-summary item-flag item-flag--tracks"
@@ -206,28 +229,5 @@ function hasTracks(row: ItemRowView): boolean {
         </label>
       </div>
     </div>
-    <label
-      class="pay-summary item-pay-summary"
-      :class="{ 'is-paid': itemPaid(row.item.id), 'is-locked': !facts(row).canPay }"
-    >
-      <input
-        type="checkbox"
-        class="pay-summary__input"
-        :name="`itemPaid-${row.item.id}`"
-        :data-toggle-payment="row.item.id"
-        :checked="itemPaid(row.item.id)"
-        :disabled="!facts(row).canPay"
-        @change="emit('toggleItemPayment', row.item.id)"
-      />
-      <span class="pay-summary__body">
-        <span class="pay-summary__label">Оплачено</span>
-      </span>
-      <span
-        class="pay-summary__amount item-entry__price"
-        :class="{ 'is-paid': itemPaid(row.item.id) }"
-      >
-        {{ money(row.item.totalPriceBYN + (props.deliveryByItem.get(row.item.id) || 0)) }}
-      </span>
-    </label>
   </div>
 </template>

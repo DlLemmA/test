@@ -322,10 +322,13 @@ test("payment toggle sits with the price and self stays paid", async ({ page }) 
 
   const row = page.locator(".item-entry", { hasText: "Товар Кати" });
   const pay = page.locator('[data-toggle-payment="11"]');
-  const paySummary = row.locator(".item-pay-summary");
+  const flags = row.locator(".item-flags");
+  const paySummary = flags.locator(".item-pay-summary");
+  await expect(flags).toHaveCSS("flex-wrap", "wrap");
   await expect(pay).not.toBeChecked();
   await expect(paySummary).toContainText("Оплачено");
   await expect(paySummary.locator(".pay-summary__amount")).toContainText("BYN");
+
   await pay.check();
   await expect(pay).toBeChecked();
 
