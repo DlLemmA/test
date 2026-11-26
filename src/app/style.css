@@ -1161,8 +1161,7 @@ select.picker__control {
   font-variant-numeric: tabular-nums;
 }
 @media (pointer: coarse) {
-  .page-parcel-detail .text-btn,
-  .page-parcel-detail .btn-action {
+  .page-parcel-detail .text-btn {
     min-block-size: 44px;
   }
 }
