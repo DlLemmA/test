@@ -1332,12 +1332,6 @@ select.picker__control {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.item-check__without-delivery {
-  color: var(--color-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 @media (pointer: coarse) {
   .page-parcel-detail .text-btn,
   .page-parcel-detail .btn-action {
@@ -2102,9 +2096,6 @@ select.picker__control {
 .pay-summary:has(input:checked) {
   color: var(--color-positive);
 }
-.item-check:has(input:checked) {
-  color: var(--color-positive);
-}
 .pay-summary--delivery:has(input:checked) .pay-summary__label,
 .pay-summary--delivery:has(input:checked) .pay-summary__amount {
   color: var(--color-positive);
@@ -2192,53 +2183,6 @@ select.picker__control {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
-.item-check {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 7px 2px;
-  border-bottom: 1px solid var(--color-line);
-  color: var(--color-ink);
-  cursor: pointer;
-  font-size: 13px;
-}
-.customer-items .item-check:last-child {
-  border-bottom: 0;
-}
-.item-check__title {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 1px;
-}
-.item-check__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.item-check__weight {
-  color: var(--color-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.25;
-}
-.item-check__prices {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  line-height: 1.25;
-}
-.item-check__price {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
 @media (max-width: 360px) {
   .parcel-entry {
     grid-template-columns: 40px minmax(0, 1fr) auto;
