@@ -5,6 +5,7 @@ import { ParcelItem } from "./ParcelItem";
 import {
   itemTrackState,
   itemWeightState,
+  itemsWithMissingWeights,
   itemsWithUnconfirmedTracks,
   parcelReadiness,
 } from "./ParcelReadiness";
@@ -122,5 +123,17 @@ describe("item readiness facts", () => {
     expect(itemWeightState(item(2, { trackNumbers: ["A", "B"], weightsG: [100, 200] })).ok).toBe(
       true,
     );
+  });
+
+  it("counts tracked items that still block finishing, ignoring lost and trackless goods", () => {
+    const missing = itemsWithMissingWeights([
+      item(1, { trackNumbers: [], weightsG: [] }),
+      item(2, { status: "lost", trackNumbers: ["B"], weightsG: [] }),
+      item(3, { trackNumbers: ["C"], weightsG: [0] }),
+      item(4, { trackNumbers: ["D", "E"], weightsG: [100, 0] }),
+      item(5, { trackNumbers: ["F"], weightsG: [100] }),
+    ]);
+
+    expect(missing.map((entry) => entry.id)).toEqual([3, 4]);
   });
 });

@@ -4,8 +4,13 @@ import { emptyCustomerBalance, type CustomerBalance } from "@/features/balances/
 import type { Customer } from "@/features/customers/domain";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
-import { itemsWithUnconfirmedTracks, type Parcel, type ParcelItem } from "../domain";
-import { buildItemGroups, itemSearchCountText } from "./ItemGroups";
+import {
+  itemsWithMissingWeights,
+  itemsWithUnconfirmedTracks,
+  type Parcel,
+  type ParcelItem,
+} from "../domain";
+import { buildItemGroups, itemSearchCountText, type MissingFilter } from "./ItemGroups";
 import ParcelCustomer from "./ParcelCustomer.vue";
 import ParcelCustomerItems from "./ParcelCustomerItems.vue";
 
@@ -34,12 +39,19 @@ const emit = defineEmits<{
 
 const searchQuery = shallowRef("");
 const unconfirmedOnly = shallowRef(false);
+const unweightedOnly = shallowRef(false);
 const closedFolds = shallowRef<ReadonlySet<number>>(new Set());
 const countText = shallowRef("");
 let countTimer: ReturnType<typeof setTimeout> | null = null;
 
 const unconfirmedItems = computed(() =>
   props.parcel.status === "draft" ? itemsWithUnconfirmedTracks(props.items).length : 0,
+);
+const unweightedItems = computed(() =>
+  props.parcel.status === "received" ? itemsWithMissingWeights(props.items).length : 0,
+);
+const activeFilter = computed<MissingFilter>(() =>
+  unconfirmedOnly.value ? "tracks" : unweightedOnly.value ? "weights" : null,
 );
 
 const itemGroups = computed(() =>
@@ -48,13 +60,18 @@ const itemGroups = computed(() =>
     props.customers,
     props.parcel.status,
     searchQuery.value,
-    unconfirmedOnly.value,
+    activeFilter.value,
   ),
 );
-const searching = computed(() => itemGroups.value.result.queryLength > 0 || unconfirmedOnly.value);
+const searching = computed(
+  () => itemGroups.value.result.queryLength > 0 || activeFilter.value !== null,
+);
 const noResults = computed(() => searching.value && itemGroups.value.result.visible === 0);
 const showUnconfirmedFilter = computed(
   () => props.parcel.status === "draft" && (unconfirmedItems.value > 0 || unconfirmedOnly.value),
+);
+const showUnweightedFilter = computed(
+  () => props.parcel.status === "received" && (unweightedItems.value > 0 || unweightedOnly.value),
 );
 
 watch(
@@ -62,6 +79,7 @@ watch(
   () => {
     searchQuery.value = "";
     unconfirmedOnly.value = false;
+    unweightedOnly.value = false;
     closedFolds.value = new Set();
   },
 );
@@ -103,6 +121,7 @@ onScopeDispose(() => {
 function clearSearch(): void {
   searchQuery.value = "";
   unconfirmedOnly.value = false;
+  unweightedOnly.value = false;
 }
 
 function defaultItemStep(status: Parcel["status"]): ItemFormStep {
@@ -160,6 +179,19 @@ function openDelete(itemId: number): void {
       @click="unconfirmedOnly = !unconfirmedOnly"
     >
       Без треков <b>{{ unconfirmedItems }}</b
+      ><span class="item-search__filter-x" aria-hidden="true">×</span>
+    </button>
+    <button
+      v-if="showUnweightedFilter"
+      type="button"
+      id="missingWeightFilter"
+      class="item-search__filter"
+      :class="{ 'is-active': unweightedOnly }"
+      :aria-pressed="unweightedOnly"
+      :title="unweightedOnly ? 'Снять фильтр «Без веса»' : 'Показать товары без веса'"
+      @click="unweightedOnly = !unweightedOnly"
+    >
+      Без веса <b>{{ unweightedItems }}</b
       ><span class="item-search__filter-x" aria-hidden="true">×</span>
     </button>
     <span

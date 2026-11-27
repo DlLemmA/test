@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { seedPaidDraftFixture, seedSmokeData, type AppCache } from "./seed";
+import { seedPaidDraftFixture, seedSmokeData, seedUnweighedFixture, type AppCache } from "./seed";
 
 test.beforeEach(async ({ page }) => {
   await seedSmokeData(page);
@@ -231,6 +231,27 @@ test("toggling track confirmation keeps the detail scroll position", async ({ pa
   expect(
     await page.evaluate(() => (window as unknown as { refreshBarSeen?: boolean }).refreshBarSeen),
   ).toBe(true);
+});
+
+test("received parcels filter items without weight", async ({ page }) => {
+  await seedUnweighedFixture(page);
+  await page.goto("/#/parcel/2");
+
+  const pill = page.locator("#missingWeightFilter");
+  await expect(pill).toBeVisible();
+  await expect(pill.locator("b")).toHaveText("1");
+  await expect(pill).toHaveAttribute("aria-pressed", "false");
+
+  await pill.click();
+  await expect(pill).toHaveAttribute("aria-pressed", "true");
+  const rows = page.locator("#parcelItemsList .item-entry");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Товар Кати");
+  await expect(page.locator("#parcelItemSearchCount")).toContainText("1 товар без веса из 2");
+
+  await pill.click();
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator("#parcelItemSearchCount")).toBeHidden();
 });
 
 test("state checkboxes fit a narrow ledger", async ({ page }) => {

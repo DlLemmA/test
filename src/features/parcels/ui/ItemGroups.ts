@@ -7,15 +7,23 @@
 import { t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
-import type { Parcel, ParcelItem } from "../domain";
+import {
+  itemsWithMissingWeights,
+  itemsWithUnconfirmedTracks,
+  type Parcel,
+  type ParcelItem,
+} from "../domain";
 import { parcelItemStatusInfo } from "./ParcelStatusInfo";
 import { FOUND_FORMS, ITEM_BARE_FORMS } from "./ParcelPresentation";
+
+/** Which "missing facts" pill is active; null means only the text query applies. */
+export type MissingFilter = "tracks" | "weights" | null;
 
 export type ItemGroupsSearchResult = {
   visible: number;
   total: number;
   queryLength: number;
-  missingOnly: boolean;
+  filter: MissingFilter;
 };
 
 export interface ItemRowView {
@@ -24,6 +32,8 @@ export interface ItemRowView {
   searchText: string;
   /** Draft item whose "Треки заполнены" checkbox is still unchecked. */
   needsTrackConfirmation: boolean;
+  /** Received tracked item whose weights do not allow finishing yet. */
+  needsWeight: boolean;
 }
 
 export interface ItemGroupView {
@@ -45,10 +55,12 @@ export function buildItemGroups(
   customers: Customer[],
   parcelStatus: Parcel["status"],
   query: string,
-  missingOnly: boolean,
+  filter: MissingFilter = null,
 ): ItemGroupsView {
   const tokens = query.trim().toLocaleLowerCase("ru-RU").split(/\s+/).filter(Boolean);
-  const searching = tokens.length > 0 || missingOnly;
+  const searching = tokens.length > 0 || filter !== null;
+  const unconfirmedIds = new Set(itemsWithUnconfirmedTracks(items).map((item) => item.id));
+  const missingWeightIds = new Set(itemsWithMissingWeights(items).map((item) => item.id));
   const customerMap = new Map(customers.map((customer) => [customer.id, customer]));
   const grouped = new Map<number, ParcelItem[]>();
 
@@ -81,14 +93,16 @@ export function buildItemGroups(
         item,
         position: position++,
         searchText,
-        needsTrackConfirmation: parcelStatus === "draft" && !item.tracksCompleted,
+        needsTrackConfirmation: parcelStatus === "draft" && unconfirmedIds.has(item.id),
+        needsWeight: parcelStatus === "received" && missingWeightIds.has(item.id),
       };
     });
-    const visibleRows = rows.filter(
-      (row) =>
-        tokens.every((token) => row.searchText.includes(token)) &&
-        (!missingOnly || row.needsTrackConfirmation),
-    );
+    const visibleRows = rows.filter((row) => {
+      if (!tokens.every((token) => row.searchText.includes(token))) return false;
+      if (filter === "tracks") return row.needsTrackConfirmation;
+      if (filter === "weights") return row.needsWeight;
+      return true;
+    });
     if (searching && visibleRows.length === 0) continue;
     visible += visibleRows.length;
     groups.push({
@@ -103,13 +117,16 @@ export function buildItemGroups(
 
   return {
     groups,
-    result: { visible, total: items.length, queryLength: tokens.length, missingOnly },
+    result: { visible, total: items.length, queryLength: tokens.length, filter },
   };
 }
 
 export function itemSearchCountText(result: ItemGroupsSearchResult): string {
-  const { visible, total, queryLength, missingOnly } = result;
-  if (queryLength === 0 && !missingOnly) return "";
-  if (queryLength === 0) return `${t(ITEM_BARE_FORMS, visible)} без треков из ${total}`;
+  const { visible, total, queryLength, filter } = result;
+  if (queryLength === 0 && filter === null) return "";
+  if (queryLength === 0) {
+    const missing = filter === "weights" ? "веса" : "треков";
+    return `${t(ITEM_BARE_FORMS, visible)} без ${missing} из ${total}`;
+  }
   return `${t(FOUND_FORMS, visible)} ${visible} из ${total}`;
 }

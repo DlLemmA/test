@@ -63,6 +63,13 @@ export function itemWeightState(item: ParcelItem): ItemWeightState {
   };
 }
 
+/** Tracked items whose missing weights would block finishing; lost goods are exempt. */
+export function itemsWithMissingWeights(items: ParcelItem[]): ParcelItem[] {
+  return items.filter(
+    (item) => item.status !== "lost" && item.trackNumbers.length > 0 && !itemWeightState(item).ok,
+  );
+}
+
 function issue(reason: ReadinessReason, itemIds: number[] = []): ReadinessIssue {
   return { reason, itemIds };
 }
@@ -73,11 +80,7 @@ function result(issues: ReadinessIssue[]): Readiness {
 
 export function parcelReadiness(parcel: Parcel, items: ParcelItem[]): ParcelReadiness {
   const unconfirmed = itemsWithUnconfirmedTracks(items).map((item) => item.id);
-  const unweighed = items
-    .filter(
-      (item) => item.status !== "lost" && item.trackNumbers.length > 0 && !itemWeightState(item).ok,
-    )
-    .map((item) => item.id);
+  const unweighed = itemsWithMissingWeights(items).map((item) => item.id);
 
   const ship: ReadinessIssue[] = [];
   if (parcel.status !== "draft") ship.push(issue("wrongStatus"));
