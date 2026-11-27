@@ -62,10 +62,10 @@ function hasTracks(row: ItemRowView): boolean {
     v-for="row in props.rows"
     :key="row.item.id"
     class="item parcel-entry item-entry"
-    :class="{ 'is-missing-tracks': row.needsTracks }"
+    :class="{ 'is-missing-tracks': row.needsTrackConfirmation }"
     :data-status="row.item.status"
     :data-search="row.searchText"
-    :data-needs-tracks="String(row.needsTracks)"
+    :data-needs-tracks="String(row.needsTrackConfirmation)"
     :data-self="String(props.isSelf)"
   >
     <div class="parcel-entry__body min-w-0">

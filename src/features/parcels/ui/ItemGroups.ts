@@ -7,7 +7,7 @@
 import { t } from "@/core/utils";
 import type { Customer } from "@/features/customers/domain";
 import { customerLabel } from "@/features/customers/ui/CustomerPresentation";
-import { itemTrackState, type Parcel, type ParcelItem } from "../domain";
+import type { Parcel, ParcelItem } from "../domain";
 import { parcelItemStatusInfo } from "./ParcelStatusInfo";
 import { FOUND_FORMS, ITEM_BARE_FORMS } from "./ParcelPresentation";
 
@@ -22,7 +22,8 @@ export interface ItemRowView {
   item: ParcelItem;
   position: number;
   searchText: string;
-  needsTracks: boolean;
+  /** Draft item whose "Треки заполнены" checkbox is still unchecked. */
+  needsTrackConfirmation: boolean;
 }
 
 export interface ItemGroupView {
@@ -80,13 +81,13 @@ export function buildItemGroups(
         item,
         position: position++,
         searchText,
-        needsTracks: parcelStatus === "draft" && itemTrackState(item).state === "none",
+        needsTrackConfirmation: parcelStatus === "draft" && !item.tracksCompleted,
       };
     });
     const visibleRows = rows.filter(
       (row) =>
         tokens.every((token) => row.searchText.includes(token)) &&
-        (!missingOnly || row.needsTracks),
+        (!missingOnly || row.needsTrackConfirmation),
     );
     if (searching && visibleRows.length === 0) continue;
     visible += visibleRows.length;

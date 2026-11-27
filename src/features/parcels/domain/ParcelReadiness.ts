@@ -48,8 +48,9 @@ export function itemTrackState(item: ParcelItem): ItemTrackState {
   return { filled, needed, state };
 }
 
-export function itemsWithoutTracks(items: ParcelItem[]): number {
-  return items.filter((item) => itemTrackState(item).state === "none").length;
+/** Items still waiting for the manual "Треки заполнены" confirmation. */
+export function itemsWithUnconfirmedTracks(items: ParcelItem[]): ParcelItem[] {
+  return items.filter((item) => !item.tracksCompleted);
 }
 
 export function itemWeightState(item: ParcelItem): ItemWeightState {
@@ -71,7 +72,7 @@ function result(issues: ReadinessIssue[]): Readiness {
 }
 
 export function parcelReadiness(parcel: Parcel, items: ParcelItem[]): ParcelReadiness {
-  const unconfirmed = items.filter((item) => !item.tracksCompleted).map((item) => item.id);
+  const unconfirmed = itemsWithUnconfirmedTracks(items).map((item) => item.id);
   const unweighed = items
     .filter(
       (item) => item.status !== "lost" && item.trackNumbers.length > 0 && !itemWeightState(item).ok,

@@ -4,7 +4,7 @@ import { emptyCustomerBalance, type CustomerBalance } from "@/features/balances/
 import type { Customer } from "@/features/customers/domain";
 import type { SettlementFacts } from "@/features/settlement/domain";
 import AppIcon from "@/features/shared/ui/AppIcon.vue";
-import { itemsWithoutTracks, type Parcel, type ParcelItem } from "../domain";
+import { itemsWithUnconfirmedTracks, type Parcel, type ParcelItem } from "../domain";
 import { buildItemGroups, itemSearchCountText } from "./ItemGroups";
 import ParcelCustomer from "./ParcelCustomer.vue";
 import ParcelCustomerItems from "./ParcelCustomerItems.vue";
@@ -33,13 +33,13 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = shallowRef("");
-const missingTracksOnly = shallowRef(false);
+const unconfirmedOnly = shallowRef(false);
 const closedFolds = shallowRef<ReadonlySet<number>>(new Set());
 const countText = shallowRef("");
 let countTimer: ReturnType<typeof setTimeout> | null = null;
 
-const missingTracks = computed(() =>
-  props.parcel.status === "draft" ? itemsWithoutTracks(props.items) : 0,
+const unconfirmedItems = computed(() =>
+  props.parcel.status === "draft" ? itemsWithUnconfirmedTracks(props.items).length : 0,
 );
 
 const itemGroups = computed(() =>
@@ -48,22 +48,20 @@ const itemGroups = computed(() =>
     props.customers,
     props.parcel.status,
     searchQuery.value,
-    missingTracksOnly.value,
+    unconfirmedOnly.value,
   ),
 );
-const searching = computed(
-  () => itemGroups.value.result.queryLength > 0 || missingTracksOnly.value,
-);
+const searching = computed(() => itemGroups.value.result.queryLength > 0 || unconfirmedOnly.value);
 const noResults = computed(() => searching.value && itemGroups.value.result.visible === 0);
-const showMissingFilter = computed(
-  () => props.parcel.status === "draft" && (missingTracks.value > 0 || missingTracksOnly.value),
+const showUnconfirmedFilter = computed(
+  () => props.parcel.status === "draft" && (unconfirmedItems.value > 0 || unconfirmedOnly.value),
 );
 
 watch(
   () => props.parcel.id,
   () => {
     searchQuery.value = "";
-    missingTracksOnly.value = false;
+    unconfirmedOnly.value = false;
     closedFolds.value = new Set();
   },
 );
@@ -104,7 +102,7 @@ onScopeDispose(() => {
 
 function clearSearch(): void {
   searchQuery.value = "";
-  missingTracksOnly.value = false;
+  unconfirmedOnly.value = false;
 }
 
 function defaultItemStep(status: Parcel["status"]): ItemFormStep {
@@ -152,16 +150,16 @@ function openDelete(itemId: number): void {
       />
     </span>
     <button
-      v-if="showMissingFilter"
+      v-if="showUnconfirmedFilter"
       type="button"
       id="missingTracksFilter"
       class="item-search__filter"
-      :class="{ 'is-active': missingTracksOnly }"
-      :aria-pressed="missingTracksOnly"
-      :title="missingTracksOnly ? 'Снять фильтр «Без треков»' : 'Показать товары без треков'"
-      @click="missingTracksOnly = !missingTracksOnly"
+      :class="{ 'is-active': unconfirmedOnly }"
+      :aria-pressed="unconfirmedOnly"
+      :title="unconfirmedOnly ? 'Снять фильтр «Без треков»' : 'Показать товары без треков'"
+      @click="unconfirmedOnly = !unconfirmedOnly"
     >
-      Без треков <b>{{ missingTracks }}</b
+      Без треков <b>{{ unconfirmedItems }}</b
       ><span class="item-search__filter-x" aria-hidden="true">×</span>
     </button>
     <span

@@ -5,7 +5,7 @@ import { ParcelItem } from "./ParcelItem";
 import {
   itemTrackState,
   itemWeightState,
-  itemsWithoutTracks,
+  itemsWithUnconfirmedTracks,
   parcelReadiness,
 } from "./ParcelReadiness";
 
@@ -105,10 +105,14 @@ describe("item readiness facts", () => {
     expect(itemTrackState(item(4, { tracksCompletedAt: "2026-11-23" })).state).toBe("confirmed");
   });
 
-  it("counts only filled tracks for the zero-track filter", () => {
-    expect(
-      itemsWithoutTracks([item(1, { trackNumbers: [] }), item(2, { trackNumbers: ["A", ""] })]),
-    ).toBe(1);
+  it("counts items with unconfirmed tracks, even when track numbers exist", () => {
+    const unconfirmed = itemsWithUnconfirmedTracks([
+      item(1, { trackNumbers: [] }),
+      item(2, { trackNumbers: ["A"] }),
+      item(3, { trackNumbers: ["B"], tracksCompletedAt: "2026-11-23" }),
+    ]);
+
+    expect(unconfirmed.map((entry) => entry.id)).toEqual([1, 2]);
   });
 
   it("requires a positive weight for every track position", () => {
