@@ -45,6 +45,9 @@ const router = useRouter();
 
 const statement = shallowRef<ParcelStatement | null>(null);
 const phase = shallowRef<"loading" | "ready" | "error">("loading");
+/** Refetch keeps the rendered statement; only the thin top bar shows progress. */
+const refreshing = shallowRef(false);
+let quietLoads = 0;
 /** Row-level failures stay next to the action; toasts are for confirmations. */
 const actionError = shallowRef("");
 const retryAction = shallowRef<(() => void) | null>(null);
@@ -77,14 +80,19 @@ function retryFailed(): void {
 const loadScope = new AbortController();
 onScopeDispose(() => loadScope.abort());
 
-async function load(): Promise<void> {
+async function load(options: { showLoading?: boolean } = {}): Promise<void> {
   const parcelId = Number(route.params.parcelId);
   if (!Number.isInteger(parcelId) || parcelId <= 0) {
     void router.push({ name: "parcels" });
     return;
   }
   uiState.setCurrentParcelId(parcelId);
-  phase.value = "loading";
+  const showLoading = options.showLoading !== false;
+  if (showLoading) phase.value = "loading";
+  else {
+    quietLoads += 1;
+    refreshing.value = true;
+  }
   try {
     const result = await getParcelStatement(parcelId);
     if (loadScope.signal.aborted) return;
@@ -98,12 +106,17 @@ async function load(): Promise<void> {
   } catch (error) {
     if (!loadScope.signal.aborted) phase.value = "error";
     console.error(error);
+  } finally {
+    if (!showLoading) quietLoads = Math.max(0, quietLoads - 1);
+    if (quietLoads === 0) refreshing.value = false;
   }
 }
 onMounted(load);
 
 function refresh(): void {
-  void load();
+  // Keep an already rendered statement on screen: swapping in the loading
+  // skeleton unmounts the detail subtree and collapses the scroller to 0.
+  void load({ showLoading: phase.value !== "ready" });
 }
 
 /** Mirror one checkbox change into every fact derived from the statement. */
@@ -395,6 +408,12 @@ async function confirmDelete(): Promise<void> {
 
 <template>
   <div class="page page-parcel-detail">
+    <div
+      v-if="refreshing && phase === 'ready'"
+      class="detail-refresh-bar"
+      role="progressbar"
+      aria-label="Обновление данных"
+    />
     <ScreenState
       v-if="phase === 'loading'"
       kind="loading"
@@ -559,6 +578,40 @@ async function confirmDelete(): Promise<void> {
   container: ledger / inline-size;
   gap: 4px;
   padding-top: 4px;
+}
+/* Refetch progress is an overlay: it must not add height or move the scroller. */
+.detail-refresh-bar {
+  position: fixed;
+  z-index: 40;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 2px;
+  overflow: hidden;
+  background: var(--color-accent-line);
+  pointer-events: none;
+}
+.detail-refresh-bar::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inline-size: 35%;
+  background: var(--color-accent);
+  animation: detail-refresh-sweep 900ms ease-in-out infinite;
+}
+@keyframes detail-refresh-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail-refresh-bar::after {
+    inline-size: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
 }
 .detail-topbar__actions {
   display: flex;

@@ -195,6 +195,44 @@ test("draft rows offer tracks and payment; received rows show weight", async ({ 
   await expect(page.locator("input[name='tracksCompleted']")).toBeEnabled();
 });
 
+test("toggling track confirmation keeps the detail scroll position", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 480 });
+  await page.goto("/#/parcel/2");
+  await page.evaluate(async () => {
+    const cache = (window as unknown as { appCache: AppCache }).appCache;
+    await cache.parcels.update(2, { status: "draft" });
+  });
+  await page.reload();
+
+  const checkbox = page.locator('[data-toggle-tracks="11"]');
+  await expect(checkbox).toBeChecked();
+
+  const main = page.locator("#main-content");
+  await main.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const scrollTop = await main.evaluate((element) => element.scrollTop);
+  expect(scrollTop, "detail must be scrollable before the toggle").toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    const seen = window as unknown as { refreshBarSeen?: boolean };
+    seen.refreshBarSeen = false;
+    const panel = document.querySelector("#panel-container");
+    if (!panel) return;
+    new MutationObserver(() => {
+      if (document.querySelector(".detail-refresh-bar")) seen.refreshBarSeen = true;
+    }).observe(panel, { childList: true, subtree: true });
+  });
+
+  await checkbox.uncheck();
+  await expect(checkbox).not.toBeChecked();
+
+  expect(await main.evaluate((element) => element.scrollTop)).toBe(scrollTop);
+  expect(
+    await page.evaluate(() => (window as unknown as { refreshBarSeen?: boolean }).refreshBarSeen),
+  ).toBe(true);
+});
+
 test("state checkboxes fit a narrow ledger", async ({ page }) => {
   await page.goto("/#/parcel/2");
   await page.evaluate(async () => {
